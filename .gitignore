@@ -2,3 +2,9 @@ dockerCmd.md
 
 # Compiled Object files
 ./build
+
+# vscode
+.vscode
+
+# CMake build files
+build
