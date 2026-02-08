@@ -55,10 +55,11 @@ TabWidth: 4
 # 使用空格代替TAB
 UseTab: Never
 
-
-
 # 控制函数参数列表的对齐方式，允许形参在新行对齐
 AlignAfterOpenBracket: Align
 
 # 命名空间结尾注释
 NamespaceComments: true
+
+# 指针和引用位置
+PointerAlignment: Right  # 指针和引用符号靠近类型

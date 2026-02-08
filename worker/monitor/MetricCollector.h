@@ -1,3 +1,12 @@
+/*
+ * @Author: harry
+ * @Date: 2026-02-08 23:47:48
+ * @Version: 1.0
+ * @LastEditors: harry
+ * @LastEditTime: 2026-02-09 00:37:54
+ * @Description:
+ * @FilePath: /monitor-system/worker/monitor/MetricCollector.h
+ */
 #pragma once
 
 #include <vector>
@@ -14,7 +23,13 @@ public:
     MetricCollector() = default;
     ~MetricCollector() = default;
 
-    void collectAll(monitor::proto::MonitorInfo &info);
+    /**
+     * @brief 采集所有指标并填充到 MonitorInfo
+     * @param[in] &info
+     * @return
+     */
+    void collectAll(monitor::proto::MonitorInfo *info);
+
 private:
     std::vector<std::unique_ptr<MonitorInter>> monitors_;
     std::string hostname_;
