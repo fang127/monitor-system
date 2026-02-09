@@ -1,11 +1,7 @@
-/*
- * @Author: harry
- * @Date: 2026-02-08 23:47:48
- * @Version: 1.0
- * @LastEditors: harry
- * @LastEditTime: 2026-02-09 00:37:54
- * @Description:
- * @FilePath: /monitor-system/worker/monitor/MetricCollector.h
+/*!
+ * @file          CpuLoadMonitor.h
+ * @author        harry
+ * @date          2026-02-09
  */
 #pragma once
 
@@ -13,15 +9,15 @@
 #include <string>
 #include <memory>
 
-#include "monitor/MonitorInter.h"
+#include "MonitorInter.h"
 
 namespace monitor
 {
 class MetricCollector
 {
 public:
-    MetricCollector() = default;
-    ~MetricCollector() = default;
+    MetricCollector();
+    ~MetricCollector();
 
     /**
      * @brief 采集所有指标并填充到 MonitorInfo

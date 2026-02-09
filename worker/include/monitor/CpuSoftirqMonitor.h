@@ -1,11 +1,7 @@
-/*
- * @Author: harry
- * @Date: 2026-02-09 00:14:09
- * @Version: 1.0
- * @LastEditors: harry
- * @LastEditTime: 2026-02-09 00:37:37
- * @Description:
- * @FilePath: /monitor-system/worker/monitor/CpuSoftirqMonitor.h
+/*!
+ * @file          CpuLoadMonitor.h
+ * @author        harry
+ * @date          2026-02-09
  */
 #pragma once
 
@@ -13,7 +9,7 @@
 #include <string>
 #include <unordered_map>
 
-#include "monitor/MonitorInter.h"
+#include "MonitorInter.h"
 
 namespace monitor
 {

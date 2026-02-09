@@ -1,16 +1,12 @@
-/*
- * @Author: harry
- * @Date: 2026-02-09 00:26:23
- * @Version: 1.0
- * @LastEditors: harry
- * @LastEditTime: 2026-02-09 00:37:50
- * @Description:
- * @FilePath: /monitor-system/worker/monitor/HostInfoMonitor.h
+/*!
+ * @file          CpuLoadMonitor.h
+ * @author        harry
+ * @date          2026-02-09
  */
 #pragma once
 
 #include <string>
-#include "monitor/MonitorInter.h"
+#include "MonitorInter.h"
 
 namespace monitor
 {
@@ -36,7 +32,7 @@ public:
     void stop() override {}
 
 private:
-  /**
+    /**
      * @brief 获取主机名
      * @details gethostname() 系统调用
      * @return 主机名字符串
@@ -51,9 +47,9 @@ private:
      */
     std::string getPrimaryIpAddress();
 
-    std::string cachedHostName_;     // 缓存的主机名
-    std::string cachedIp_;           // 缓存的 IP 地址
-    bool infoCached_ = false;        // 是否已缓存（主机信息通常不变）
+    std::string cachedHostName_; // 缓存的主机名
+    std::string cachedIp_;       // 缓存的 IP 地址
+    bool infoCached_ = false; // 是否已缓存（主机信息通常不变）
 };
 
-}  // namespace monitor
+} // namespace monitor

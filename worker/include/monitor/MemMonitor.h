@@ -1,18 +1,14 @@
-/*
- * @Author: harry
- * @Date: 2026-02-09 00:32:28
- * @Version: 1.0
- * @LastEditors: harry
- * @LastEditTime: 2026-02-09 00:37:53
- * @Description:
- * @FilePath: /monitor-system/worker/monitor/MemMonitor.h
+/*!
+ * @file          CpuLoadMonitor.h
+ * @author        harry
+ * @date          2026-02-09
  */
 #pragma once
 
 #include <string>
 #include <unordered_map>
 
-#include "monitor/MonitorInter.h"
+#include "MonitorInter.h"
 #include "monitor_info.pb.h"
 
 namespace monitor
@@ -48,4 +44,4 @@ public:
     void stop() override {}
 };
 
-}  // namespace monitor
+} // namespace monitor

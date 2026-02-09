@@ -1,11 +1,7 @@
-/*
- * @Author: harry
- * @Date: 2026-02-06 01:10:50
- * @Version: 1.0
- * @LastEditors: harry
- * @LastEditTime: 2026-02-09 00:38:02
- * @Description:
- * @FilePath: /monitor-system/worker/monitor/MonitorInter.h
+/*!
+ * @file          CpuLoadMonitor.h
+ * @author        harry
+ * @date          2026-02-09
  */
 #pragma once
 
@@ -18,12 +14,13 @@ class MonitorInter
 public:
     MonitorInter() = default;
     virtual ~MonitorInter() = default;
-    /**
-     * @brief 更新监控信息
-     * @param[in] info
-     * @return
+    /*!
+     * @brief         更新监控数据
+     *
+     * @param         info 监控数据
+     * @attention
      */
-    virtual void updateOnce(monitor::proto::MonitorInfo &info) = 0;
+    virtual void updateOnce(monitor::proto::MonitorInfo *info) = 0;
     /**
      * @brief 启动监控
      * @return

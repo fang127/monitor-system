@@ -1,18 +1,14 @@
-/*
- * @Author: harry
- * @Date: 2026-02-09 00:23:20
- * @Version: 1.0
- * @LastEditors: harry
- * @LastEditTime: 2026-02-09 00:37:42
- * @Description:
- * @FilePath: /monitor-system/worker/monitor/CpuStatMonitor.h
+/*!
+ * @file          CpuLoadMonitor.h
+ * @author        harry
+ * @date          2026-02-09
  */
 #pragma once
 
 #include <string>
 #include <unordered_map>
 
-#include "monitor/MonitorInter.h"
+#include "MonitorInter.h"
 #include "monitor_info.pb.h"
 
 namespace monitor
@@ -43,4 +39,4 @@ private:
     std::unordered_map<std::string, struct CpuStat> cpuStatMap_;
 };
 
-}  // namespace monitor
+} // namespace monitor

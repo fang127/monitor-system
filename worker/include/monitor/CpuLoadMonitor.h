@@ -1,11 +1,7 @@
-/*
- * @Author: harry
- * @Date: 2026-02-08 23:47:48
- * @Version: 1.0
- * @LastEditors: harry
- * @LastEditTime: 2026-02-09 00:37:30
- * @Description:
- * @FilePath: /monitor-system/worker/monitor/CpuLoadMonitor.h
+/*!
+ * @file          CpuLoadMonitor.h
+ * @author        harry
+ * @date          2026-02-09
  */
 #pragma once
 
@@ -18,6 +14,7 @@ namespace monitor
 {
 class CpuLoadMonitor : public MonitorInter
 {
+public:
     CpuLoadMonitor() {}
     void updateOnce(monitor::proto::MonitorInfo *monitorInfo) override;
     void stop() override {}

@@ -1,11 +1,7 @@
-/*
- * @Author: harry
- * @Date: 2026-02-05 14:32:44
- * @Version: 1.0
- * @LastEditors: harry
- * @LastEditTime: 2026-02-05 14:37:04
- * @Description:
- * @FilePath: /monitor-system/worker/include/rpc/GrpcManagerImpl.h
+/*!
+ * @file          CpuLoadMonitor.h
+ * @author        harry
+ * @date          2026-02-09
  */
 #pragma once
 

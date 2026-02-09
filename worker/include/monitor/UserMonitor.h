@@ -1,16 +1,12 @@
-/*
- * @Author: harry
- * @Date: 2026-02-09 00:46:18
- * @Version: 1.0
- * @LastEditors: harry
- * @LastEditTime: 2026-02-09 00:47:04
- * @Description:
- * @FilePath: /monitor-system/worker/monitor/UserMonitor.h
+/*!
+ * @file          CpuLoadMonitor.h
+ * @author        harry
+ * @date          2026-02-09
  */
 #pragma once
 
 #include <string>
-#include "worker/monitor/MonitorInter.h"
+#include "MonitorInter.h"
 
 namespace monitor
 {
@@ -43,4 +39,4 @@ private:
     std::string getUsernameByUid(uid_t uid);
 };
 
-}  // namespace monitor
+} // namespace monitor

@@ -10,13 +10,10 @@ Language: Cpp
 AlignConsecutiveMacros: AcrossEmptyLinesAndComments
 
 #  对齐尾部注释
-AlignTrailingComments: Leave
+AlignTrailingComments: true
  
 # 访问修饰符偏移 
 AccessModifierOffset: -4 # -4就是public顶格
-
-# 允许短函数在单行上
-AllowShortFunctionsOnASingleLine: Empty
 
  # 允许短语法块在单行上
 AllowShortBlocksOnASingleLine: Empty
@@ -59,7 +56,9 @@ UseTab: Never
 AlignAfterOpenBracket: Align
 
 # 命名空间结尾注释
-NamespaceComments: true
+FixNamespaceComments: true
 
 # 指针和引用位置
+DerivePointerAlignment: false
 PointerAlignment: Right  # 指针和引用符号靠近类型
+ReferenceAlignment: Right

@@ -1,3 +1,12 @@
+<!--
+ * @Author: harry
+ * @Date: 2026-02-09 01:59:25
+ * @Version: 1.0
+ * @LastEditors: harry
+ * @LastEditTime: 2026-02-09 22:17:18
+ * @Description: 
+ * @FilePath: /monitor-system/.gitignore
+-->
 dockerCmd.md
 
 # Compiled Object files
@@ -8,3 +17,6 @@ dockerCmd.md
 
 # CMake build files
 build
+
+# json
+*.json
