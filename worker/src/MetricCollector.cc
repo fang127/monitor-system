@@ -1,9 +1,9 @@
-#include "monitor/MetricCollector.h"
-
 #include <unistd.h>
 #include <memory>
 
-namespcae monitor
+#include "MetricCollector.h"
+
+namespace monitor
 {
-    MetricCollector::Metric
-};
+void MetricCollector::collectAll(monitor::proto::MonitorInfo *monitorInfo) {}
+} // namespace monitor

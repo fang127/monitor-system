@@ -28,7 +28,7 @@ public:
      * @param[in] &info
      * @return
      */
-    void collectAll(monitor::proto::MonitorInfo *info);
+    void collectAll(monitor::proto::MonitorInfo *monitorInfo);
 
 private:
     std::vector<std::unique_ptr<MonitorInter>> monitors_;
