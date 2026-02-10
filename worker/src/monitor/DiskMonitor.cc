@@ -53,7 +53,7 @@ void DiskMonitor::updateOnce(monitor::proto::MonitorInfo *monitor_info)
 
         // 速率/变化率计算
         auto it = lastSamples.find(name);
-        double dt = now - lastSamples[name];
+        double dt = now - lastTime[name];
         if (it != lastSamples.end() && dt > 0)
         {
             const auto &last = it->second;

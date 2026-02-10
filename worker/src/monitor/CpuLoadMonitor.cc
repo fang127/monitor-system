@@ -4,12 +4,10 @@
  * @date          2026-02-09
  */
 #include "CpuLoadMonitor.h"
-#include "monitor_info.pb.h"
 #include "MonitorStructs.h"
 
 #include <cstdio>
 #include <fcntl.h>
-#include <string.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>

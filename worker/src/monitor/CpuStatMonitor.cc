@@ -4,8 +4,8 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <cstring>
-#include "monitorInfo.grpc.pb.h"
-#include "monitorInfo.pb.h"
+#include "monitor_info.grpc.pb.h"
+#include "monitor_info.pb.h"
 
 namespace monitor
 {

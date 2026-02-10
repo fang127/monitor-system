@@ -2,7 +2,6 @@ find_package(Protobuf REQUIRED)
 find_package(c-ares REQUIRED)
 find_package(gRPC REQUIRED)
 # find_package(Threads)
-
 #
 # Protobuf/Grpc source files
 #

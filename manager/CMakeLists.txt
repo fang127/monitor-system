@@ -1,1 +1,1 @@
-find_package(libmysqlclient)
+find_package(libmysqlclient CONFIG REQUIRED)

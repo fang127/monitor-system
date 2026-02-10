@@ -5,8 +5,6 @@
  */
 #pragma once
 
-#include <string>
-
 #include "MonitorInter.h"
 #include "monitor_info.pb.h"
 

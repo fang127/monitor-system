@@ -62,3 +62,9 @@ FixNamespaceComments: true
 DerivePointerAlignment: false
 PointerAlignment: Right  # 指针和引用符号靠近类型
 ReferenceAlignment: Right
+
+# 允许在单行上自动移除花括号
+RemoveBracesLLVM: true
+
+# 重新格式化注释文本以适应行宽限制
+ReflowComments: true

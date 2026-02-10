@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <fstream>
 #include <sstream>
-#include "monitorInfo.pb.h"
+#include "monitor_info.pb.h"
 
 namespace monitor
 {
