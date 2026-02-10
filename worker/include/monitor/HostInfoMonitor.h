@@ -40,8 +40,7 @@ private:
     std::string getHostname();
 
     /**
-     * @brief 获取主网卡 IP 地址
-     * @description:遍历 /sys/class/net/ 目录，过滤 lo
+     * @brief 获取主网卡 IP 地址。遍历 /sys/class/net/ 目录，过滤 lo
      * 和虚拟网卡，获取第一个物理网卡的 IPv4 地址
      * @return IP 地址字符串
      */
@@ -49,7 +48,7 @@ private:
 
     std::string cachedHostName_; // 缓存的主机名
     std::string cachedIp_;       // 缓存的 IP 地址
-    bool infoCached_ = false; // 是否已缓存（主机信息通常不变）
+    bool infoCached_ = false;    // 是否已缓存（主机信息通常不变）
 };
 
 } // namespace monitor
