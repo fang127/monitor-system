@@ -45,8 +45,8 @@ void CpuLoadMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo)
         void *addr = mmap(nullptr, loadSize, PROT_READ, MAP_SHARED, fd, 0);
         if (addr != MAP_FAILED)
         {
-            struct cpu_load *info;
-            memcpy(&info, addr, loadSize);
+            struct cpu_load *info = new cpu_load();
+            memcpy(static_cast<void *>(info), addr, loadSize);
             auto cpuLoadMsg = monitorInfo->mutable_cpu_load();
             cpuLoadMsg->set_load_avg_1(info->load_avg_1);
             cpuLoadMsg->set_load_avg_3(info->load_avg_3);

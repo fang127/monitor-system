@@ -27,6 +27,7 @@ if(ENABLE_EBPF)
 endif()
 
 set(WORKER_SRC
+    src/main.cc
     src/monitor/MetricCollector.cc
     src/monitor/CpuLoadMonitor.cc
     src/monitor/CpuSoftirqMonitor.cc
@@ -34,6 +35,7 @@ set(WORKER_SRC
     src/monitor/MemMonitor.cc
     src/monitor/DiskMonitor.cc
     src/monitor/HostInfoMonitor.cc
+    src/rpc/MonitorPusher.cc
     src/utils/ReadFile.cc
 )
 
