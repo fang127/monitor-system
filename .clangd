@@ -1,2 +1,6 @@
 Documentation:
   CommentFormat: Doxygen
+
+CompileFlags:
+  Add: -std=c++17
+  compiler: g++
