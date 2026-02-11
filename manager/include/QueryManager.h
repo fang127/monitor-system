@@ -1,14 +1,14 @@
 #pragma once
 
-#include <limits>
 #include <string>
-#include "query_api.pb.h"
 
 #include <mysql.h>
 #include <chrono>
 #include <string>
 #include <mutex>
+#include <vector>
 
+#define ENABLE_MYSQL
 namespace monitor
 {
 /**
@@ -25,7 +25,7 @@ enum class SortOrder
  * @brief         service status
  *
  */
-enum class ServeStatus
+enum class ServerStatus
 {
     ONLINE = 0,
     OFFLINE = 1,
@@ -124,10 +124,10 @@ struct ServerScoreSummary
     std::string server_name; // name of the server
     float score = 0.0f;      // overall performance score
     std::chrono::system_clock::time_point
-        last_updated;                         // timestamp of the last update
-    ServeStatus status = ServeStatus::ONLINE; // current status of the server
-    float cpu_percent = 0.0f;                 // current CPU usage percentage
-    float mem_used_percent = 0.0f;            // current memory usage percentage
+        last_updated;                           // timestamp of the last update
+    ServerStatus status = ServerStatus::ONLINE; // current status of the server
+    float cpu_percent = 0.0f;                   // current CPU usage percentage
+    float mem_used_percent = 0.0f;  // current memory usage percentage
     float disk_util_percent = 0.0f; // current disk utilization percentage
     float load_avg_1 = 0.0f;        // current 1-minute load average
 };
@@ -232,8 +232,187 @@ struct SoftIrqDetailRecord
 class QueryManager
 {
 public:
+    QueryManager() = default;
+    ~QueryManager() { close(); }
+
+    /**
+     * @brief         initialize the QueryManager with database connection
+     * parameters
+     *
+     * @param         host database host address
+     * @param         user database username
+     * @param         password database password
+     * @param         db database name
+     * @return        true if initialization is successful, false otherwise
+     */
+    bool init(const std::string &host, const std::string &user,
+              const std::string &password, const std::string &db);
+
+    /**
+     * @brief         close the database connection and clean up resources
+     *
+     */
+    void close();
+
+    /**
+     * @brief         validate the given time range for querying metrics
+     *
+     * @param         range time range to validate
+     * @return        true if the time range is valid, false otherwise
+     */
+    bool validateTimeRange(const TimeRange &range) const;
+
+    /**
+     * @brief         query performance records for a specific server within a
+     * given time
+     *
+     * @param         serverName server name
+     * @param         range time range for querying
+     * @param         page mysql page number
+     * @param         pageSize number of records per page
+     * @param         totalCount pointer to store total count of records
+     * @return        std::vector<PerformanceRecord>
+     */
+    std::vector<PerformanceRecord> queryPerformanceRecords(
+        const std::string &serverName, const TimeRange &range, int page,
+        int pageSize, int *totalCount);
+
+    /**
+     * @brief         query trend data for a specific server over a given time
+     * range
+     *
+     * @param         serverName
+     * @param         range
+     * @param         intervalSeconds
+     * @return        trend data as a vector of PerformanceRecord
+     */
+    std::vector<PerformanceRecord> queryTrend(const std::string &serverName,
+                                              const TimeRange &range,
+                                              int intervalSeconds);
+
+    /**
+     * @brief         query anomaly records for a specific server within a given
+     * time
+     *
+     * @param         serverName
+     * @param         range
+     * @param         threshold
+     * @param         page
+     * @param         pageSize
+     * @param         totalCount
+     * @return
+     */
+    std::vector<AnomalyRecord> queryAnomalyRecords(
+        const std::string &serverName, const TimeRange &range,
+        const AnomalyThreshold &threshold, int page, int pageSize,
+        int *totalCount);
+
+    /**
+     * @brief         query server score summaries with pagination and sorting
+     *
+     * @param         order
+     * @param         page
+     * @param         pageSize
+     * @param         totalCount
+     * @return
+     */
+    std::vector<ServerScoreSummary> queryServerScoreRank(SortOrder order,
+                                                         int page, int pageSize,
+                                                         int *totalCount);
+
+    /**
+     * @brief         query latest server scores and cluster statistics
+     *
+     * @param         clusterStats
+     * @return
+     */
+    std::vector<ServerScoreSummary> queryLatestServerScores(
+        ClusterStats *clusterStats);
+
+    /**
+     * @brief         query net statistics
+     *
+     * @param         serverName
+     * @param         range
+     * @param         page
+     * @param         pageSize
+     * @param         totalCount
+     * @return
+     */
+    std::vector<NetDetailRecord> queryNetDetailRecords(
+        const std::string &serverName, const TimeRange &range, int page,
+        int pageSize, int *totalCount);
+
+    /**
+     * @brief         query disk statistics
+     *
+     * @param         serverName
+     * @param         range
+     * @param         page
+     * @param         pageSize
+     * @param         totalCount
+     * @return
+     */
+    std::vector<DiskDetailRecord> queryDiskDetailRecords(
+        const std::string &serverName, const TimeRange &range, int page,
+        int pageSize, int *totalCount);
+
+    /**
+     * @brief         query memory statistics
+     *
+     * @param         serverName
+     * @param         range
+     * @param         page
+     * @param         pageSize
+     * @param         totalCount
+     * @return
+     */
+    std::vector<MemDetailRecord> queryMemDetailRecords(
+        const std::string &serverName, const TimeRange &range, int page,
+        int pageSize, int *totalCount);
+
+    /**
+     * @brief         query soft IRQ statistics
+     *
+     * @param         serverName
+     * @param         range
+     * @param         page
+     * @param         pageSize
+     * @param         totalCount
+     * @return
+     */
+    std::vector<SoftIrqDetailRecord> querySoftIrqDetailRecords(
+        const std::string &serverName, const TimeRange &range, int page,
+        int pageSize, int *totalCount);
+
 private:
-#ifdef MYSQL_ENABLE
+    /**
+     * @brief         format a time_point to a string suitable for SQL queries
+     *
+     * @param         tp
+     * @return
+     */
+    std::string formatTimePoint(
+        const std::chrono::system_clock::time_point &tp) const;
+
+    /**
+     * @brief         parse a time string from SQL query results to a time_point
+     *
+     * @param         timeStr
+     * @return
+     */
+    std::chrono::system_clock::time_point parseTimeString(
+        const std::string &timeStr) const;
+
+    /**
+     * @brief         Get the Total Count object
+     *
+     * @param         countQuery
+     * @return
+     */
+    int getTotalCount(const std::string &countQuery);
+
+#ifdef ENABLE_MYSQL
     MYSQL *conn_; // MySQL connection handle
 #endif
     std::mutex mutex_;

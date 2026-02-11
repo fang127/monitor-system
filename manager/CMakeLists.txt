@@ -17,7 +17,6 @@ set(MANAGER_LIBS
 )
 
 if(ENABLE_MYSQL)
-    target_link_libraries(manager PUBLIC libmysqlclient::libmysqlclient)
     list(APPEND MANAGER_LIBS libmysqlclient::libmysqlclient)
 endif()
 
