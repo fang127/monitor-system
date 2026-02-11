@@ -432,7 +432,7 @@ std::vector<AnomalyRecord> QueryManager::queryAnomalyRecords(
             rec.metric_name = metric;
             rec.value = value;
             rec.threshold = threshold;
-            // 判断严重程度
+            // Determine severity based on how much it exceeds the threshold
             if (type == "CPU_HIGH" && value > 95)
                 rec.severity = "CRITICAL";
             else if (type == "MEM_HIGH" && value > 95)
@@ -602,7 +602,8 @@ std::vector<ServerScoreSummary> QueryManager::queryLatestServerScores(
         rec.disk_util_percent = row[5] ? std::atof(row[5]) : 0;
         rec.load_avg_1 = row[6] ? std::atof(row[6]) : 0;
 
-        // 判断在线状态（60秒阈值）
+        // Determine server status based on last update time (e.g., if no update
+        // for more than 60 seconds, consider it offline)
         auto age = std::chrono::duration_cast<std::chrono::seconds>(
                        now - rec.last_updated)
                        .count();
@@ -613,7 +614,7 @@ std::vector<ServerScoreSummary> QueryManager::queryLatestServerScores(
         else
             offlineCount++;
 
-        // 统计
+        // Accumulate stats for cluster summary
         totalScore += rec.score;
         if (rec.score > maxScore)
         {
@@ -666,14 +667,14 @@ std::vector<NetDetailRecord> QueryManager::queryNetDetailRecords(
     std::string startTime = formatTimePoint(range.start_time);
     std::string endTime = formatTimePoint(range.end_time);
 
-    // 获取总数
+    // get total count of records
     std::ostringstream countQuery;
     countQuery << "SELECT COUNT(*) FROM server_net_detail WHERE server_name='"
                << serverName << "' AND timestamp BETWEEN '" << startTime
                << "' AND '" << endTime << "'";
     if (totalCount) *totalCount = getTotalCount(countQuery.str());
 
-    // 查询数据
+    // query net detail records with pagination
     int offset = (page - 1) * pageSize;
     std::ostringstream query;
     query << "SELECT server_name, net_name, timestamp, err_in, err_out, "
@@ -750,14 +751,12 @@ std::vector<DiskDetailRecord> QueryManager::queryDiskDetailRecords(
     std::string startTime = formatTimePoint(range.start_time);
     std::string endTime = formatTimePoint(range.end_time);
 
-    // 获取总数
     std::ostringstream count_sql;
     count_sql << "SELECT COUNT(*) FROM server_disk_detail WHERE server_name='"
               << serverName << "' AND timestamp BETWEEN '" << startTime
               << "' AND '" << endTime << "'";
     if (totalCount) *totalCount = getTotalCount(count_sql.str());
 
-    // 查询数据
     int offset = (page - 1) * pageSize;
     std::ostringstream query;
     query << "SELECT server_name, disk_name, timestamp, read_bytes_per_sec, "
@@ -832,14 +831,12 @@ std::vector<MemDetailRecord> QueryManager::queryMemDetailRecords(
     std::string startTime = formatTimePoint(range.start_time);
     std::string endTime = formatTimePoint(range.end_time);
 
-    // 获取总数
     std::ostringstream count_sql;
     count_sql << "SELECT COUNT(*) FROM server_mem_detail WHERE server_name='"
               << serverName << "' AND timestamp BETWEEN '" << startTime
               << "' AND '" << endTime << "'";
     if (totalCount) *totalCount = getTotalCount(count_sql.str());
 
-    // 查询数据
     int offset = (page - 1) * pageSize;
     std::ostringstream query;
     query << "SELECT server_name, timestamp, total, free, avail, buffers, "
@@ -914,7 +911,6 @@ std::vector<SoftIrqDetailRecord> QueryManager::querySoftIrqDetailRecords(
     std::string startTime = formatTimePoint(range.start_time);
     std::string endTime = formatTimePoint(range.end_time);
 
-    // 获取总数
     std::ostringstream count_sql;
     count_sql
         << "SELECT COUNT(*) FROM server_softirq_detail WHERE server_name='"
@@ -922,7 +918,6 @@ std::vector<SoftIrqDetailRecord> QueryManager::querySoftIrqDetailRecords(
         << endTime << "'";
     if (totalCount) *totalCount = getTotalCount(count_sql.str());
 
-    // 查询数据
     int offset = (page - 1) * pageSize;
     std::ostringstream query;
     query << "SELECT server_name, cpu_name, timestamp, hi, timer, net_tx, "
