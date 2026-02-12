@@ -6,10 +6,13 @@
 #include "QueryManager.h"
 
 constexpr char kDefaultListenAddress[] = "0.0.0.0:50051";
+
+#ifdef ENABLE_MYSQL
 constexpr char kDefaultMysqlHost[] = "127.0.0.1";
 constexpr char kDefaultMysqlUser[] = "harry";
 constexpr char kDefaultMysqlPass[] = "hhxx588395..";
 constexpr char kDefaultMysqlDb[] = "monitor_db";
+#endif
 
 int main(int argc, char *argv[])
 {

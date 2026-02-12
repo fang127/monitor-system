@@ -4,7 +4,6 @@
 #include <cstdlib>
 #include <ctime>
 #include <iostream>
-#include <mutex>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -13,7 +12,10 @@
 
 namespace monitor
 {
+
+#ifdef ENABLE_MYSQL
 constexpr float MAX_SCORE = 100.0f + std::numeric_limits<float>::epsilon();
+#endif
 
 bool QueryManager::init(const std::string &host, const std::string &user,
                         const std::string &password, const std::string &db)
