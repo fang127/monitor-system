@@ -62,6 +62,7 @@ void MonitorPusher::pushLoop()
 bool MonitorPusher::pushOnce()
 {
     monitor::proto::MonitorInfo info;
+    collector_->collectAll(&info);
     // print collected metrics
     std::cout << "\n============== Collected Metrics ============="
               << std::endl;

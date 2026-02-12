@@ -5,11 +5,18 @@ option(ENABLE_MYSQL "Enable MySQL support" ON)
 
 set(MANAGER_SOURCES
     src/main.cc
+    src/HostManager.cc
+    src/QueryManager.cc
+    src/rpc/GrpcServer.cc
+    src/rpc/QueryService.cc
 )
 
 add_executable(manager ${MANAGER_SOURCES})
 
-target_include_directories(manager PUBLIC ${PROJECT_SOURCE_DIR}/manager/include)
+target_include_directories(manager PUBLIC 
+    ${PROJECT_SOURCE_DIR}/manager/include
+    ${PROJECT_SOURCE_DIR}/manager/include/rpc
+)
 
 set(MANAGER_LIBS
     monitor_proto    

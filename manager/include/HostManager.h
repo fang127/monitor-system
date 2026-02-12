@@ -20,9 +20,16 @@ struct HostScore
 {
     monitor::proto::MonitorInfo info;
     double score;
-    std::chrono::system_clock::time_point last_update_time;
+    std::chrono::system_clock::time_point timestamp;
 };
 
+/**
+ * @brief         HostMonitoringData is a structure that encapsulates the
+ * monitoring data of a host along with its computed score. It is used to store
+ * the monitoring data of a host for further analysis and persistence in a MySQL
+ * database.
+ *
+ */
 struct HostMonitoringData
 {
     const std::string &host_name;

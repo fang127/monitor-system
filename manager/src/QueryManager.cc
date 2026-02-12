@@ -186,11 +186,11 @@ std::vector<PerformanceRecord> QueryManager::queryPerformanceRecords(
         ++i;
         rec.idle_percent = row[i] ? std::atof(row[i]) : 0;
         i++;
-        rec.iowait_percent = row[i] ? std::atof(row[i]) : 0;
+        rec.io_wait_percent = row[i] ? std::atof(row[i]) : 0;
         i++;
         rec.irq_percent = row[i] ? std::atof(row[i]) : 0;
         i++;
-        rec.softirq_percent = row[i] ? std::atof(row[i]) : 0;
+        rec.soft_irq_percent = row[i] ? std::atof(row[i]) : 0;
         i++;
         rec.load_avg_1 = row[i] ? std::atof(row[i]) : 0;
         i++;
@@ -317,7 +317,7 @@ std::vector<PerformanceRecord> QueryManager::queryTrend(
         i++;
         rec.sys_percent = row[i] ? std::atof(row[i]) : 0;
         i++;
-        rec.iowait_percent = row[i] ? std::atof(row[i]) : 0;
+        rec.io_wait_percent = row[i] ? std::atof(row[i]) : 0;
         i++;
         rec.load_avg_1 = row[i] ? std::atof(row[i]) : 0;
         i++;
@@ -724,11 +724,11 @@ std::vector<NetDetailRecord> QueryManager::queryNetDetailRecords(
     }
     mysql_free_result(res);
 #else
-    (void)server_name;
-    (void)time_range;
+    (void)serverName;
+    (void)range;
     (void)page;
-    (void)page_size;
-    (void)total_count;
+    (void)pageSize;
+    (void)totalCount;
 #endif
 
     return records;
@@ -804,11 +804,11 @@ std::vector<DiskDetailRecord> QueryManager::queryDiskDetailRecords(
     }
     mysql_free_result(res);
 #else
-    (void)server_name;
-    (void)time_range;
+    (void)serverName;
+    (void)range;
     (void)page;
-    (void)page_size;
-    (void)total_count;
+    (void)pageSize;
+    (void)totalCount;
 #endif
 
     return records;
@@ -884,11 +884,11 @@ std::vector<MemDetailRecord> QueryManager::queryMemDetailRecords(
     }
     mysql_free_result(res);
 #else
-    (void)server_name;
-    (void)time_range;
+    (void)serverName;
+    (void)range;
     (void)page;
-    (void)page_size;
-    (void)total_count;
+    (void)pageSize;
+    (void)totalCount;
 #endif
 
     return records;
@@ -962,11 +962,11 @@ std::vector<SoftIrqDetailRecord> QueryManager::querySoftIrqDetailRecords(
     }
     mysql_free_result(res);
 #else
-    (void)server_name;
-    (void)time_range;
+    (void)serverName;
+    (void)range;
     (void)page;
-    (void)page_size;
-    (void)total_count;
+    (void)pageSize;
+    (void)totalCount;
 #endif
     return records;
 }

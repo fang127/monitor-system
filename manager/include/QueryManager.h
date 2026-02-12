@@ -8,7 +8,6 @@
 #include <mutex>
 #include <vector>
 
-#define ENABLE_MYSQL
 namespace monitor
 {
 /**
@@ -62,14 +61,14 @@ struct PerformanceRecord
     std::string server_name;                         // name of the server
     std::chrono::system_clock::time_point timestamp; // timestamp of the record
     // cpu usage metrics
-    float cpu_percent = 0.0f;     // CPU usage percentage
-    float usr_percent = 0.0f;     // user CPU usage percentage
-    float sys_percent = 0.0f;     // system CPU usage percentage
-    float nice_percent = 0.0f;    // nice CPU usage percentage
-    float idle_percent = 0.0f;    // idle CPU usage percentage
-    float iowait_percent = 0.0f;  // I/O wait CPU usage percentage
-    float irq_percent = 0.0f;     // IRQ CPU usage percentage
-    float softirq_percent = 0.0f; // soft IRQ CPU usage percentage
+    float cpu_percent = 0.0f;      // CPU usage percentage
+    float usr_percent = 0.0f;      // user CPU usage percentage
+    float sys_percent = 0.0f;      // system CPU usage percentage
+    float nice_percent = 0.0f;     // nice CPU usage percentage
+    float idle_percent = 0.0f;     // idle CPU usage percentage
+    float io_wait_percent = 0.0f;  // I/O wait CPU usage percentage
+    float irq_percent = 0.0f;      // IRQ CPU usage percentage
+    float soft_irq_percent = 0.0f; // soft IRQ CPU usage percentage
     // cpu load
     float load_avg_1 = 0.0f;  // 1-minute load average
     float load_avg_3 = 0.0f;  // 5-minute load average

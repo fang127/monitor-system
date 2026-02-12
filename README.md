@@ -44,6 +44,83 @@
    /dev/cpu_softirq_monitor
 ```
 
+### manager
+
+```
+Worker(多台)
+   |
+   |  gRPC: SetMonitorInfo(MonitorInfo)
+   v
++-----------------------------------------------------------+
+|                         Manager进程                        |
+|                                                           |
+|  +--------------------+       callback       +-----------+ |
+|  | GrpcServerImpl     |--------------------->| HostManager| |
+|  | (GrpcManager服务)  |                      | 评分/写库  | |
+|  +--------------------+                      +-----------+ |
+|           |                                          |     |
+|           | 保存每台主机最新 MonitorInfo/时间戳        | 写入 |
+|           v                                          v     |
+|    host_data_ map                             +-------------------+
+|                                              |      MySQL         |
+|                                              | server_performance |
+|                                              | server_*_detail    |
+|                                              +-------------------+
+|                                                           |
+|  +--------------------+     调用SQL封装     +-------------+ |
+|  | QueryServiceImpl   |------------------->| QueryManager | |
+|  | (QueryService服务) |  组装proto响应      | 查询/聚合   | |
+|  +--------------------+                    +-------------+ |
+|                                                           |
++-----------------------------------------------------------+
+             ^
+             | gRPC: Query*(...)  (客户端查询)
+             |
+         Query Client
+```
+
+### worker
+
+```
++----------------------+
+|   Worker进程(main)   |
++----------+-----------+
+           |
+           | Start()
+           v
++------------------------------+
+| MonitorPusher                |
+| - interval_seconds           |
+| - grpc stub(GrpcManager)     |
+| - MetricCollector collector  |
++---------------+--------------+
+                |
+                | PushLoop(): 每隔N秒
+                v
+         +--------------+
+         | PushOnce()   |
+         +------+-------+
+                |
+                | collector.CollectAll(&MonitorInfo)
+                v
++-------------------------------------+
+| MetricCollector                      |
+| 依次调用多个 Monitor(采集器)         |
++----+----------+-----------+----------+
+     |          |           | 
+     v          v           v
+ Cpu*Monitor  MemMonitor  DiskMonitor  Net(Proc/eBPF)  HostInfoMonitor ...
+ (UpdateOnce) (UpdateOnce)(UpdateOnce) (UpdateOnce)    (UpdateOnce)
+     |
+     | 将数据写入同一个 MonitorInfo
+     v
+ MonitorInfo(一整包)
+     |
+     | gRPC: SetMonitorInfo(MonitorInfo)
+     v
+ Manager
+```
+
 ## 📁 项目结构
 
 ```
@@ -68,6 +145,16 @@ monitor_system/
 ├── proto/                     # Protobuf/gRPC 定义
 └── CMakeLists.txt             # 构建配置
 ```
+
+### mysql 数据库设计
+
+monitor_db
+  |
+  +-- server_performance       (汇总/主表：每次上报的一行“总览 + score + 变化率”)
+  +-- server_net_detail        (网络明细：每网卡每次上报一行)
+  +-- server_softirq_detail    (软中断明细：每CPU每次上报一行)
+  +-- server_mem_detail        (内存明细：每次上报一行，字段更全)
+  +-- server_disk_detail       (磁盘明细：每磁盘每次上报一行)
 
 ## 🔧 环境要求
 
