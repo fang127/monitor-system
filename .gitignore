@@ -7,8 +7,6 @@
  * @Description: 
  * @FilePath: /monitor-system/.gitignore
 -->
-dockerCmd.md
-
 # Compiled Object files
 ./build
 
@@ -20,3 +18,15 @@ build
 
 # json
 *.json
+
+# .out
+*.out
+
+# kmod
+*.ko
+*.mod
+*.o
+*.cmd
+*.symvers
+*.order
+*.mod.c

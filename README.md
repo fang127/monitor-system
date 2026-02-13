@@ -86,22 +86,22 @@ Worker(多台)
 |   Worker进程(main)   |
 +----------+-----------+
            |
-           | Start()
+           | start()
            v
 +------------------------------+
 | MonitorPusher                |
-| - interval_seconds           |
+| - intervalSeconds           |
 | - grpc stub(GrpcManager)     |
 | - MetricCollector collector  |
 +---------------+--------------+
                 |
-                | PushLoop(): 每隔N秒
+                | pushLoop(): 每隔N秒
                 v
          +--------------+
-         | PushOnce()   |
+         | pushOnce()   |
          +------+-------+
                 |
-                | collector.CollectAll(&MonitorInfo)
+                | collector.collectAll(&MonitorInfo)
                 v
 +-------------------------------------+
 | MetricCollector                      |
@@ -110,7 +110,7 @@ Worker(多台)
      |          |           | 
      v          v           v
  Cpu*Monitor  MemMonitor  DiskMonitor  Net(Proc/eBPF)  HostInfoMonitor ...
- (UpdateOnce) (UpdateOnce)(UpdateOnce) (UpdateOnce)    (UpdateOnce)
+ (updateOnce) (updateOnce)(updateOnce) (updateOnce)    (updateOnce)
      |
      | 将数据写入同一个 MonitorInfo
      v
