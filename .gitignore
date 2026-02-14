@@ -30,3 +30,6 @@ build
 *.symvers
 *.order
 *.mod.c
+
+# Backup files
+.cache

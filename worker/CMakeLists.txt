@@ -3,7 +3,7 @@ add_library(worker_grpc_lib INTERFACE)
 target_link_libraries(worker_grpc_lib INTERFACE gRPC::grpc gRPC::grpc++)
 
 # eBPF 支持选项
-option(ENABLE_EBPF "Enable eBPF-based network monitoring" OFF)
+option(ENABLE_EBPF "Enable eBPF-based network monitoring" ON)
 
 if(ENABLE_EBPF)
     # 找到eBPF依赖库
@@ -52,6 +52,7 @@ target_include_directories(worker PUBLIC
     ${PROJECT_SOURCE_DIR}/worker/include/monitor 
     ${PROJECT_SOURCE_DIR}/worker/include/utils
     ${PROJECT_SOURCE_DIR}/worker/include/rpc
+    ${CMAKE_CURRENT_BINARY_DIR}/include/monitor
 )
 
 # 链接 gRPC 库及 proto

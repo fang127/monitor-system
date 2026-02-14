@@ -1,9 +1,19 @@
 CompileFlags:
   Add: 
-    - "-std=c++17"
     - "-Wall"
     - "-Wextra"
-  Compiler: g++
+
+# 对 C++ 文件
+If:
+  PathMatch: .*\.cpp|.*\.cc|.*\.cxx
+CompileFlags:
+  Add: ["-std=c++17"]
+
+# 对 c 文件
+If:
+  PathMatch: .*\.c
+CompileFlags:
+  Add: ["-std=c17"]
 
 Documentation:
   CommentFormat: Doxygen
