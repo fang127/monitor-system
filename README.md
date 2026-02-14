@@ -259,13 +259,13 @@ mysql -u monitor -pyourPassword monitor_db < manager/sql/init_server_performance
 
 在以下两个文件中修改数据库连接信息：
 
-**文件**: `manager/src/main.cpp` 和 `manager/src/host_manager.cpp`
+**文件**: `manager/src/main.cpp` 和 `manager/src/HostManager.cpp`
 
 ```cpp
 // 修改为你的 MySQL 配置
 const char* host = "localhost";
-const char* user = "monitor";        // 你的用户名
-const char* password = "monitor123"; // 你的密码
+const char* user = "yourUser";        // 你的用户名
+const char* password = "yourPassword"; // 你的密码
 const char* database = "monitor_db";
 ```
 
@@ -328,10 +328,6 @@ sudo rmmod CpuStatCollector
 # 验证卸载
 lsmod | grep -E "CpuStat|Softirq"
 ```
-
-## 📄 许可证
-
-本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件
 
 ## 📄 许可证
 
