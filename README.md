@@ -61,7 +61,7 @@ Worker(多台)
 |           |                                          |     |
 |           | 保存每台主机最新 MonitorInfo/时间戳        | 写入 |
 |           v                                          v     |
-|    host_data_ map                             +-------------------+
+|    hostDatas_ map                             +-------------------+
 |                                              |      MySQL         |
 |                                              | server_performance |
 |                                              | server_*_detail    |
@@ -165,6 +165,8 @@ monitor_db
 - **CMake**: 3.10+
 - **内核版本**: 5.4+ (eBPF 功能需要)
 - **MySQL**: 8.0+ (必须)
+- **Conan**: 1.40+ (依赖管理)
+- **Python**: 3.6+ (构建脚本)
 
 ## 📚 系统指标说明
 
