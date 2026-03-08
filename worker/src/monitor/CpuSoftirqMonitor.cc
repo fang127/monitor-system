@@ -14,7 +14,7 @@ namespace monitor
 {
 
 // 设备路径
-static const char *DEVICE_PATH = "/dev/cpu_softirq_monitor";
+static const char *DEVICE_PATH = "/dev/SoftirqCollector";
 
 // 最大 CPU 数量（与内核模块一致）
 static const size_t MAX_CPUS = 256;
@@ -48,10 +48,7 @@ void CpuSoftIrqMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo)
     for (size_t i = 0; i < MAX_CPUS; ++i)
     {
         // 检查是否到达数据末尾
-        if (stats[i].cpu_name[0] == '\0')
-        {
-            break;
-        }
+        if (stats[i].cpu_name[0] == '\0') break;
 
         std::string cpuName(stats[i].cpu_name);
 

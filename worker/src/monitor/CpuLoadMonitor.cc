@@ -38,7 +38,7 @@ static bool readLoadFromProc(float *load1, float *load3, float *load15)
 void CpuLoadMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo)
 {
     // 从/dev/cpu_load_monitor设备读取CPU负载信息
-    int fd = open("/dev/cpu_load_monitor", O_RDONLY);
+    int fd = open("/dev/CpuStatCollector", O_RDONLY);
     if (fd >= 0)
     {
         size_t loadSize = sizeof(struct cpu_load);

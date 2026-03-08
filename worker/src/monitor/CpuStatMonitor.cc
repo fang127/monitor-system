@@ -11,7 +11,7 @@ namespace monitor
 {
 void CpuStatMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo)
 {
-    int fd = open("/dev/cpu_stat_monitor", O_RDONLY);
+    int fd = open("/dev/CpuStatCollector", O_RDONLY);
     if (fd < 0) return;
 
     size_t statCount = 128; // 假设最多128个CPU

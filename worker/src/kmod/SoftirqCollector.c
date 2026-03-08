@@ -151,6 +151,13 @@ static int softirq_mmap(struct file *file, struct vm_area_struct *vma)
     pfn = page_to_pfn(virt_to_page(softirq_data));
 
     /* 建立映射 */
+    /*
+        第一个参数：虚拟地址描述结构体(声明在include/linux/mm_types.h,起始mm.h中已经包含了它)，一般是系统传递下来。
+        第二个参数：虚拟起始地址
+        第三个参数：物理地址
+        第四个参数：映射空间大小，单位字节
+        第五个参数：给新 VMA 要求的”protection”. 驱动直接使用 vma->vm_page_prot
+    */
     ret = remap_pfn_range(vma, vma->vm_start, pfn, size, vma->vm_page_prot);
     if (ret)
     {
@@ -230,6 +237,7 @@ static int __init softirq_collector_init(void)
     }
 
     /* 创建设备节点 */
+    // 有了设备结点就可以在用户空间通过 /dev/cpu_softirq_monitor 来访问了
     softirq_device =
         device_create(softirq_class, NULL, dev_num, NULL, DEVICE_NAME);
     if (IS_ERR(softirq_device))

@@ -287,8 +287,14 @@ static int __init cpu_stat_collector_init(void)
         goto err_unregister;
     }
 
+    /*
+        内核同时提供了class_create(…)函数，可以用它来创建一个类，这个类存放于sysfs下面，一旦创建好了这个类，
+        再调用 device_create(…)函数来在/dev目录下创建相应的设备节点。
+        这样，加载模块的时候，用户空间中的udev会自动响应 device_create(…)函数，去/sysfs下寻找对应的类从而创建设备节点。
+    */
     /* 创建设备类 */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
+    // 设备类的作用是为设备创建一个抽象层，使得用户空间可以通过 /dev 目录访问设备。它提供了设备的属性和接口，简化了设备的管理和访问。
+    #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
     cpu_stat_class = class_create(CLASS_NAME);
 #else
     cpu_stat_class = class_create(THIS_MODULE, CLASS_NAME);
@@ -301,6 +307,7 @@ static int __init cpu_stat_collector_init(void)
     }
 
     /* 创建设备节点 */
+    // device_create 的作用是创建设备节点，使得用户空间可以通过 /dev 目录访问设备。它会在 /dev 目录下创建一个名为 DEVICE_NAME 的设备文件，用户空间程序可以通过这个文件与内核模块进行交互。
     cpu_stat_device =
         device_create(cpu_stat_class, NULL, dev_num, NULL, DEVICE_NAME);
     if (IS_ERR(cpu_stat_device))
