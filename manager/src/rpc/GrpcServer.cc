@@ -27,6 +27,7 @@ namespace monitor
     }
 
     // Store the monitor info with a timestamp
+    // to do ... Using lock-free structure for better performance if needed
     {
         std::lock_guard<std::mutex> lock(mutex_);
         hostDatas_[hostname] = {*request, std::chrono::system_clock::now()};
