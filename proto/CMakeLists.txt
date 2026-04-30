@@ -1,6 +1,40 @@
 find_package(Protobuf REQUIRED)
 find_package(c-ares REQUIRED)
 find_package(gRPC REQUIRED)
+
+function(get_conan_package_dir package_name output_var)
+    string(TOUPPER "${CMAKE_BUILD_TYPE}" config_name)
+
+    if(DEFINED ${package_name}_PACKAGE_FOLDER_${config_name})
+        set(${output_var} "${${package_name}_PACKAGE_FOLDER_${config_name}}" PARENT_SCOPE)
+    elseif(DEFINED ${package_name}_PACKAGE_FOLDER_DEBUG)
+        set(${output_var} "${${package_name}_PACKAGE_FOLDER_DEBUG}" PARENT_SCOPE)
+    elseif(DEFINED ${package_name}_PACKAGE_FOLDER_RELEASE)
+        set(${output_var} "${${package_name}_PACKAGE_FOLDER_RELEASE}" PARENT_SCOPE)
+    endif()
+endfunction()
+
+function(use_packaged_tool_from_package_dir package_dir tool_name cache_var imported_target)
+    if(NOT package_dir)
+        return()
+    endif()
+
+    set(package_tool "${package_dir}/bin/${tool_name}${CMAKE_EXECUTABLE_SUFFIX}")
+
+    if(EXISTS "${package_tool}")
+        set(${cache_var} "${package_tool}" CACHE FILEPATH "Packaged ${tool_name}" FORCE)
+        if(TARGET ${imported_target})
+            set_property(TARGET ${imported_target} PROPERTY IMPORTED_LOCATION "${package_tool}")
+        endif()
+    endif()
+endfunction()
+
+get_conan_package_dir(protobuf protobuf_PACKAGE_DIR)
+get_conan_package_dir(grpc grpc_PACKAGE_DIR)
+use_packaged_tool_from_package_dir("${protobuf_PACKAGE_DIR}" protoc
+                                   Protobuf_PROTOC_EXECUTABLE protobuf::protoc)
+use_packaged_tool_from_package_dir("${grpc_PACKAGE_DIR}" grpc_cpp_plugin
+                                   GRPC_CPP_PLUGIN_PROGRAM gRPC::grpc_cpp_plugin)
 # find_package(Threads)
 #
 # Protobuf/Grpc source files

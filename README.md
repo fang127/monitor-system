@@ -237,7 +237,7 @@ Score = CPU_Score × 35% + Mem_Score × 30% + Load_Score × 15%
 docker compose --env-file configs/manager.env -f deploy/docker-compose.yml up -d
 ```
 
-Compose 会启动 MySQL 8.0 和 Redis 7.2，并把初始化脚本
+Compose 会启动 MySQL 和 Redis ，并把初始化脚本
 `manager/sql table/init_server_performance.sql` 挂载到
 `/docker-entrypoint-initdb.d/`，首次创建 MySQL 数据目录时自动建库建表。
 

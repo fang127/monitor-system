@@ -2,7 +2,9 @@
 #include <iostream>
 #include "HostManager.h"
 #include "GrpcServer.h"
+#ifdef ENABLE_MYSQL
 #include "MysqlConfig.h"
+#endif
 #include "QueryService.h"
 #include "monitor_info.pb.h"
 #include "QueryManager.h"

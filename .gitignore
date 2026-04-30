@@ -33,3 +33,6 @@ build
 
 # Backup files
 .cache
+
+# codex
+.codex

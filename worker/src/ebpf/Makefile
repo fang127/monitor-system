@@ -1,4 +1,4 @@
-CLANG ?= /opt/LLVM-22.1.0-rc3-Linux-X64/bin/clang
+CLANG ?= /opt/LLVM-22.1.1-Linux-X64/bin/clang
 BPFTOOL ?= bpftool
 ARCH := $(shell uname -m | sed 's/x86_64/x86/' | sed 's/aarch64/arm64/')
 
