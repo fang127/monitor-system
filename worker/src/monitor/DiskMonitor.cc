@@ -7,11 +7,9 @@
 #include <string>
 #include <stdint.h>
 
-namespace monitor
-{
+namespace monitor {
 
-struct DiskSample
-{
+struct DiskSample {
     uint64_t reads, writes, sectors_read, sectors_written;
     uint64_t read_time_ms, write_time_ms, io_in_progress, io_time_ms,
         weighted_io_time_ms;
@@ -20,14 +18,12 @@ struct DiskSample
 static std::map<std::string, DiskSample> lastSamples;
 static std::map<std::string, double> lastTime;
 
-void DiskMonitor::updateOnce(monitor::proto::MonitorInfo *monitor_info)
-{
+void DiskMonitor::updateOnce(monitor::proto::MonitorInfo *monitor_info) {
     std::ifstream ifs("/proc/diskstats");
     std::string line;
     double now = ::time(nullptr);
 
-    while (std::getline(ifs, line))
-    {
+    while (std::getline(ifs, line)) {
         std::istringstream iss(line);
         int major, minor;
         std::string name;
@@ -54,8 +50,7 @@ void DiskMonitor::updateOnce(monitor::proto::MonitorInfo *monitor_info)
         // 速率/变化率计算
         auto it = lastSamples.find(name);
         double dt = now - lastTime[name];
-        if (it != lastSamples.end() && dt > 0)
-        {
+        if (it != lastSamples.end() && dt > 0) {
             const auto &last = it->second;
             double read_ios = curr.reads - last.reads;
             double write_ios = curr.writes - last.writes;
@@ -75,9 +70,7 @@ void DiskMonitor::updateOnce(monitor::proto::MonitorInfo *monitor_info)
             disk->set_avg_write_latency_ms(
                 write_ios > 0 ? write_time / write_ios : 0);
             disk->set_util_percent(io_time / (dt * 10.0)); // io_time单位ms
-        }
-        else
-        {
+        } else {
             disk->set_read_bytes_per_sec(0);
             disk->set_write_bytes_per_sec(0);
             disk->set_read_iops(0);

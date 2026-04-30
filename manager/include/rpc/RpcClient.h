@@ -5,16 +5,14 @@
 #include "monitor_info.grpc.pb.h"
 #include "monitor_info.pb.h"
 
-namespace monitor
-{
+namespace monitor {
 
 /**
  * @brief         test RPC client for fetching monitoring data from a remote
  * host.
  *
  */
-class RpcClient
-{
+class RpcClient {
 public:
     explicit RpcClient(const std::string &hostAddress = "localhost:50051");
     ~RpcClient() = default;

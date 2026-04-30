@@ -3,15 +3,12 @@
 #include <chrono>
 #include <mutex>
 
-namespace monitor
-{
+namespace monitor {
 ::grpc::Status GrpcServerImpl::SetMonitorInfo(
     ::grpc::ServerContext *context,
     const ::monitor::proto::MonitorInfo *request,
-    ::google::protobuf::Empty *response)
-{
-    if (!request)
-    {
+    ::google::protobuf::Empty *response) {
+    if (!request) {
         return ::grpc::Status(::grpc::StatusCode::INVALID_ARGUMENT,
                               "Empty request");
     }
@@ -20,8 +17,7 @@ namespace monitor
     if (hostname.empty() && request->has_host_info())
         hostname = request->host_info().hostname();
 
-    if (hostname.empty())
-    {
+    if (hostname.empty()) {
         return ::grpc::Status(::grpc::StatusCode::INVALID_ARGUMENT,
                               "Missing hostname");
     }
@@ -43,11 +39,9 @@ namespace monitor
 
 ::grpc::Status GrpcServerImpl::GetMonitorInfo(
     ::grpc::ServerContext *context, const ::google::protobuf::Empty *request,
-    ::monitor::proto::MonitorInfo *response)
-{
+    ::monitor::proto::MonitorInfo *response) {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (!hostDatas_.empty())
-    {
+    if (!hostDatas_.empty()) {
         *response = hostDatas_.begin()->second.info;
         return ::grpc::Status::OK;
     }
@@ -55,18 +49,16 @@ namespace monitor
                           "No monitor data available");
 }
 
-std::unordered_map<std::string, HostData> GrpcServerImpl::getAllHostDatas()
-{
+std::unordered_map<std::string, HostData> GrpcServerImpl::getAllHostDatas() {
     std::lock_guard<std::mutex> lock(mutex_);
     return hostDatas_;
 }
 
-bool GrpcServerImpl::getHostData(const std::string &hostID, HostData &hostData)
-{
+bool GrpcServerImpl::getHostData(const std::string &hostID,
+                                 HostData &hostData) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = hostDatas_.find(hostID);
-    if (it != hostDatas_.end())
-    {
+    if (it != hostDatas_.end()) {
         hostData = it->second;
         return true;
     }

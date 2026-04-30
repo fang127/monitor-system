@@ -8,10 +8,8 @@
 #include "MonitorInter.h"
 #include "monitor_info.pb.h"
 
-namespace monitor
-{
-class CpuLoadMonitor : public MonitorInter
-{
+namespace monitor {
+class CpuLoadMonitor : public MonitorInter {
 public:
     CpuLoadMonitor() {}
     void updateOnce(monitor::proto::MonitorInfo *monitorInfo) override;

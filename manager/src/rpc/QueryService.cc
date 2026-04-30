@@ -2,17 +2,13 @@
 
 #include <iostream>
 
-namespace monitor
-{
+namespace monitor {
 
 QueryServiceImpl::QueryServiceImpl(QueryManager *queryManager)
-    : queryManager_(queryManager)
-{
-}
+    : queryManager_(queryManager) {}
 
 TimeRange QueryServiceImpl::convertTimeRange(
-    const ::monitor::proto::TimeRange &range)
-{
+    const ::monitor::proto::TimeRange &range) {
     TimeRange timeRange;
     timeRange.start_time =
         std::chrono::system_clock::from_time_t(range.start_time().seconds());
@@ -23,8 +19,7 @@ TimeRange QueryServiceImpl::convertTimeRange(
 
 void QueryServiceImpl::setTimestamp(
     ::google::protobuf::Timestamp *ts,
-    const std::chrono::system_clock::time_point &tp)
-{
+    const std::chrono::system_clock::time_point &tp) {
     auto seconds =
         std::chrono::duration_cast<std::chrono::seconds>(tp.time_since_epoch())
             .count();
@@ -35,20 +30,17 @@ void QueryServiceImpl::setTimestamp(
 ::grpc::Status QueryServiceImpl::QueryPerformance(
     ::grpc::ServerContext *context,
     const ::monitor::proto::QueryPerformanceRequest *request,
-    ::monitor::proto::QueryPerformanceResponse *response)
-{
+    ::monitor::proto::QueryPerformanceResponse *response) {
     (void)context;
 
-    if (!queryManager_)
-    {
+    if (!queryManager_) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                             "Query manager not initialized");
     }
 
     // 验证时间范围
     TimeRange range = convertTimeRange(request->time_range());
-    if (!queryManager_->validateTimeRange(range))
-    {
+    if (!queryManager_->validateTimeRange(range)) {
         return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
                             "Invalid time range: start_time > end_time");
     }
@@ -62,8 +54,7 @@ void QueryServiceImpl::setTimestamp(
     auto records = queryManager_->queryPerformanceRecords(
         request->server_name(), range, page, pageSize, &totalCount);
 
-    for (const auto &rec : records)
-    {
+    for (const auto &rec : records) {
         auto *protoRec = response->add_records();
         protoRec->set_server_name(rec.server_name);
         setTimestamp(protoRec->mutable_timestamp(), rec.timestamp);
@@ -102,19 +93,16 @@ void QueryServiceImpl::setTimestamp(
 ::grpc::Status QueryServiceImpl::QueryTrend(
     ::grpc::ServerContext *context,
     const ::monitor::proto::QueryTrendRequest *request,
-    ::monitor::proto::QueryTrendResponse *response)
-{
+    ::monitor::proto::QueryTrendResponse *response) {
     (void)context;
 
-    if (!queryManager_)
-    {
+    if (!queryManager_) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                             "Query manager not initialized");
     }
 
     TimeRange range = convertTimeRange(request->time_range());
-    if (!queryManager_->validateTimeRange(range))
-    {
+    if (!queryManager_->validateTimeRange(range)) {
         return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
                             "Invalid time range: start_time > end_time");
     }
@@ -122,8 +110,7 @@ void QueryServiceImpl::setTimestamp(
     auto records = queryManager_->queryTrend(request->server_name(), range,
                                              request->interval_seconds());
 
-    for (const auto &rec : records)
-    {
+    for (const auto &rec : records) {
         auto *protoRec = response->add_records();
         protoRec->set_server_name(rec.server_name);
         setTimestamp(protoRec->mutable_timestamp(), rec.timestamp);
@@ -153,19 +140,16 @@ void QueryServiceImpl::setTimestamp(
 ::grpc::Status QueryServiceImpl::QueryAnomaly(
     ::grpc::ServerContext *context,
     const ::monitor::proto::QueryAnomalyRequest *request,
-    ::monitor::proto::QueryAnomalyResponse *response)
-{
+    ::monitor::proto::QueryAnomalyResponse *response) {
     (void)context;
 
-    if (!queryManager_)
-    {
+    if (!queryManager_) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                             "Query manager not initialized");
     }
 
     TimeRange range = convertTimeRange(request->time_range());
-    if (!queryManager_->validateTimeRange(range))
-    {
+    if (!queryManager_->validateTimeRange(range)) {
         return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
                             "Invalid time range: start_time > end_time");
     }
@@ -190,8 +174,7 @@ void QueryServiceImpl::setTimestamp(
     auto records = queryManager_->queryAnomalyRecords(
         request->server_name(), range, thresholds, page, pageSize, &totalCount);
 
-    for (const auto &rec : records)
-    {
+    for (const auto &rec : records) {
         auto *protoRec = response->add_anomalies();
         protoRec->set_server_name(rec.server_name);
         setTimestamp(protoRec->mutable_timestamp(), rec.timestamp);
@@ -212,12 +195,10 @@ void QueryServiceImpl::setTimestamp(
 ::grpc::Status QueryServiceImpl::QueryScoreRank(
     ::grpc::ServerContext *context,
     const ::monitor::proto::QueryScoreRankRequest *request,
-    ::monitor::proto::QueryScoreRankResponse *response)
-{
+    ::monitor::proto::QueryScoreRankResponse *response) {
     (void)context;
 
-    if (!queryManager_)
-    {
+    if (!queryManager_) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                             "Query manager not initialized");
     }
@@ -235,8 +216,7 @@ void QueryServiceImpl::setTimestamp(
     auto records =
         queryManager_->queryServerScoreRank(order, page, pageSize, &totalCount);
 
-    for (const auto &rec : records)
-    {
+    for (const auto &rec : records) {
         auto *protoRec = response->add_servers();
         protoRec->set_server_name(rec.server_name);
         protoRec->set_score(rec.score);
@@ -260,13 +240,11 @@ void QueryServiceImpl::setTimestamp(
 ::grpc::Status QueryServiceImpl::QueryLatestScore(
     ::grpc::ServerContext *context,
     const ::monitor::proto::QueryLatestScoreRequest *request,
-    ::monitor::proto::QueryLatestScoreResponse *response)
-{
+    ::monitor::proto::QueryLatestScoreResponse *response) {
     (void)context;
     (void)request;
 
-    if (!queryManager_)
-    {
+    if (!queryManager_) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                             "Query manager not initialized");
     }
@@ -274,8 +252,7 @@ void QueryServiceImpl::setTimestamp(
     ClusterStats stats;
     auto records = queryManager_->queryLatestServerScores(&stats);
 
-    for (const auto &rec : records)
-    {
+    for (const auto &rec : records) {
         auto *protoRec = response->add_servers();
         protoRec->set_server_name(rec.server_name);
         protoRec->set_score(rec.score);
@@ -305,19 +282,16 @@ void QueryServiceImpl::setTimestamp(
 ::grpc::Status QueryServiceImpl::QueryNetDetail(
     ::grpc::ServerContext *context,
     const ::monitor::proto::QueryDetailRequest *request,
-    ::monitor::proto::QueryNetDetailResponse *response)
-{
+    ::monitor::proto::QueryNetDetailResponse *response) {
     (void)context;
 
-    if (!queryManager_)
-    {
+    if (!queryManager_) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                             "Query manager not initialized");
     }
 
     TimeRange time_range = convertTimeRange(request->time_range());
-    if (!queryManager_->validateTimeRange(time_range))
-    {
+    if (!queryManager_->validateTimeRange(time_range)) {
         return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
                             "Invalid time range: start_time > end_time");
     }
@@ -331,8 +305,7 @@ void QueryServiceImpl::setTimestamp(
     auto records = queryManager_->queryNetDetailRecords(
         request->server_name(), time_range, page, pageSize, &totalCount);
 
-    for (const auto &rec : records)
-    {
+    for (const auto &rec : records) {
         auto *protoRec = response->add_records();
         protoRec->set_server_name(rec.server_name);
         protoRec->set_net_name(rec.net_name);
@@ -357,19 +330,16 @@ void QueryServiceImpl::setTimestamp(
 ::grpc::Status QueryServiceImpl::QueryDiskDetail(
     ::grpc::ServerContext *context,
     const ::monitor::proto::QueryDetailRequest *request,
-    ::monitor::proto::QueryDiskDetailResponse *response)
-{
+    ::monitor::proto::QueryDiskDetailResponse *response) {
     (void)context;
 
-    if (!queryManager_)
-    {
+    if (!queryManager_) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                             "Query manager not initialized");
     }
 
     TimeRange time_range = convertTimeRange(request->time_range());
-    if (!queryManager_->validateTimeRange(time_range))
-    {
+    if (!queryManager_->validateTimeRange(time_range)) {
         return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
                             "Invalid time range: start_time > end_time");
     }
@@ -383,8 +353,7 @@ void QueryServiceImpl::setTimestamp(
     auto records = queryManager_->queryDiskDetailRecords(
         request->server_name(), time_range, page, pageSize, &totalCount);
 
-    for (const auto &rec : records)
-    {
+    for (const auto &rec : records) {
         auto *protoRec = response->add_records();
         protoRec->set_server_name(rec.server_name);
         protoRec->set_disk_name(rec.disk_name);
@@ -408,19 +377,16 @@ void QueryServiceImpl::setTimestamp(
 ::grpc::Status QueryServiceImpl::QueryMemDetail(
     ::grpc::ServerContext *context,
     const ::monitor::proto::QueryDetailRequest *request,
-    ::monitor::proto::QueryMemDetailResponse *response)
-{
+    ::monitor::proto::QueryMemDetailResponse *response) {
     (void)context;
 
-    if (!queryManager_)
-    {
+    if (!queryManager_) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                             "Query manager not initialized");
     }
 
     TimeRange time_range = convertTimeRange(request->time_range());
-    if (!queryManager_->validateTimeRange(time_range))
-    {
+    if (!queryManager_->validateTimeRange(time_range)) {
         return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
                             "Invalid time range: start_time > end_time");
     }
@@ -434,8 +400,7 @@ void QueryServiceImpl::setTimestamp(
     auto records = queryManager_->queryMemDetailRecords(
         request->server_name(), time_range, page, pageSize, &totalCount);
 
-    for (const auto &rec : records)
-    {
+    for (const auto &rec : records) {
         auto *protoRec = response->add_records();
         protoRec->set_server_name(rec.server_name);
         setTimestamp(protoRec->mutable_timestamp(), rec.timestamp);
@@ -459,19 +424,16 @@ void QueryServiceImpl::setTimestamp(
 ::grpc::Status QueryServiceImpl::QuerySoftIrqDetail(
     ::grpc::ServerContext *context,
     const ::monitor::proto::QueryDetailRequest *request,
-    ::monitor::proto::QuerySoftIrqDetailResponse *response)
-{
+    ::monitor::proto::QuerySoftIrqDetailResponse *response) {
     (void)context;
 
-    if (!queryManager_)
-    {
+    if (!queryManager_) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                             "Query manager not initialized");
     }
 
     TimeRange time_range = convertTimeRange(request->time_range());
-    if (!queryManager_->validateTimeRange(time_range))
-    {
+    if (!queryManager_->validateTimeRange(time_range)) {
         return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
                             "Invalid time range: start_time > end_time");
     }
@@ -485,8 +447,7 @@ void QueryServiceImpl::setTimestamp(
     auto records = queryManager_->querySoftIrqDetailRecords(
         request->server_name(), time_range, page, pageSize, &totalCount);
 
-    for (const auto &rec : records)
-    {
+    for (const auto &rec : records) {
         auto *protoRec = response->add_records();
         protoRec->set_server_name(rec.server_name);
         protoRec->set_cpu_name(rec.cpu_name);

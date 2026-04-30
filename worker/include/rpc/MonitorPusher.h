@@ -14,10 +14,8 @@
 #include <atomic>
 #include <thread>
 
-namespace monitor
-{
-class MonitorPusher
-{
+namespace monitor {
+class MonitorPusher {
 public:
     /**
      * @brief         Construct a new Monitor Pusher object

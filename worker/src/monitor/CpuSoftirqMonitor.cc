@@ -10,8 +10,7 @@
 
 #include "MonitorStructs.h"
 
-namespace monitor
-{
+namespace monitor {
 
 // 设备路径
 static const char *DEVICE_PATH = "/dev/SoftirqCollector";
@@ -19,12 +18,10 @@ static const char *DEVICE_PATH = "/dev/SoftirqCollector";
 // 最大 CPU 数量（与内核模块一致）
 static const size_t MAX_CPUS = 256;
 
-void CpuSoftIrqMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo)
-{
+void CpuSoftIrqMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo) {
     // 打开设备文件
     int fd = open(DEVICE_PATH, O_RDONLY);
-    if (fd < 0)
-    {
+    if (fd < 0) {
         // 设备不存在，可能内核模块未加载
         // 静默失败，不输出错误信息
         return;
@@ -35,8 +32,7 @@ void CpuSoftIrqMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo)
 
     // 映射内核内存到用户空间
     void *addr = mmap(nullptr, map_size, PROT_READ, MAP_SHARED, fd, 0);
-    if (addr == MAP_FAILED)
-    {
+    if (addr == MAP_FAILED) {
         close(fd);
         return;
     }
@@ -45,8 +41,7 @@ void CpuSoftIrqMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo)
     auto now = std::chrono::steady_clock::now();
 
     // 遍历所有 CPU 的软中断统计数据
-    for (size_t i = 0; i < MAX_CPUS; ++i)
-    {
+    for (size_t i = 0; i < MAX_CPUS; ++i) {
         // 检查是否到达数据末尾
         if (stats[i].cpu_name[0] == '\0') break;
 
@@ -59,8 +54,7 @@ void CpuSoftIrqMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo)
         auto *softirq_msg = monitorInfo->add_soft_irq();
         softirq_msg->set_cpu(cpuName);
 
-        if (it != cpuSoftIrqs_.end())
-        {
+        if (it != cpuSoftIrqs_.end()) {
             // 计算时间差（秒）
             auto duration =
                 std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -68,8 +62,7 @@ void CpuSoftIrqMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo)
                     .count();
             double seconds = duration / 1000.0;
 
-            if (seconds > 0)
-            {
+            if (seconds > 0) {
                 // 计算每秒的软中断频率
                 softirq_msg->set_hi(static_cast<int64_t>(
                     (stats[i].hi - it->second.hi) / seconds));
@@ -91,9 +84,7 @@ void CpuSoftIrqMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo)
                     (stats[i].hrtimer - it->second.hrtimer) / seconds));
                 softirq_msg->set_rcu(static_cast<int64_t>(
                     (stats[i].rcu - it->second.rcu) / seconds));
-            }
-            else
-            {
+            } else {
                 // 时间差为 0，使用原始值
                 softirq_msg->set_hi(stats[i].hi);
                 softirq_msg->set_timer(stats[i].timer);
@@ -106,9 +97,7 @@ void CpuSoftIrqMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo)
                 softirq_msg->set_hrtimer(stats[i].hrtimer);
                 softirq_msg->set_rcu(stats[i].rcu);
             }
-        }
-        else
-        {
+        } else {
             // 首次采集，使用原始累计值
             softirq_msg->set_hi(stats[i].hi);
             softirq_msg->set_timer(stats[i].timer);

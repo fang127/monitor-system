@@ -8,14 +8,12 @@
 #include <mutex>
 #include <vector>
 
-namespace monitor
-{
+namespace monitor {
 /**
  * @brief         sort order
  *
  */
-enum class SortOrder
-{
+enum class SortOrder {
     DESC = 0,
     ASC = 1,
 };
@@ -24,8 +22,7 @@ enum class SortOrder
  * @brief         service status
  *
  */
-enum class ServerStatus
-{
+enum class ServerStatus {
     ONLINE = 0,
     OFFLINE = 1,
 };
@@ -34,8 +31,7 @@ enum class ServerStatus
  * @brief         anomaly detection thresholds
  *
  */
-struct AnomalyThreshold
-{
+struct AnomalyThreshold {
     float cpu_threshold = 80.0f;
     float memory_threshold = 90.0f;
     float disk_threshold = 85.0f;
@@ -46,8 +42,7 @@ struct AnomalyThreshold
  * @brief         time range for querying metrics
  *
  */
-struct TimeRange
-{
+struct TimeRange {
     std::chrono::system_clock::time_point start_time;
     std::chrono::system_clock::time_point end_time;
 };
@@ -56,8 +51,7 @@ struct TimeRange
  * @brief         performance record for a server at a specific timestamp
  *
  */
-struct PerformanceRecord
-{
+struct PerformanceRecord {
     std::string server_name;                         // name of the server
     std::chrono::system_clock::time_point timestamp; // timestamp of the record
     // cpu usage metrics
@@ -102,8 +96,7 @@ struct PerformanceRecord
  * @brief         anomaly record for a server at a specific timestamp
  *
  */
-struct AnomalyRecord
-{
+struct AnomalyRecord {
     std::string server_name;                         // name of the server
     std::chrono::system_clock::time_point timestamp; // timestamp of the anomaly
     std::string anomaly_type; // type of anomaly (e.g., "CPU", "Memory", "Disk")
@@ -118,8 +111,7 @@ struct AnomalyRecord
  * @brief         summary of server performance and status
  *
  */
-struct ServerScoreSummary
-{
+struct ServerScoreSummary {
     std::string server_name; // name of the server
     float score = 0.0f;      // overall performance score
     std::chrono::system_clock::time_point
@@ -135,8 +127,7 @@ struct ServerScoreSummary
  * @brief         summary of cluster performance and status
  *
  */
-struct ClusterStats
-{
+struct ClusterStats {
     int total_servers = 0;    // total number of servers in the cluster
     int online_servers = 0;   // number of online servers
     int offline_servers = 0;  // number of offline servers
@@ -152,8 +143,7 @@ struct ClusterStats
  * timestamp
  *
  */
-struct NetDetailRecord
-{
+struct NetDetailRecord {
     std::string server_name; // name of the server
     std::string net_name;    // name of the network interface
     std::chrono::system_clock::time_point timestamp; // timestamp of the record
@@ -176,8 +166,7 @@ struct NetDetailRecord
  * timestamp
  *
  */
-struct DiskDetailRecord
-{
+struct DiskDetailRecord {
     std::string server_name;
     std::string disk_name;
     std::chrono::system_clock::time_point timestamp;
@@ -195,8 +184,7 @@ struct DiskDetailRecord
  * timestamp
  *
  */
-struct MemDetailRecord
-{
+struct MemDetailRecord {
     std::string server_name;
     std::chrono::system_clock::time_point timestamp;
     float mem_total = 0.0f; // total memory in bytes
@@ -214,8 +202,7 @@ struct MemDetailRecord
  * specific timestamp
  *
  */
-struct SoftIrqDetailRecord
-{
+struct SoftIrqDetailRecord {
     std::string server_name;
     std::string
         cpu_name; // e.g., "all" for total, or "cpu0", "cpu1", etc. for per-CPU
@@ -228,8 +215,7 @@ struct SoftIrqDetailRecord
     int64_t sched = 0;  // scheduler softirqs per second
 };
 
-class QueryManager
-{
+class QueryManager {
 public:
     QueryManager() = default;
     ~QueryManager() { close(); }
@@ -239,13 +225,15 @@ public:
      * parameters
      *
      * @param         host database host address
+     * @param         port database port
      * @param         user database username
      * @param         password database password
      * @param         db database name
      * @return        true if initialization is successful, false otherwise
      */
-    bool init(const std::string &host, const std::string &user,
-              const std::string &password, const std::string &db);
+    bool init(const std::string &host, unsigned int port,
+              const std::string &user, const std::string &password,
+              const std::string &db);
 
     /**
      * @brief         close the database connection and clean up resources

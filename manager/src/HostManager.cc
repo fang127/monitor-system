@@ -1,5 +1,6 @@
 #include "HostManager.h"
 
+#include "MysqlConfig.h"
 #include "mysql.h"
 #include <sys/types.h>
 #include <chrono>
@@ -8,21 +9,13 @@
 #include <stdexcept>
 #include <thread>
 
-namespace monitor
-{
+namespace monitor {
 #ifdef ENABLE_MYSQL
-namespace
-{
-const char *MYSQL_HOST = "127.0.0.1";
-const char *MYSQL_USER = "harry";
-const char *MYSQL_PASS = "hhxx588395..";
-const char *MYSQL_DB = "monitor_db";
-
+namespace {
 /**
  * @brief         net recv/send bytes/packets rate and error/drop count
  */
-struct NetDetailedSample
-{
+struct NetDetailedSample {
     float net_recv_bytes_rate = 0.0f;
     float net_send_bytes_rate = 0.0f;
     float net_recv_packets_rate = 0.0f;
@@ -38,8 +31,7 @@ struct NetDetailedSample
  * net_tx, net_rx, block, irq_poll, tasklet, sched, hrtimer and rcu
  *
  */
-struct SoftIrqSample
-{
+struct SoftIrqSample {
     float hi = 0, timer = 0, net_tx = 0, net_rx = 0, block = 0;
     float irq_poll = 0, tasklet = 0, sched = 0, hrtimer = 0, rcu = 0;
 };
@@ -51,8 +43,7 @@ struct SoftIrqSample
  * kreclaimable, sreclaimable and sunreclaim
  *
  */
-struct MemDetailSample
-{
+struct MemDetailSample {
     float total = 0, free = 0, avail = 0, buffers = 0, cached = 0;
     float swap_cached = 0, active = 0, inactive = 0;
     float active_anon = 0, inactive_anon = 0, active_file = 0,
@@ -66,8 +57,7 @@ struct MemDetailSample
  * and disk utilization percentage
  *
  */
-struct DiskDetailSample
-{
+struct DiskDetailSample {
     float read_bytes_per_sec = 0;
     float write_bytes_per_sec = 0;
     float read_iops = 0;
@@ -92,8 +82,7 @@ std::map<std::string, std::map<std::string, DiskDetailSample>> lastDiskSamples;
  * for each network interface, including eth0, eth1, lo, etc.
  *
  */
-struct NetSample
-{
+struct NetSample {
     double last_in_bytes = 0;
     double last_out_bytes = 0;
     std::chrono::system_clock::time_point last_time;
@@ -104,8 +93,7 @@ static std::map<std::string, NetSample> netSamples;
  * @brief         Performance metrics for computing the rate
  *
  */
-struct PerfSample
-{
+struct PerfSample {
     float cpu_percent = 0, usr_percent = 0, system_percent = 0;
     float nice_percent = 0, idle_percent = 0, io_wait_percent = 0;
     float irq_percent = 0, soft_irq_percent = 0;
@@ -119,41 +107,33 @@ static std::map<std::string, PerfSample> lastPerfSamples;
 
 HostManager::HostManager() : running_(false) {}
 
-HostManager::~HostManager()
-{
+HostManager::~HostManager() {
     running_.store(false);
     if (thread_ && thread_->joinable()) thread_->join();
     stop();
 }
 
-void HostManager::processLoop()
-{
-    while (running_)
-    {
+void HostManager::processLoop() {
+    while (running_) {
         std::this_thread::sleep_for(std::chrono::seconds(60));
         auto now = std::chrono::system_clock::now();
         // Remove hosts that haven't been updated for more than 60 seconds
         std::lock_guard<std::mutex> lock(mutex_);
-        for (auto it = hostScores_.begin(); it != hostScores_.end();)
-        {
+        for (auto it = hostScores_.begin(); it != hostScores_.end();) {
             auto age = std::chrono::duration_cast<std::chrono::seconds>(
                            now - it->second.timestamp)
                            .count();
-            if (age > 60)
-            {
+            if (age > 60) {
                 std::cout << "Removing stale host: " << it->first << std::endl;
                 it = hostScores_.erase(it);
-            }
-            else
-            {
+            } else {
                 ++it;
             }
         }
     }
 }
 
-double HostManager::calculateScore(const monitor::proto::MonitorInfo &info)
-{
+double HostManager::calculateScore(const monitor::proto::MonitorInfo &info) {
     // High coroutine background score weights
     const double cpuWeight = 0.35;
     const double memWeight = 0.30;
@@ -169,8 +149,7 @@ double HostManager::calculateScore(const monitor::proto::MonitorInfo &info)
     int cpuCores = 1;
 
     // Calculate CPU usage percentage and number of CPU cores
-    if (info.cpu_stat_size() > 0)
-    {
+    if (info.cpu_stat_size() > 0) {
         cpuPercent = info.cpu_stat(0).cpu_percent();
         cpuCores = info.cpu_stat_size() - 1;
         if (cpuCores < 1) cpuCores = 1;
@@ -183,25 +162,23 @@ double HostManager::calculateScore(const monitor::proto::MonitorInfo &info)
     if (info.has_mem_info()) memPercent = info.mem_info().used_percent();
 
     // Calculate network rates
-    if (info.net_info_size() > 0)
-    {
+    if (info.net_info_size() > 0) {
         netRecvRate = info.net_info(0).rcv_rate();
         netSendRate = info.net_info(0).send_rate();
     }
 
     // Calculate disk utilization
-    if (info.disk_info_size() > 0)
-    {
-        for (int i = 0; i < info.disk_info_size(); ++i)
-        {
+    if (info.disk_info_size() > 0) {
+        for (int i = 0; i < info.disk_info_size(); ++i) {
             double util = info.disk_info(i).util_percent();
             if (util > diskUtil) diskUtil = util;
         }
     }
 
     // Calculate the overall score using weighted sum
-    auto clamp = [](double value)
-    { return value < 0 ? 0 : (value > 1 ? 1 : value); };
+    auto clamp = [](double value) {
+        return value < 0 ? 0 : (value > 1 ? 1 : value);
+    };
     double cpuScore = clamp(1.0 - cpuPercent / 100);
     double memScore = clamp(1.0 - memPercent / 100);
     double loadScore = clamp(1.0 - loadAvg1 / (cpuCores * loadCoefficient));
@@ -216,19 +193,19 @@ double HostManager::calculateScore(const monitor::proto::MonitorInfo &info)
     return score < 0 ? 0 : (score > 100 ? 100 : score);
 }
 
-void HostManager::writeToMysql(HostMonitoringData &data)
-{
+void HostManager::writeToMysql(HostMonitoringData &data) {
 #ifdef ENABLE_MYSQL
+    const MysqlConfig mysqlConfig = loadMysqlConfigFromEnv();
     MYSQL *conn = mysql_init(nullptr);
-    if (!conn)
-    {
+    if (!conn) {
         std::cerr << "MySQL initialization failed" << std::endl;
         return;
     }
 
-    if (!mysql_real_connect(conn, MYSQL_HOST, MYSQL_USER, MYSQL_PASS, MYSQL_DB,
-                            0, nullptr, 0))
-    {
+    if (!mysql_real_connect(
+            conn, mysqlConfig.host.c_str(), mysqlConfig.user.c_str(),
+            mysqlConfig.password.c_str(), mysqlConfig.database.c_str(),
+            mysqlConfig.port, nullptr, 0)) {
         std::cerr << "MySQL connection failed: " << mysql_error(conn)
                   << std::endl;
         mysql_close(conn);
@@ -243,8 +220,7 @@ void HostManager::writeToMysql(HostMonitoringData &data)
     std::strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", &tm);
 
     const auto &info = data.host_score.info;
-    auto rate = [](float nowVal, float lastVal)
-    {
+    auto rate = [](float nowVal, float lastVal) {
         if (lastVal == 0) return 0.0f;
         return (nowVal - lastVal) / lastVal; // calculate rate of change
     };
@@ -258,20 +234,17 @@ void HostManager::writeToMysql(HostMonitoringData &data)
         float loadAvg1 = 0, loadAvg3 = 0, loadAvg15 = 0, memUsedPercent = 0;
         float diskUtilPercent = 0;
 
-        if (info.has_mem_info())
-        {
+        if (info.has_mem_info()) {
             total = info.mem_info().total();
             freeMem = info.mem_info().free();
             avail = info.mem_info().avail();
             memUsedPercent = info.mem_info().used_percent();
         }
-        if (info.net_info_size() > 0)
-        {
+        if (info.net_info_size() > 0) {
             sendRate = info.net_info(0).send_rate() / 1024.0;
             rcvRate = info.net_info(0).rcv_rate() / 1024.0;
         }
-        if (info.cpu_stat_size() > 0)
-        {
+        if (info.cpu_stat_size() > 0) {
             const auto &cpu = info.cpu_stat(0);
             cpuPercent = cpu.cpu_percent();
             usrPercent = cpu.usr_percent();
@@ -282,15 +255,13 @@ void HostManager::writeToMysql(HostMonitoringData &data)
             irqPercent = cpu.irq_percent();
             softIrqPercent = cpu.soft_irq_percent();
         }
-        if (info.has_cpu_load())
-        {
+        if (info.has_cpu_load()) {
             loadAvg1 = info.cpu_load().load_avg_1();
             loadAvg3 = info.cpu_load().load_avg_3();
             loadAvg15 = info.cpu_load().load_avg_15();
         }
         // get disk utilization percentage
-        for (int i = 0; i < info.disk_info_size(); ++i)
-        {
+        for (int i = 0; i < info.disk_info_size(); ++i) {
             float util = info.disk_info(i).util_percent();
             if (util > diskUtilPercent) diskUtilPercent = util;
         }
@@ -299,8 +270,7 @@ void HostManager::writeToMysql(HostMonitoringData &data)
         static std::map<std::string, float> lastDiskUtil;
         float diskUtilPercentRate = 0;
         std::string hostName = data.host_name;
-        if (lastDiskUtil.count(hostName) && lastDiskUtil[hostName] != 0)
-        {
+        if (lastDiskUtil.count(hostName) && lastDiskUtil[hostName] != 0) {
             diskUtilPercentRate = (diskUtilPercent - lastDiskUtil[hostName]) /
                                   lastDiskUtil[hostName];
         }
@@ -340,8 +310,7 @@ void HostManager::writeToMysql(HostMonitoringData &data)
         // execute the query
         mysql_query(conn, oss.str().c_str());
         // check for errors
-        if (mysql_errno(conn))
-        {
+        if (mysql_errno(conn)) {
             std::cerr << "MySQL insert error: " << mysql_error(conn)
                       << std::endl;
             std::cerr << __func__ << " " << __LINE__ << std::endl;
@@ -350,8 +319,7 @@ void HostManager::writeToMysql(HostMonitoringData &data)
 
     // insert net detail data into mysql
     {
-        for (int i = 0; i < info.net_info_size(); ++i)
-        {
+        for (int i = 0; i < info.net_info_size(); ++i) {
             const auto &net = info.net_info(i);
             std::string netName = net.name();
 
@@ -368,8 +336,7 @@ void HostManager::writeToMysql(HostMonitoringData &data)
             NetDetailedSample &last = lastNetSamples[data.host_name][netName];
 
             // 计算错误/丢弃变化率
-            auto rateU64 = [](uint64_t nowVal, uint64_t lastVal) -> float
-            {
+            auto rateU64 = [](uint64_t nowVal, uint64_t lastVal) -> float {
                 if (lastVal == 0) return 0;
                 return static_cast<float>(nowVal - lastVal) /
                        static_cast<float>(lastVal);
@@ -403,8 +370,7 @@ void HostManager::writeToMysql(HostMonitoringData &data)
                 << rateU64(curr.drop_out, last.drop_out) << ",'" << timeStr
                 << "')";
             mysql_query(conn, oss.str().c_str());
-            if (mysql_errno(conn))
-            {
+            if (mysql_errno(conn)) {
                 std::cerr << "MySQL insert error: " << mysql_error(conn)
                           << std::endl;
                 std::cerr << __func__ << " " << __LINE__ << std::endl;
@@ -415,8 +381,7 @@ void HostManager::writeToMysql(HostMonitoringData &data)
 
     // insert softirq data into mysql
     {
-        for (int i = 0; i < info.soft_irq_size(); ++i)
-        {
+        for (int i = 0; i < info.soft_irq_size(); ++i) {
             const auto &sirq = info.soft_irq(i);
             std::string cpuName = sirq.cpu();
 
@@ -457,8 +422,7 @@ void HostManager::writeToMysql(HostMonitoringData &data)
                 << rate(curr.rcu, last.rcu) << ",'" << timeStr << "')";
             mysql_query(conn, oss.str().c_str());
 
-            if (mysql_errno(conn))
-            {
+            if (mysql_errno(conn)) {
                 std::cerr << "MySQL insert error: " << mysql_error(conn)
                           << std::endl;
                 std::cerr << __func__ << " " << __LINE__ << std::endl;
@@ -469,8 +433,7 @@ void HostManager::writeToMysql(HostMonitoringData &data)
 
     // insert memory detail data into mysql
     {
-        if (info.has_mem_info())
-        {
+        if (info.has_mem_info()) {
             const auto &mem = info.mem_info();
 
             MemDetailSample curr;
@@ -544,8 +507,7 @@ void HostManager::writeToMysql(HostMonitoringData &data)
                 << "')";
             mysql_query(conn, oss.str().c_str());
 
-            if (mysql_errno(conn))
-            {
+            if (mysql_errno(conn)) {
                 std::cerr << "MySQL insert error: " << mysql_error(conn)
                           << std::endl;
                 std::cerr << __func__ << " " << __LINE__ << std::endl;
@@ -556,8 +518,7 @@ void HostManager::writeToMysql(HostMonitoringData &data)
 
     // insert disk detail data into mysql
     {
-        for (int i = 0; i < info.disk_info_size(); ++i)
-        {
+        for (int i = 0; i < info.disk_info_size(); ++i) {
             const auto &disk = info.disk_info(i);
             std::string diskName = disk.name();
 
@@ -606,8 +567,7 @@ void HostManager::writeToMysql(HostMonitoringData &data)
                 << timeStr << "')";
             mysql_query(conn, oss.str().c_str());
 
-            if (mysql_errno(conn))
-            {
+            if (mysql_errno(conn)) {
                 std::cerr << "MySQL insert error: " << mysql_error(conn)
                           << std::endl;
                 std::cerr << __func__ << " " << __LINE__ << std::endl;
@@ -622,24 +582,20 @@ void HostManager::writeToMysql(HostMonitoringData &data)
 #endif
 }
 
-void HostManager::start()
-{
+void HostManager::start() {
     running_.store(true);
     thread_ = std::make_unique<std::thread>(&HostManager::processLoop, this);
 }
 
-void HostManager::stop()
-{
+void HostManager::stop() {
     running_.store(false);
     if (thread_ && thread_->joinable()) thread_->join();
 }
 
-void HostManager::onDataReceived(const monitor::proto::MonitorInfo &info)
-{
+void HostManager::onDataReceived(const monitor::proto::MonitorInfo &info) {
     // create unique host ID, can be replaced by real hostname in production
     std::string hostID;
-    if (info.has_host_info())
-    {
+    if (info.has_host_info()) {
         const auto &hostInfo = info.host_info();
         std::string hostName = hostInfo.hostname();
         std::string ip = hostInfo.ip_address();
@@ -655,8 +611,7 @@ void HostManager::onDataReceived(const monitor::proto::MonitorInfo &info)
     if (hostID.empty()) hostID = info.name();
 
     // if hostID is still empty, drop this data
-    if (hostID.empty())
-    {
+    if (hostID.empty()) {
         std::cerr << "Received data with empty server identifier" << std::endl;
         return;
     }
@@ -666,8 +621,7 @@ void HostManager::onDataReceived(const monitor::proto::MonitorInfo &info)
 
     // compute rate of change for network in/out rate
     double netInRate = 0, netOutRate = 0;
-    if (info.net_info_size() > 0)
-    {
+    if (info.net_info_size() > 0) {
         netInRate =
             info.net_info(0).rcv_rate() / (1024.0 * 1024.0); // convert to MB/s
         netOutRate =
@@ -677,8 +631,7 @@ void HostManager::onDataReceived(const monitor::proto::MonitorInfo &info)
     // store the current performance metrics for rate calculation in the next
     // round
     PerfSample curr;
-    if (info.cpu_stat_size() > 0)
-    {
+    if (info.cpu_stat_size() > 0) {
         const auto &cpu = info.cpu_stat(0);
         curr.cpu_percent = cpu.cpu_percent();
         curr.usr_percent = cpu.usr_percent();
@@ -690,15 +643,13 @@ void HostManager::onDataReceived(const monitor::proto::MonitorInfo &info)
         curr.soft_irq_percent = cpu.soft_irq_percent();
     }
 
-    if (info.has_cpu_load())
-    {
+    if (info.has_cpu_load()) {
         curr.load_avg_1 = info.cpu_load().load_avg_1();
         curr.load_avg_3 = info.cpu_load().load_avg_3();
         curr.load_avg_15 = info.cpu_load().load_avg_15();
     }
 
-    if (info.has_mem_info())
-    {
+    if (info.has_mem_info()) {
         curr.mem_used_percent = info.mem_info().used_percent();
         curr.mem_total = info.mem_info().total();
         curr.mem_free = info.mem_info().free();
@@ -711,8 +662,7 @@ void HostManager::onDataReceived(const monitor::proto::MonitorInfo &info)
 
     // compute rate of change for performance metrics
     PerfSample &last = lastPerfSamples[hostID];
-    auto rate = [](float nowVal, float lastVal) -> float
-    {
+    auto rate = [](float nowVal, float lastVal) -> float {
         if (lastVal == 0) return 0;
         return (nowVal - lastVal) / lastVal; // calculate rate of change
     };
@@ -801,8 +751,7 @@ void HostManager::onDataReceived(const monitor::proto::MonitorInfo &info)
     std::cout << "  In: " << curr.net_in_rate * 1024 * 1024 << " B/s, "
               << "Out: " << curr.net_out_rate * 1024 * 1024 << " B/s"
               << std::endl;
-    for (int i = 0; i < info.net_info_size(); ++i)
-    {
+    for (int i = 0; i < info.net_info_size(); ++i) {
         const auto &net = info.net_info(i);
         std::cout << "  [" << net.name() << "] Recv: " << net.rcv_rate()
                   << " B/s, "
@@ -814,8 +763,7 @@ void HostManager::onDataReceived(const monitor::proto::MonitorInfo &info)
     // 磁盘详细信息
     std::cout << "\n--- Disk ---" << std::endl;
     float max_disk_util = 0;
-    for (int i = 0; i < info.disk_info_size(); ++i)
-    {
+    for (int i = 0; i < info.disk_info_size(); ++i) {
         const auto &disk = info.disk_info(i);
         std::cout << "  [" << disk.name() << "] "
                   << "Read: " << disk.read_bytes_per_sec() / 1024.0 << " KB/s, "
@@ -841,26 +789,28 @@ void HostManager::onDataReceived(const monitor::proto::MonitorInfo &info)
               << "NetOut: " << net_out_rate_rate * 100 << "%" << std::endl;
 
     std::cout << "\n--- Database ---" << std::endl;
-    std::cout << "  Data saved to MySQL (monitor_db)" << std::endl;
+#ifdef ENABLE_MYSQL
+    const MysqlConfig mysqlConfig = loadMysqlConfigFromEnv();
+    std::cout << "  Data saved to MySQL (" << mysqlConfig.database << ")"
+              << std::endl;
+#else
+    std::cout << "  MySQL support is disabled" << std::endl;
+#endif
     std::cout << "====================================================\n"
               << std::endl;
 }
 
-std::unordered_map<std::string, HostScore> HostManager::getAllHostScores()
-{
+std::unordered_map<std::string, HostScore> HostManager::getAllHostScores() {
     std::lock_guard<std::mutex> lock(mutex_);
     return hostScores_;
 }
 
-std::string HostManager::getBestHost()
-{
+std::string HostManager::getBestHost() {
     std::lock_guard<std::mutex> lock(mutex_);
     std::string bestHost;
     double bestScore = INT_MIN;
-    for (const auto &[host, data] : hostScores_)
-    {
-        if (data.score > bestScore)
-        {
+    for (const auto &[host, data] : hostScores_) {
+        if (data.score > bestScore) {
             bestScore = data.score;
             bestHost = host;
         }

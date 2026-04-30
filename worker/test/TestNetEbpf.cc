@@ -25,8 +25,7 @@
 #include "net_stats.skel.h"
 
 // 共享数据结构
-struct net_stats
-{
+struct net_stats {
     uint64_t rcv_bytes;
     uint64_t rcv_packets;
     uint64_t snd_bytes;
@@ -39,15 +38,13 @@ static std::vector<uint32_t> attached_ifindexes;
 void sig_handler(int sig) { running = false; }
 
 // 获取所有网卡 ifindex
-std::vector<uint32_t> get_all_ifindexes()
-{
+std::vector<uint32_t> get_all_ifindexes() {
     std::vector<uint32_t> indexes;
     DIR *dir = opendir("/sys/class/net");
     if (!dir) return indexes;
 
     struct dirent *entry;
-    while ((entry = readdir(dir)) != nullptr)
-    {
+    while ((entry = readdir(dir)) != nullptr) {
         if (entry->d_name[0] == '.') continue;
         if (strcmp(entry->d_name, "lo") == 0) continue; // 跳过 loopback
 
@@ -58,8 +55,7 @@ std::vector<uint32_t> get_all_ifindexes()
     return indexes;
 }
 
-int main()
-{
+int main() {
     struct net_stats_bpf *skel = nullptr;
     int err;
 
@@ -71,16 +67,14 @@ int main()
 
     // 打开 BPF skeleton
     skel = net_stats_bpf__open();
-    if (!skel)
-    {
+    if (!skel) {
         fprintf(stderr, "Failed to open BPF skeleton\n");
         return 1;
     }
 
     // 加载 BPF 程序
     err = net_stats_bpf__load(skel);
-    if (err)
-    {
+    if (err) {
         fprintf(stderr, "Failed to load BPF program: %s\n", strerror(-err));
         net_stats_bpf__destroy(skel);
         return 1;
@@ -95,8 +89,7 @@ int main()
     // 获取所有网卡并附加 TC hook
     auto ifindexes = get_all_ifindexes();
 
-    for (uint32_t ifindex : ifindexes)
-    {
+    for (uint32_t ifindex : ifindexes) {
         char ifname[IF_NAMESIZE];
         if (if_indextoname(ifindex, ifname) == nullptr) continue;
 
@@ -111,8 +104,7 @@ int main()
                     .attach_point = BPF_TC_INGRESS, );
 
         err = bpf_tc_hook_create(&hook);
-        if (err && err != -EEXIST)
-        {
+        if (err && err != -EEXIST) {
             fprintf(stderr, "Failed to create TC hook for %s: %s\n", ifname,
                     strerror(-err));
             continue;
@@ -121,13 +113,10 @@ int main()
         // 附加 ingress
         LIBBPF_OPTS(bpf_tc_opts, opts_in, .prog_fd = ingress_fd, );
         err = bpf_tc_attach(&hook, &opts_in);
-        if (err)
-        {
+        if (err) {
             fprintf(stderr, "Failed to attach ingress for %s: %s\n", ifname,
                     strerror(-err));
-        }
-        else
-        {
+        } else {
             printf("Attached TC ingress to %s (ifindex=%u)\n", ifname, ifindex);
             attached_ifindexes.push_back(ifindex);
         }
@@ -136,19 +125,15 @@ int main()
         hook.attach_point = BPF_TC_EGRESS;
         LIBBPF_OPTS(bpf_tc_opts, opts_eg, .prog_fd = egress_fd, );
         err = bpf_tc_attach(&hook, &opts_eg);
-        if (err)
-        {
+        if (err) {
             fprintf(stderr, "Failed to attach egress for %s: %s\n", ifname,
                     strerror(-err));
-        }
-        else
-        {
+        } else {
             printf("Attached TC egress to %s\n", ifname);
         }
     }
 
-    if (attached_ifindexes.empty())
-    {
+    if (attached_ifindexes.empty()) {
         fprintf(stderr, "No interfaces attached!\n");
         net_stats_bpf__destroy(skel);
         return 1;
@@ -160,14 +145,12 @@ int main()
     int map_fd = bpf_map__fd(skel->maps.net_stats_map);
 
     // 上一次的统计数据
-    struct
-    {
+    struct {
         uint64_t rcv_bytes;
         uint64_t snd_bytes;
     } prev_stats[64] = {};
 
-    while (running)
-    {
+    while (running) {
         sleep(2);
 
         printf("\n--- Network Statistics (TC Hook) ---\n");
@@ -177,13 +160,10 @@ int main()
         uint32_t key = 0, next_key;
         struct net_stats stats;
 
-        while (bpf_map_get_next_key(map_fd, &key, &next_key) == 0)
-        {
-            if (bpf_map_lookup_elem(map_fd, &next_key, &stats) == 0)
-            {
+        while (bpf_map_get_next_key(map_fd, &key, &next_key) == 0) {
+            if (bpf_map_lookup_elem(map_fd, &next_key, &stats) == 0) {
                 char ifname[IF_NAMESIZE];
-                if (if_indextoname(next_key, ifname) != nullptr)
-                {
+                if (if_indextoname(next_key, ifname) != nullptr) {
                     // 计算速率 (2秒间隔)
                     uint64_t rx_rate =
                         (stats.rcv_bytes - prev_stats[next_key].rcv_bytes) / 2;
@@ -204,8 +184,7 @@ int main()
     printf("\nCleaning up TC hooks...\n");
 
     // 分离 TC hook
-    for (uint32_t ifindex : attached_ifindexes)
-    {
+    for (uint32_t ifindex : attached_ifindexes) {
         LIBBPF_OPTS(bpf_tc_hook, hook, .ifindex = static_cast<int>(ifindex),
                     .attach_point = BPF_TC_INGRESS, );
         LIBBPF_OPTS(bpf_tc_opts, opts);

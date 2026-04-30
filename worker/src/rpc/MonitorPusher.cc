@@ -10,14 +10,12 @@
 #include "monitor_info.grpc.pb.h"
 #include "monitor_info.pb.h"
 
-namespace monitor
-{
+namespace monitor {
 MonitorPusher::MonitorPusher(const std::string &managerAddress,
                              int intervalSeconds)
     : managerAddress_(managerAddress),
       intervalSeconds_(intervalSeconds),
-      running_(false)
-{
+      running_(false) {
     auto channel = grpc::CreateChannel(managerAddress_,
                                        grpc::InsecureChannelCredentials());
     stub_ = monitor::proto::GrpcManager::NewStub(channel);
@@ -26,8 +24,7 @@ MonitorPusher::MonitorPusher(const std::string &managerAddress,
 
 MonitorPusher::~MonitorPusher() { stop(); }
 
-void MonitorPusher::start()
-{
+void MonitorPusher::start() {
     if (running_) return;
 
     running_ = true;
@@ -36,19 +33,15 @@ void MonitorPusher::start()
               << " every " << intervalSeconds_ << " seconds." << std::endl;
 }
 
-void MonitorPusher::stop()
-{
+void MonitorPusher::stop() {
     running_ = false;
     if (thread_ && thread_->joinable()) thread_->join();
 }
 
-void MonitorPusher::pushLoop()
-{
-    while (running_)
-    {
+void MonitorPusher::pushLoop() {
+    while (running_) {
         // Collect metrics data
-        if (!pushOnce())
-        {
+        if (!pushOnce()) {
             std::cerr << "Failed to push metrics data to " << managerAddress_
                       << std::endl;
         }
@@ -59,8 +52,7 @@ void MonitorPusher::pushLoop()
     }
 }
 
-bool MonitorPusher::pushOnce()
-{
+bool MonitorPusher::pushOnce() {
     monitor::proto::MonitorInfo info;
     collector_->collectAll(&info);
     // print collected metrics
@@ -68,16 +60,14 @@ bool MonitorPusher::pushOnce()
               << std::endl;
 
     // host name
-    if (info.has_host_info())
-    {
+    if (info.has_host_info()) {
         std::cout << "[Host] Hostname: " << info.host_info().hostname()
                   << std::endl;
     }
 
     // cpu statistics
     std::cout << "\n--- CPU Statistics ---" << std::endl;
-    for (int i = 0; i < info.cpu_stat_size(); ++i)
-    {
+    for (int i = 0; i < info.cpu_stat_size(); ++i) {
         const auto &cpuStat = info.cpu_stat(i);
         std::cout << "[" << cpuStat.cpu_name() << "] "
                   << "Total: " << cpuStat.cpu_percent() << "%, "
@@ -92,8 +82,7 @@ bool MonitorPusher::pushOnce()
     }
 
     // CPU load
-    if (info.has_cpu_load())
-    {
+    if (info.has_cpu_load()) {
         std::cout << "\n--- CPU Load ---" << std::endl;
         std::cout << "[Load] 1min: " << info.cpu_load().load_avg_1()
                   << ", 5min: " << info.cpu_load().load_avg_3()
@@ -101,8 +90,7 @@ bool MonitorPusher::pushOnce()
     }
 
     // memory info
-    if (info.has_mem_info())
-    {
+    if (info.has_mem_info()) {
         const auto &mem = info.mem_info();
         std::cout << "\n--- Memory Info ---" << std::endl;
         std::cout << "[Memory] Used: " << mem.used_percent() << "%"
@@ -131,11 +119,9 @@ bool MonitorPusher::pushOnce()
     }
 
     // net info
-    if (info.net_info_size() > 0)
-    {
+    if (info.net_info_size() > 0) {
         std::cout << "\n--- Network Info ---" << std::endl;
-        for (int i = 0; i < info.net_info_size(); ++i)
-        {
+        for (int i = 0; i < info.net_info_size(); ++i) {
             const auto &net = info.net_info(i);
             std::cout << "[" << net.name() << "]" << std::endl;
             std::cout << "  Recv: " << net.rcv_rate() << " B/s ("
@@ -149,11 +135,9 @@ bool MonitorPusher::pushOnce()
     }
 
     // disk info
-    if (info.disk_info_size() > 0)
-    {
+    if (info.disk_info_size() > 0) {
         std::cout << "\n--- Disk Info ---" << std::endl;
-        for (int i = 0; i < info.disk_info_size(); ++i)
-        {
+        for (int i = 0; i < info.disk_info_size(); ++i) {
             const auto &disk = info.disk_info(i);
             std::cout << "[" << disk.name() << "]" << std::endl;
             std::cout << "  Read: " << disk.read_bytes_per_sec() / 1024.0
@@ -178,11 +162,9 @@ bool MonitorPusher::pushOnce()
     }
 
     // softirq info
-    if (info.soft_irq_size() > 0)
-    {
+    if (info.soft_irq_size() > 0) {
         std::cout << "\n--- SoftIRQ Info ---" << std::endl;
-        for (int i = 0; i < info.soft_irq_size(); ++i)
-        {
+        for (int i = 0; i < info.soft_irq_size(); ++i) {
             const auto &sirq = info.soft_irq(i);
             std::cout << "[" << sirq.cpu() << "] "
                       << "HI: " << sirq.hi() << ", "
@@ -205,14 +187,11 @@ bool MonitorPusher::pushOnce()
     google::protobuf::Empty response;
     grpc::Status status = stub_->SetMonitorInfo(&context, info, &response);
 
-    if (status.ok())
-    {
+    if (status.ok()) {
         std::cout << ">>> Pushed monitor data to " << managerAddress_
                   << " successfully <<<" << std::endl;
         return true;
-    }
-    else
-    {
+    } else {
         std::cerr << ">>> Push failed: " << status.error_message() << " <<<"
                   << std::endl;
         return false;

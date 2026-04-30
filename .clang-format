@@ -2,7 +2,7 @@
 BasedOnStyle: Google
 
 # 强制花括号遵循 Allman 风格
-BreakBeforeBraces: Allman
+# BreakBeforeBraces: Allman
 
 Language: Cpp
 

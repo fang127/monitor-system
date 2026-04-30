@@ -7,10 +7,8 @@
 
 #include "monitor_info.pb.h"
 
-namespace monitor
-{
-class MonitorInter
-{
+namespace monitor {
+class MonitorInter {
 public:
     MonitorInter() = default;
     virtual ~MonitorInter() = default;

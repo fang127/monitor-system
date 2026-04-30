@@ -11,10 +11,8 @@
 
 #include "MonitorInter.h"
 
-namespace monitor
-{
-class MetricCollector
-{
+namespace monitor {
+class MetricCollector {
 public:
     MetricCollector();
     ~MetricCollector();

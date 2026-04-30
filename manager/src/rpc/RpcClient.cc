@@ -3,18 +3,16 @@
 #include <grpcpp/grpcpp.h>
 #include <iostream>
 
-namespace monitor
-{
+namespace monitor {
 
-RpcClient::RpcClient(const std::string &hostAddress) : hostAddress_(hostAddress)
-{
+RpcClient::RpcClient(const std::string &hostAddress)
+    : hostAddress_(hostAddress) {
     auto channel =
         grpc::CreateChannel(hostAddress, grpc::InsecureChannelCredentials());
     stub_ = monitor::proto::GrpcManager::NewStub(channel);
 }
 
-bool RpcClient::getMonitorInfo(monitor::proto::MonitorInfo *info)
-{
+bool RpcClient::getMonitorInfo(monitor::proto::MonitorInfo *info) {
     if (!info) return false;
 
     ::grpc::ClientContext context;
@@ -22,12 +20,9 @@ bool RpcClient::getMonitorInfo(monitor::proto::MonitorInfo *info)
 
     ::grpc::Status status = stub_->GetMonitorInfo(&context, request, info);
 
-    if (status.ok())
-    {
+    if (status.ok()) {
         return true;
-    }
-    else
-    {
+    } else {
         std::cerr << "Failed to get monitor info from " << hostAddress_ << ": "
                   << status.error_message() << std::endl;
         return false;

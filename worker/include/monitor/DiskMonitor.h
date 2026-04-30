@@ -5,17 +5,12 @@
  */
 #pragma once
 
-#include <string>
-#include <unordered_map>
-
 #include "MonitorInter.h"
 #include "monitor_info.pb.h"
 
-namespace monitor
-{
+namespace monitor {
 
-class DiskMonitor : public MonitorInter
-{
+class DiskMonitor : public MonitorInter {
 public:
     DiskMonitor() {}
     void updateOnce(monitor::proto::MonitorInfo *monitorInfo) override;

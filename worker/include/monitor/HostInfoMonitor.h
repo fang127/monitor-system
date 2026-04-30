@@ -8,8 +8,7 @@
 #include <string>
 #include "MonitorInter.h"
 
-namespace monitor
-{
+namespace monitor {
 
 /**
  * 主机标识信息监控器
@@ -22,8 +21,7 @@ namespace monitor
  * 调度服务器根据性能指标选出最优服务器后，
  * 可以直接使用 IP 信息将请求路由到该服务器。
  */
-class HostInfoMonitor : public MonitorInter
-{
+class HostInfoMonitor : public MonitorInter {
 public:
     HostInfoMonitor() = default;
     ~HostInfoMonitor() override = default;

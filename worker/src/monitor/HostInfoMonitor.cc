@@ -17,55 +17,36 @@
 
 #include "monitor_info.pb.h"
 
-namespace monitor
-{
+namespace monitor {
 
-std::string HostInfoMonitor::getHostname()
-{
+std::string HostInfoMonitor::getHostname() {
     char hostname[256];
     if (gethostname(hostname, sizeof(hostname)) == 0)
-    {
         return std::string(hostname);
-    }
     return "unknown";
 }
 
-std::string HostInfoMonitor::getPrimaryIpAddress()
-{
+std::string HostInfoMonitor::getPrimaryIpAddress() {
     struct ifaddrs *ifaddr = nullptr;
     struct ifaddrs *ifa = nullptr;
     std::string result;
 
-    if (getifaddrs(&ifaddr) == -1)
-    {
-        return "";
-    }
+    if (getifaddrs(&ifaddr) == -1) return "";
 
     // 遍历所有网络接口
-    for (ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next)
-    {
-        if (ifa->ifa_addr == nullptr)
-        {
-            continue;
-        }
+    for (ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next) {
+        if (ifa->ifa_addr == nullptr) continue;
 
         // 只处理 IPv4 地址
-        if (ifa->ifa_addr->sa_family != AF_INET)
-        {
-            continue;
-        }
+        if (ifa->ifa_addr->sa_family != AF_INET) continue;
 
         // 跳过 loopback 接口
-        if (strcmp(ifa->ifa_name, "lo") == 0)
-        {
-            continue;
-        }
+        if (strcmp(ifa->ifa_name, "lo") == 0) continue;
 
         // 跳过 docker/虚拟网卡（通常以 docker、veth、br- 开头）
         std::string ifname(ifa->ifa_name);
         if (ifname.find("docker") == 0 || ifname.find("veth") == 0 ||
-            ifname.find("br-") == 0 || ifname.find("virbr") == 0)
-        {
+            ifname.find("br-") == 0 || ifname.find("virbr") == 0) {
             continue;
         }
 
@@ -74,8 +55,7 @@ std::string HostInfoMonitor::getPrimaryIpAddress()
             reinterpret_cast<struct sockaddr_in *>(ifa->ifa_addr);
         char ip_str[INET_ADDRSTRLEN];
         if (inet_ntop(AF_INET, &(addr->sin_addr), ip_str, sizeof(ip_str)) !=
-            nullptr)
-        {
+            nullptr) {
             result = ip_str;
             break; // 找到第一个有效 IP 就返回
         }
@@ -85,16 +65,11 @@ std::string HostInfoMonitor::getPrimaryIpAddress()
     return result;
 }
 
-void HostInfoMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo)
-{
-    if (!monitorInfo)
-    {
-        return;
-    }
+void HostInfoMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo) {
+    if (!monitorInfo) return;
 
     // 主机信息通常不变，只需获取一次并缓存
-    if (!infoCached_)
-    {
+    if (!infoCached_) {
         cachedHostName_ = getHostname();
         cachedIp_ = getPrimaryIpAddress();
         infoCached_ = true;

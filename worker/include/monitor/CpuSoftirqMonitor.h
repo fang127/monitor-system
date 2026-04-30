@@ -11,12 +11,9 @@
 
 #include "MonitorInter.h"
 
-namespace monitor
-{
-class CpuSoftIrqMonitor : public MonitorInter
-{
-    struct SoftIrq
-    {
+namespace monitor {
+class CpuSoftIrqMonitor : public MonitorInter {
+    struct SoftIrq {
         std::string cpu_name;
         int64_t hi;
         int64_t timer;

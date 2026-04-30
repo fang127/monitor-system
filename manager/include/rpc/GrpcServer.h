@@ -6,10 +6,8 @@
 #include "monitor_info.grpc.pb.h"
 #include "monitor_info.pb.h"
 
-namespace monitor
-{
-struct HostData
-{
+namespace monitor {
+struct HostData {
     monitor::proto::MonitorInfo info;
     std::chrono::system_clock::time_point timestamp;
 };
@@ -24,8 +22,7 @@ using DataReceivedCallback =
  * data, allowing retrieval of information based on host identifiers.
  *
  */
-class GrpcServerImpl final : public monitor::proto::GrpcManager::Service
-{
+class GrpcServerImpl final : public monitor::proto::GrpcManager::Service {
 public:
     GrpcServerImpl() = default;
     virtual ~GrpcServerImpl() = default;
@@ -60,8 +57,7 @@ public:
      *
      * @param         callback
      */
-    void setDataReceivedCallback(const DataReceivedCallback &callback)
-    {
+    void setDataReceivedCallback(const DataReceivedCallback &callback) {
         callback_ = callback;
     }
 
@@ -70,8 +66,7 @@ public:
      *
      * @param         callback
      */
-    void setDataReceivedCallback(DataReceivedCallback &&callback)
-    {
+    void setDataReceivedCallback(DataReceivedCallback &&callback) {
         callback_ = std::move(callback);
     }
 

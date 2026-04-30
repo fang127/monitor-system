@@ -7,11 +7,9 @@
 #include <sstream>
 #include "monitor_info.pb.h"
 
-namespace monitor
-{
+namespace monitor {
 
-struct NetStat
-{
+struct NetStat {
     std::string name;
     uint64_t rcv_bytes;
     uint64_t rcv_packets;
@@ -24,8 +22,7 @@ struct NetStat
 };
 
 // 从 /proc/net/dev 读取网络统计信息
-static std::vector<NetStat> GetNetStatsFromProc()
-{
+static std::vector<NetStat> GetNetStatsFromProc() {
     std::vector<NetStat> stats;
     std::ifstream file("/proc/net/dev");
     if (!file.is_open()) return stats;
@@ -35,8 +32,7 @@ static std::vector<NetStat> GetNetStatsFromProc()
     std::getline(file, line);
     std::getline(file, line);
 
-    while (std::getline(file, line))
-    {
+    while (std::getline(file, line)) {
         std::istringstream iss(line);
         NetStat stat;
 
@@ -46,10 +42,7 @@ static std::vector<NetStat> GetNetStatsFromProc()
         if (iface.empty()) continue;
 
         // 移除末尾的冒号
-        if (iface.back() == ':')
-        {
-            iface.pop_back();
-        }
+        if (iface.back() == ':') iface.pop_back();
 
         // 跳过 lo 接口
         if (iface == "lo") continue;
@@ -73,24 +66,20 @@ static std::vector<NetStat> GetNetStatsFromProc()
     return stats;
 }
 
-void NetMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo)
-{
+void NetMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo) {
     auto now = std::chrono::steady_clock::now();
     auto stats = GetNetStatsFromProc();
 
-    for (const auto &stat : stats)
-    {
+    for (const auto &stat : stats) {
         auto it = lastNetInfo_.find(stat.name);
         double rcv_rate = 0, rcv_packets_rate = 0, send_rate = 0,
                send_packets_rate = 0;
 
-        if (it != lastNetInfo_.end())
-        {
+        if (it != lastNetInfo_.end()) {
             const NetInfo &last = it->second;
             double dt =
                 std::chrono::duration<double>(now - last.timepoint).count();
-            if (dt > 0)
-            {
+            if (dt > 0) {
                 rcv_rate =
                     (stat.rcv_bytes - last.rcv_bytes) / 1024.0 / dt; // KB/s
                 rcv_packets_rate = (stat.rcv_packets - last.rcv_packets) / dt;

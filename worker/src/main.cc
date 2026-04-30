@@ -15,15 +15,13 @@
 constexpr char kDefaultManagerAddress[] = "localhost:50051";
 constexpr int kDefaultPushInterval = 10; // seconds
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     std::string managerAddress = kDefaultManagerAddress;
     int intervalSeconds = kDefaultPushInterval;
 
     // parse command line arguments
     if (argc > 1) managerAddress = argv[1];
-    if (argc > 2)
-    {
+    if (argc > 2) {
         intervalSeconds = std::stoi(argv[2]);
         if (intervalSeconds <= 0) intervalSeconds = kDefaultPushInterval;
     }

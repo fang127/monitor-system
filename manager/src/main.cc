@@ -1,21 +1,15 @@
 #include <grpcpp/server_builder.h>
+#include <iostream>
 #include "HostManager.h"
 #include "GrpcServer.h"
+#include "MysqlConfig.h"
 #include "QueryService.h"
 #include "monitor_info.pb.h"
 #include "QueryManager.h"
 
 constexpr char kDefaultListenAddress[] = "0.0.0.0:50051";
 
-#ifdef ENABLE_MYSQL
-constexpr char kDefaultMysqlHost[] = "127.0.0.1";
-constexpr char kDefaultMysqlUser[] = "harry";
-constexpr char kDefaultMysqlPass[] = "hhxx588395..";
-constexpr char kDefaultMysqlDb[] = "monitor_db";
-#endif
-
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     std::string listenAddress = kDefaultListenAddress;
     if (argc > 1) listenAddress = argv[1];
 
@@ -28,8 +22,9 @@ int main(int argc, char *argv[])
     // create host manager
     monitor::HostManager hostManager;
     service.setDataReceivedCallback(
-        [&hostManager](const monitor::proto::MonitorInfo &info)
-        { hostManager.onDataReceived(info); });
+        [&hostManager](const monitor::proto::MonitorInfo &info) {
+            hostManager.onDataReceived(info);
+        });
 
     // start host manager
     hostManager.start();
@@ -37,13 +32,13 @@ int main(int argc, char *argv[])
     // create QueryManager
     monitor::QueryManager queryManager;
 #ifdef ENABLE_MYSQL
-    if (queryManager.init(kDefaultMysqlHost, kDefaultMysqlUser,
-                          kDefaultMysqlPass, kDefaultMysqlDb))
-    {
+    const monitor::MysqlConfig mysqlConfig = monitor::loadMysqlConfigFromEnv();
+    std::cout << "MySQL config: " << mysqlConfig.host << ":" << mysqlConfig.port
+              << "/" << mysqlConfig.database << std::endl;
+    if (queryManager.init(mysqlConfig.host, mysqlConfig.port, mysqlConfig.user,
+                          mysqlConfig.password, mysqlConfig.database)) {
         std::cout << "QueryManager initialized successfully" << std::endl;
-    }
-    else
-    {
+    } else {
         std::cerr << "Warning: QueryManager initialization failed, "
                   << "query service will not be available" << std::endl;
     }

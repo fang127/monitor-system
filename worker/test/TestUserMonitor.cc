@@ -17,18 +17,15 @@
  * @param         uid
  * @return        std::string
  */
-std::string getUserName(uid_t uid)
-{
+std::string getUserName(uid_t uid) {
     std::ifstream passwdFile("/etc/passwd", std::ios::in);
-    if (!passwdFile.is_open())
-    {
+    if (!passwdFile.is_open()) {
         std::cerr << "Failed to open /etc/passwd" << std::endl;
         return "";
     }
 
     std::string line;
-    while (std::getline(passwdFile, line))
-    {
+    while (std::getline(passwdFile, line)) {
         std::istringstream ss(line);
         std::string userName, password, uidStr, gidStr, userInfo, homeDir,
             shell;
@@ -40,23 +37,16 @@ std::string getUserName(uid_t uid)
         if (!std::getline(ss, homeDir, ':')) continue;
         if (!std::getline(ss, shell, ':')) continue;
 
-        try
-        {
+        try {
             uid_t parsedUid = static_cast<uid_t>(std::stoul(uidStr));
-            if (parsedUid == uid)
-            {
-                return userName;
-            }
-        }
-        catch (const std::exception &e)
-        {
+            if (parsedUid == uid) return userName;
+        } catch (const std::exception &e) {
             continue;
         }
     }
     return "";
 }
-int main()
-{
+int main() {
     uid_t uid = getuid();
     std::cout << "Current user ID: " << uid << std::endl;
 

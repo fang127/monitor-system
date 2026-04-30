@@ -14,14 +14,12 @@
 #include "monitor_info.grpc.pb.h"
 #include "monitor_info.pb.h"
 
-namespace monitor
-{
+namespace monitor {
 /**
  * @brief         gRPC Manager Implementation
  *
  */
-class GrpcManagerImpl : public monitor::proto::GrpcManager::Service
-{
+class GrpcManagerImpl : public monitor::proto::GrpcManager::Service {
 public:
     GrpcManagerImpl();
     virtual ~GrpcManagerImpl();

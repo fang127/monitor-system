@@ -1,8 +1,8 @@
 -- Monitor System Database Schema
 -- 用于存储服务器性能监控数据
 
-CREATE DATABASE IF NOT EXISTS monitor_db DEFAULT CHARACTER SET utf8mb4;
-USE monitor_db;
+CREATE DATABASE IF NOT EXISTS `monitor-system` DEFAULT CHARACTER SET utf8mb4;
+USE `monitor-system`;
 
 -- 1. 服务器性能汇总表（主表）
 CREATE TABLE IF NOT EXISTS server_performance (

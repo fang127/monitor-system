@@ -15,8 +15,7 @@
 
 struct bpf_object;
 
-namespace monitor
-{
+namespace monitor {
 
 /**
  * 基于 eBPF 的网络流量监控器
@@ -24,8 +23,7 @@ namespace monitor
  * 使用 eBPF tracepoint 挂载到内核网络路径，
  * 实时统计每个网卡的收发流量。
  */
-class NetEbpfMonitor : public MonitorInter
-{
+class NetEbpfMonitor : public MonitorInter {
 public:
     NetEbpfMonitor();
     ~NetEbpfMonitor() override;
@@ -47,8 +45,7 @@ private:
     std::string getIfName(uint32_t ifindex);
 
     // 上一次采集的数据，用于计算速率
-    struct NetStatCache
-    {
+    struct NetStatCache {
         uint64_t rcv_bytes;
         uint64_t rcv_packets;
         uint64_t snd_bytes;

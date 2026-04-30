@@ -12,12 +12,9 @@
 #include "MonitorInter.h"
 #include "monitor_info.pb.h"
 
-namespace monitor
-{
-class NetMonitor : public MonitorInter
-{
-    struct NetInfo
-    {
+namespace monitor {
+class NetMonitor : public MonitorInter {
+    struct NetInfo {
         std::string name;
         uint64_t rcv_bytes;
         uint64_t rcv_packets;

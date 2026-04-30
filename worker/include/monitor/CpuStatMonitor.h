@@ -11,12 +11,9 @@
 #include "MonitorInter.h"
 #include "monitor_info.pb.h"
 
-namespace monitor
-{
-class CpuStatMonitor : public MonitorInter
-{
-    struct CpuStat
-    {
+namespace monitor {
+class CpuStatMonitor : public MonitorInter {
+    struct CpuStat {
         std::string cpu_name;
         float user;
         float system;

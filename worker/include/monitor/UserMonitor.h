@@ -8,8 +8,7 @@
 #include <string>
 #include "MonitorInter.h"
 
-namespace monitor
-{
+namespace monitor {
 
 /**
  * 用户信息监控器
@@ -20,8 +19,7 @@ namespace monitor
  * 这种方式比 getenv("USER") 更可靠，不依赖环境变量，
  * 在容器环境下也能准确获取用户信息。
  */
-class UserMonitor : public MonitorInter
-{
+class UserMonitor : public MonitorInter {
 public:
     UserMonitor() = default;
     ~UserMonitor() override = default;

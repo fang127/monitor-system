@@ -125,6 +125,10 @@ Worker(多台)
 
 ```
 monitor_system/
+├── configs/                   # 运行时配置
+│   └── manager.env            # Manager/MySQL 环境变量
+├── deploy/                    # 部署配置
+│   └── docker-compose.yml     # MySQL、Redis 基础服务
 ├── worker/                    # 工作者服务器（部署在被监控机器）
 │   ├── include/               # 头文件
 │   │   ├── monitor/           # 监控器接口
@@ -149,7 +153,7 @@ monitor_system/
 ### mysql 数据库设计
 
 ```
-monitor_db
+monitor-system
   |
   +-- server_performance       (汇总/主表：每次上报的一行“总览 + score + 变化率”)
   +-- server_net_detail        (网络明细：每网卡每次上报一行)
@@ -227,57 +231,41 @@ Score = CPU_Score × 35% + Mem_Score × 30% + Load_Score × 15%
 
 ## 🚀 快速开始
 
-### 1. 安装并启动 MySQL
+### 1. 启动基础服务
 
 ```bash
-sudo systemctl start mysql
-sudo systemctl enable mysql
+docker compose --env-file configs/manager.env -f deploy/docker-compose.yml up -d
 ```
 
-### 2. 创建数据库和用户
+Compose 会启动 MySQL 8.0 和 Redis 7.2，并把初始化脚本
+`manager/sql table/init_server_performance.sql` 挂载到
+`/docker-entrypoint-initdb.d/`，首次创建 MySQL 数据目录时自动建库建表。
+
+### 2. 配置 Manager 环境变量
 
 ```bash
-sudo mysql -u root -p
+set -a
+source configs/manager.env
+set +a
 ```
 
-```sql
--- 创建数据库
-CREATE DATABASE monitor_db;
+默认配置：
 
--- 创建用户并授权
-CREATE USER 'yourUser'@'localhost' IDENTIFIED BY 'yourPassword';
-GRANT ALL PRIVILEGES ON monitor_db.* TO 'yourUser'@'localhost';
-FLUSH PRIVILEGES;
-EXIT;
+```env
+MYSQL_HOST=127.0.0.1
+MYSQL_PORT=3306
+MYSQL_USER=root
+MYSQL_PASSWORD=123456
+MYSQL_DATABASE=monitor-system
 ```
 
-### 3. 导入表结构
-
-```bash
-mysql -u monitor -pyourPassword monitor_db < manager/sql/init_server_performance.sql
-```
-
-### 4. 修改代码中的数据库配置
-
-在以下两个文件中修改数据库连接信息：
-
-**文件**: `manager/src/main.cpp` 和 `manager/src/HostManager.cpp`
-
-```cpp
-// 修改为你的 MySQL 配置
-const char* host = "localhost";
-const char* user = "yourUser";        // 你的用户名
-const char* password = "yourPassword"; // 你的密码
-const char* database = "monitor_db";
-```
-
-### 5. 运行构建脚本
+### 3. 运行构建脚本
 
 ```bash
 python3 ./build_debug.py
 ```
 
-### 6. 启动 Manager 服务器
+### 4. 启动 Manager 服务器
 
 ```bash
 ./build/manager/manager
@@ -290,7 +278,7 @@ Monitor Client listening on 0.0.0.0:50051
 Query service available for performance data queries
 ```
 
-### 7. 加载内核模块
+### 5. 加载内核模块
 
 ```bash
 sudo insmod worker/src/kmod/CpuStatCollector.ko
@@ -300,7 +288,7 @@ sudo insmod worker/src/kmod/SoftirqCollector.ko
 ls /dev/CpuStatCollector /dev/SoftirqCollector
 ```
 
-### 8. 启动 Worker（被监控机器）
+### 6. 启动 Worker（被监控机器）
 
 ```bash
 # 需要 sudo 权限以加载 eBPF 程序
@@ -310,7 +298,7 @@ sudo ./build/worker/worker <manager_ip>:50051
 sudo ./build/worker/worker 192.168.1.100:50051
 ```
 
-### 9. 验证运行
+### 7. 验证运行
 
 Manager 端显示：
 ```
@@ -318,7 +306,7 @@ Received monitor data from: server1
 Processed data from server1_192.168.1.101, score: 75.32
 ```
 
-### 10. 停止服务和卸载内核模块
+### 8. 停止服务和卸载内核模块
 
 ```bash
 # 停止 Worker 和 Manager（Ctrl+C）
@@ -329,6 +317,9 @@ sudo rmmod CpuStatCollector
 
 # 验证卸载
 lsmod | grep -E "CpuStat|Softirq"
+
+# 停止基础服务
+docker compose --env-file configs/manager.env -f deploy/docker-compose.yml down
 ```
 
 ## 📄 许可证

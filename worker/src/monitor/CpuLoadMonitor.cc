@@ -13,8 +13,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-namespace monitor
-{
+namespace monitor {
 /**
  * @brief 从/proc/loadavg文件读取CPU负载信息
  * @details
@@ -25,8 +24,7 @@ namespace monitor
  * @param[out] load15 输出参数：存储十五分钟平均负载的变量指针
  * @return bool类型，读取成功且解析到3个负载值返回true，否则返回false
  */
-static bool readLoadFromProc(float *load1, float *load3, float *load15)
-{
+static bool readLoadFromProc(float *load1, float *load3, float *load15) {
     FILE *fp = fopen("/proc/loadavg", "r");
     if (!fp) return false;
 
@@ -35,16 +33,13 @@ static bool readLoadFromProc(float *load1, float *load3, float *load15)
     return ret == 3;
 }
 
-void CpuLoadMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo)
-{
+void CpuLoadMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo) {
     // 从/dev/cpu_load_monitor设备读取CPU负载信息
     int fd = open("/dev/CpuStatCollector", O_RDONLY);
-    if (fd >= 0)
-    {
+    if (fd >= 0) {
         size_t loadSize = sizeof(struct cpu_load);
         void *addr = mmap(nullptr, loadSize, PROT_READ, MAP_SHARED, fd, 0);
-        if (addr != MAP_FAILED)
-        {
+        if (addr != MAP_FAILED) {
             struct cpu_load *info = new cpu_load();
             memcpy(static_cast<void *>(info), addr, loadSize);
             auto cpuLoadMsg = monitorInfo->mutable_cpu_load();
@@ -61,8 +56,7 @@ void CpuLoadMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo)
 
     // 如果读取失败，从/proc/loadavg文件读取CPU负载信息
     float load1, load3, load15;
-    if (readLoadFromProc(&load1, &load3, &load15))
-    {
+    if (readLoadFromProc(&load1, &load3, &load15)) {
         auto cpuLoadMsg = monitorInfo->mutable_cpu_load();
         cpuLoadMsg->set_load_avg_1(load1);
         cpuLoadMsg->set_load_avg_3(load3);

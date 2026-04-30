@@ -4,8 +4,7 @@
 #include "query_api.pb.h"
 #include "QueryManager.h"
 
-namespace monitor
-{
+namespace monitor {
 /**
  * @brief         this class implements the gRPC service defined in
  * query_api.proto, providing methods to handle various types of queries related
@@ -13,8 +12,7 @@ namespace monitor
  * network, disk, memory, and soft interrupts.
  *
  */
-class QueryServiceImpl final : public monitor::proto::QueryService::Service
-{
+class QueryServiceImpl final : public monitor::proto::QueryService::Service {
 public:
     explicit QueryServiceImpl(QueryManager *query_manager);
     virtual ~QueryServiceImpl() = default;

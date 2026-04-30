@@ -4,93 +4,52 @@
 #include <vector>
 #include <string>
 
-namespace monitor
-{
+namespace monitor {
 static constexpr float KBToGB = 1000 * 1000;
 
-void MemMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo)
-{
+void MemMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo) {
     ReadFile memFile("/proc/meminfo");
     struct MenInfo memInfo;
     std::vector<std::string> memDatas;
-    while (memFile.ReadLine(memDatas))
-    {
+    while (memFile.ReadLine(memDatas)) {
         if (memDatas[0] == "MemTotal:")
-        {
             memInfo.total = std::stoll(memDatas[1]);
-        }
         else if (memDatas[0] == "MemFree:")
-        {
             memInfo.free = std::stoll(memDatas[1]);
-        }
         else if (memDatas[0] == "MemAvailable:")
-        {
             memInfo.avail = std::stoll(memDatas[1]);
-        }
         else if (memDatas[0] == "Buffers:")
-        {
             memInfo.buffers = std::stoll(memDatas[1]);
-        }
         else if (memDatas[0] == "Cached:")
-        {
             memInfo.cached = std::stoll(memDatas[1]);
-        }
         else if (memDatas[0] == "SwapCached:")
-        {
             memInfo.swap_cached = std::stoll(memDatas[1]);
-        }
         else if (memDatas[0] == "Active:")
-        {
             memInfo.active = std::stoll(memDatas[1]);
-        }
         else if (memDatas[0] == "Inactive:")
-        {
             memInfo.in_active = std::stoll(memDatas[1]);
-        }
         else if (memDatas[0] == "Active(anon):")
-        {
             memInfo.active_anon = std::stoll(memDatas[1]);
-        }
         else if (memDatas[0] == "Inactive(anon):")
-        {
             memInfo.inactive_anon = std::stoll(memDatas[1]);
-        }
         else if (memDatas[0] == "Active(file):")
-        {
             memInfo.active_file = std::stoll(memDatas[1]);
-        }
         else if (memDatas[0] == "Inactive(file):")
-        {
             memInfo.inactive_file = std::stoll(memDatas[1]);
-        }
         else if (memDatas[0] == "Dirty:")
-        {
             memInfo.dirty = std::stoll(memDatas[1]);
-        }
         else if (memDatas[0] == "Writeback:")
-        {
             memInfo.writeback = std::stoll(memDatas[1]);
-        }
         else if (memDatas[0] == "AnonPages:")
-        {
             memInfo.anon_pages = std::stoll(memDatas[1]);
-        }
         else if (memDatas[0] == "Mapped:")
-        {
             memInfo.mapped = std::stoll(memDatas[1]);
-        }
         else if (memDatas[0] == "KReclaimable:")
-        {
             memInfo.kReclaimable = std::stoll(memDatas[1]);
-        }
         else if (memDatas[0] == "SReclaimable:")
-        {
             memInfo.sReclaimable = std::stoll(memDatas[1]);
-        }
         else if (memDatas[0] == "SUnreclaim:")
-        {
             memInfo.sUnreclaim = std::stoll(memDatas[1]);
-        }
         memDatas.clear();
     }
 

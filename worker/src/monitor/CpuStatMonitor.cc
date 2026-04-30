@@ -7,29 +7,24 @@
 #include "monitor_info.grpc.pb.h"
 #include "monitor_info.pb.h"
 
-namespace monitor
-{
-void CpuStatMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo)
-{
+namespace monitor {
+void CpuStatMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo) {
     int fd = open("/dev/CpuStatCollector", O_RDONLY);
     if (fd < 0) return;
 
     size_t statCount = 128; // 假设最多128个CPU
     size_t statSize = sizeof(struct cpu_stat) * statCount;
     void *addr = mmap(nullptr, statSize, PROT_READ, MAP_SHARED, fd, 0);
-    if (addr == MAP_FAILED)
-    {
+    if (addr == MAP_FAILED) {
         close(fd);
         return;
     }
 
     struct cpu_stat *stats = static_cast<struct cpu_stat *>(addr);
-    for (size_t i = 0; i < statCount; ++i)
-    {
+    for (size_t i = 0; i < statCount; ++i) {
         if (stats[i].cpu_name[0] == '\0') break;
         auto it = cpuStatMap_.find(stats[i].cpu_name);
-        if (it != cpuStatMap_.end())
-        {
+        if (it != cpuStatMap_.end()) {
             struct CpuStat old = it->second;
             auto cpu_stat_msg = monitorInfo->add_cpu_stat();
             float newCpuTotalTime = stats[i].user + stats[i].system +

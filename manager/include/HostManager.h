@@ -8,16 +8,14 @@
 #include <atomic>
 #include <thread>
 
-namespace monitor
-{
+namespace monitor {
 /**
  * @brief         HostScore is a structure that encapsulates the monitoring
  * information of a host along with its computed score and the last update time.
  * It is used to evaluate and compare the performance of different hosts based
  * on their monitoring data.
  */
-struct HostScore
-{
+struct HostScore {
     monitor::proto::MonitorInfo info;
     double score;
     std::chrono::system_clock::time_point timestamp;
@@ -30,8 +28,7 @@ struct HostScore
  * database.
  *
  */
-struct HostMonitoringData
-{
+struct HostMonitoringData {
     const std::string &host_name;
     const HostScore &host_score;
     double net_in_rate;
@@ -60,8 +57,7 @@ struct HostMonitoringData
     float net_out_drop_rate_rate;
 };
 
-class HostManager
-{
+class HostManager {
 public:
     HostManager();
     ~HostManager();

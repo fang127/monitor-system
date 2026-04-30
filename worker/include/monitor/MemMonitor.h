@@ -11,12 +11,9 @@
 #include "MonitorInter.h"
 #include "monitor_info.pb.h"
 
-namespace monitor
-{
-class MemMonitor : public MonitorInter
-{
-    struct MenInfo
-    {
+namespace monitor {
+class MemMonitor : public MonitorInter {
+    struct MenInfo {
         int64_t total;
         int64_t free;
         int64_t avail;
