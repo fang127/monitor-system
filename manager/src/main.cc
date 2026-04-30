@@ -52,8 +52,8 @@ int main(int argc, char *argv[]) {
     // start grpc server
     grpc::ServerBuilder builder;
     builder.AddListeningPort(listenAddress, grpc::InsecureServerCredentials());
-    builder.RegisterService(&service);
-    builder.RegisterService(&queryService);
+    builder.RegisterService(&service);      // 注册数据接收服务
+    builder.RegisterService(&queryService); // 注册查询服务
     std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
     std::cout << "Monitor Client listening on " << listenAddress << std::endl;
     std::cout << "Waiting for workers to push data..." << std::endl;

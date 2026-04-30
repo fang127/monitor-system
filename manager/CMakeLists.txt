@@ -24,6 +24,7 @@ set(MANAGER_LIBS
 )
 
 if(ENABLE_MYSQL)
+    target_compile_definitions(manager PRIVATE ENABLE_MYSQL) # 定义宏以启用MySQL相关代码
     list(APPEND MANAGER_LIBS libmysqlclient::libmysqlclient)
 endif()
 
