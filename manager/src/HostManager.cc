@@ -74,6 +74,25 @@ std::map<std::string, std::map<std::string, SoftIrqSample>> lastSoftirqSamples;
 std::map<std::string, MemDetailSample> lastMemSamples;
 std::map<std::string, std::map<std::string, DiskDetailSample>> lastDiskSamples;
 
+/**
+ * @brief         Escape a string for safe insertion into MySQL queries,
+ * preventing SQL injection. It uses mysql_real_escape_string to properly escape
+ * special characters and wraps the result in single quotes.
+ *
+ * @param         conn
+ * @param         value
+ * @return
+ */
+std::string quoteSqlString(MYSQL *conn, const std::string &value) {
+    std::string escaped(value.size() * 2 + 1,
+                        '\0'); // allocate enough space for escaping
+    unsigned long len = mysql_real_escape_string(
+        conn, escaped.data(), value.data(),
+        static_cast<unsigned long>(value.size())); // escape the string
+    escaped.resize(len);
+    return "'" + escaped + "'";
+}
+
 } // namespace
 #endif
 
@@ -212,12 +231,18 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
         return;
     }
 
+    mysql_set_character_set(conn, "utf8mb4");
+
     // convert timestamp to string
     std::time_t t =
         std::chrono::system_clock::to_time_t(data.host_score.timestamp);
     std::tm tm = *std::localtime(&t);
     char timeStr[32];
     std::strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", &tm);
+    const std::string hostNameSql = quoteSqlString(
+        conn, data.host_name); // escape host name to prevent SQL injection
+    const std::string timestampSql = quoteSqlString(
+        conn, timeStr); // escape timestamp string to prevent SQL injection
 
     const auto &info = data.host_score.info;
     auto rate = [](float nowVal, float lastVal) {
@@ -290,8 +315,8 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
             << "load_avg_1_rate, load_avg_3_rate, load_avg_15_rate, "
             << "mem_used_percent_rate, total_rate, free_rate, avail_rate, "
             << "disk_util_percent_rate, send_rate_rate, rcv_rate_rate, "
-               "timestamp) VALUES ('"
-            << data.host_name << "'," << cpuPercent << "," << usrPercent << ","
+               "timestamp) VALUES ("
+            << hostNameSql << "," << cpuPercent << "," << usrPercent << ","
             << systemPercent << "," << nicePercent << "," << idlePercent << ","
             << ioWaitPercent << "," << irqPercent << "," << softIrqPercent
             << "," << loadAvg1 << "," << loadAvg3 << "," << loadAvg15 << ","
@@ -306,7 +331,7 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
             << "," << data.mem_used_percent_rate << "," << data.mem_total_rate
             << "," << data.mem_free_rate << "," << data.mem_avail_rate << ","
             << diskUtilPercentRate << "," << data.net_in_rate_rate << ","
-            << data.net_out_rate_rate << ",'" << timeStr << "')";
+            << data.net_out_rate_rate << "," << timestampSql << ")";
         // execute the query
         mysql_query(conn, oss.str().c_str());
         // check for errors
@@ -322,6 +347,7 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
         for (int i = 0; i < info.net_info_size(); ++i) {
             const auto &net = info.net_info(i);
             std::string netName = net.name();
+            std::string netNameSql = quoteSqlString(conn, netName);
 
             NetDetailedSample curr;
             curr.net_recv_bytes_rate = net.rcv_rate();
@@ -351,8 +377,8 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
                 << "rcv_bytes_rate_rate, rcv_packets_rate_rate, "
                 << "snd_bytes_rate_rate, snd_packets_rate_rate, "
                 << "err_in_rate, err_out_rate, drop_in_rate, drop_out_rate, "
-                << "timestamp) VALUES ('" << data.host_name << "','" << netName
-                << "'," << curr.err_in << "," << curr.err_out << ","
+                << "timestamp) VALUES (" << hostNameSql << "," << netNameSql
+                << "," << curr.err_in << "," << curr.err_out << ","
                 << curr.drop_in << "," << curr.drop_out << ","
                 << curr.net_recv_bytes_rate << "," << curr.net_recv_packets_rate
                 << "," << curr.net_send_bytes_rate << ","
@@ -367,8 +393,8 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
                 << "," << rateU64(curr.err_in, last.err_in) << ","
                 << rateU64(curr.err_out, last.err_out) << ","
                 << rateU64(curr.drop_in, last.drop_in) << ","
-                << rateU64(curr.drop_out, last.drop_out) << ",'" << timeStr
-                << "')";
+                << rateU64(curr.drop_out, last.drop_out) << "," << timestampSql
+                << ")";
             mysql_query(conn, oss.str().c_str());
             if (mysql_errno(conn)) {
                 std::cerr << "MySQL insert error: " << mysql_error(conn)
@@ -384,6 +410,7 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
         for (int i = 0; i < info.soft_irq_size(); ++i) {
             const auto &sirq = info.soft_irq(i);
             std::string cpuName = sirq.cpu();
+            std::string cpuNameSql = quoteSqlString(conn, cpuName);
 
             SoftIrqSample curr;
             curr.hi = sirq.hi();
@@ -406,8 +433,8 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
                 << "hi_rate, timer_rate, net_tx_rate, net_rx_rate, block_rate, "
                 << "irq_poll_rate, tasklet_rate, sched_rate, hrtimer_rate, "
                    "rcu_rate, "
-                << "timestamp) VALUES ('" << data.host_name << "','" << cpuName
-                << "'," << curr.hi << "," << curr.timer << "," << curr.net_tx
+                << "timestamp) VALUES (" << hostNameSql << "," << cpuNameSql
+                << "," << curr.hi << "," << curr.timer << "," << curr.net_tx
                 << "," << curr.net_rx << "," << curr.block << ","
                 << curr.irq_poll << "," << curr.tasklet << "," << curr.sched
                 << "," << curr.hrtimer << "," << curr.rcu << ","
@@ -419,7 +446,7 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
                 << rate(curr.tasklet, last.tasklet) << ","
                 << rate(curr.sched, last.sched) << ","
                 << rate(curr.hrtimer, last.hrtimer) << ","
-                << rate(curr.rcu, last.rcu) << ",'" << timeStr << "')";
+                << rate(curr.rcu, last.rcu) << "," << timestampSql << ")";
             mysql_query(conn, oss.str().c_str());
 
             if (mysql_errno(conn)) {
@@ -475,15 +502,14 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
                    "writeback_rate, "
                 << "anon_pages_rate, mapped_rate, kreclaimable_rate, "
                    "sreclaimable_rate, "
-                << "sunreclaim_rate, timestamp) VALUES ('" << data.host_name
-                << "'," << curr.total << "," << curr.free << "," << curr.avail
-                << "," << curr.buffers << "," << curr.cached << ","
-                << curr.swap_cached << "," << curr.active << ","
-                << curr.inactive << "," << curr.active_anon << ","
-                << curr.inactive_anon << "," << curr.active_file << ","
-                << curr.inactive_file << "," << curr.dirty << ","
-                << curr.writeback << "," << curr.anon_pages << ","
-                << curr.mapped << "," << curr.kreclaimable << ","
+                << "sunreclaim_rate, timestamp) VALUES (" << hostNameSql << ","
+                << curr.total << "," << curr.free << "," << curr.avail << ","
+                << curr.buffers << "," << curr.cached << "," << curr.swap_cached
+                << "," << curr.active << "," << curr.inactive << ","
+                << curr.active_anon << "," << curr.inactive_anon << ","
+                << curr.active_file << "," << curr.inactive_file << ","
+                << curr.dirty << "," << curr.writeback << "," << curr.anon_pages
+                << "," << curr.mapped << "," << curr.kreclaimable << ","
                 << curr.sreclaimable << "," << curr.sunreclaim << ","
                 << rate(curr.total, last.total) << ","
                 << rate(curr.free, last.free) << ","
@@ -503,8 +529,8 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
                 << rate(curr.mapped, last.mapped) << ","
                 << rate(curr.kreclaimable, last.kreclaimable) << ","
                 << rate(curr.sreclaimable, last.sreclaimable) << ","
-                << rate(curr.sunreclaim, last.sunreclaim) << ",'" << timeStr
-                << "')";
+                << rate(curr.sunreclaim, last.sunreclaim) << "," << timestampSql
+                << ")";
             mysql_query(conn, oss.str().c_str());
 
             if (mysql_errno(conn)) {
@@ -521,6 +547,7 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
         for (int i = 0; i < info.disk_info_size(); ++i) {
             const auto &disk = info.disk_info(i);
             std::string diskName = disk.name();
+            std::string diskNameSql = quoteSqlString(conn, diskName);
 
             DiskDetailSample curr;
             curr.read_bytes_per_sec = disk.read_bytes_per_sec();
@@ -546,8 +573,8 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
                    "read_iops_rate, write_iops_rate, "
                 << "avg_read_latency_ms_rate, avg_write_latency_ms_rate, "
                    "util_percent_rate, "
-                << "timestamp) VALUES ('" << data.host_name << "','" << diskName
-                << "'," << disk.reads() << "," << disk.writes() << ","
+                << "timestamp) VALUES (" << hostNameSql << "," << diskNameSql
+                << "," << disk.reads() << "," << disk.writes() << ","
                 << disk.sectors_read() << "," << disk.sectors_written() << ","
                 << disk.read_time_ms() << "," << disk.write_time_ms() << ","
                 << disk.io_in_progress() << "," << disk.io_time_ms() << ","
@@ -563,8 +590,8 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
                 << rate(curr.avg_read_latency_ms, last.avg_read_latency_ms)
                 << ","
                 << rate(curr.avg_write_latency_ms, last.avg_write_latency_ms)
-                << "," << rate(curr.util_percent, last.util_percent) << ",'"
-                << timeStr << "')";
+                << "," << rate(curr.util_percent, last.util_percent) << ","
+                << timestampSql << ")";
             mysql_query(conn, oss.str().c_str());
 
             if (mysql_errno(conn)) {

@@ -391,14 +391,6 @@ private:
     std::chrono::system_clock::time_point parseTimeString(
         const std::string &timeStr) const;
 
-    /**
-     * @brief         Get the Total Count object
-     *
-     * @param         countQuery
-     * @return
-     */
-    int getTotalCount(const std::string &countQuery);
-
 #ifdef ENABLE_MYSQL
     MYSQL *conn_; // MySQL connection handle
 #endif
