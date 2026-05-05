@@ -3,6 +3,8 @@
 syntax = "proto3";
 package monitor.proto;
 
+option go_package = "monitor-system/api_gateway/internal/pb/queryapi;queryapi";
+
 import "google/protobuf/timestamp.proto";
 // ========== 基础类型 ==========
 
