@@ -17,13 +17,14 @@ import (
 const defaultQueryWindow = time.Hour
 
 type QueryHandler struct {
-	client *grpcclient.Client
+	client *grpcclient.Client // gRPC客户端，用于调用后端服务
 }
 
 func NewQueryHandler(client *grpcclient.Client) *QueryHandler {
 	return &QueryHandler{client: client}
 }
 
+// Latest 处理查询最新监控数据的请求
 func (h *QueryHandler) Latest(c *gin.Context) {
 	data, err := h.client.Latest(c.Request.Context())
 	writeGRPCResult(c, data, err)
@@ -90,6 +91,11 @@ func (h *QueryHandler) Anomalies(c *gin.Context) {
 	writeGRPCResult(c, data, err)
 }
 
+// parseTimeRange 从查询参数中解析时间范围，支持两种格式：
+// 1. Unix时间戳（秒）
+// 2. RFC3339格式的时间字符串
+// 如果参数无效，函数会直接返回错误响应并返回false。
+// 如果参数缺失，函数会使用默认的时间范围（当前时间向前推一个小时）。
 func parseTimeRange(c *gin.Context) (grpcclient.TimeRange, bool) {
 	end := time.Now()
 	start := end.Add(-defaultQueryWindow)

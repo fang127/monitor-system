@@ -18,6 +18,10 @@ struct DiskSample {
 static std::map<std::string, DiskSample> lastSamples;
 static std::map<std::string, double> lastTime;
 
+static double counterDelta(uint64_t current, uint64_t previous) {
+    return current >= previous ? static_cast<double>(current - previous) : 0.0;
+}
+
 void DiskMonitor::updateOnce(monitor::proto::MonitorInfo *monitor_info) {
     std::ifstream ifs("/proc/diskstats");
     std::string line;
@@ -28,10 +32,15 @@ void DiskMonitor::updateOnce(monitor::proto::MonitorInfo *monitor_info) {
         int major, minor;
         std::string name;
         DiskSample curr{};
-        iss >> major >> minor >> name >> curr.reads >> curr.writes >>
-            curr.sectors_read >> curr.sectors_written >> curr.read_time_ms >>
-            curr.write_time_ms >> curr.io_in_progress >> curr.io_time_ms >>
-            curr.weighted_io_time_ms;
+        uint64_t reads_merged = 0;
+        uint64_t writes_merged = 0;
+        if (!(iss >> major >> minor >> name >> curr.reads >> reads_merged >>
+              curr.sectors_read >> curr.read_time_ms >> curr.writes >>
+              writes_merged >> curr.sectors_written >> curr.write_time_ms >>
+              curr.io_in_progress >> curr.io_time_ms >>
+              curr.weighted_io_time_ms)) {
+            continue;
+        }
         if (name.find("loop") == 0 || name.find("ram") == 0)
             continue; // 跳过虚拟盘
 
@@ -52,14 +61,18 @@ void DiskMonitor::updateOnce(monitor::proto::MonitorInfo *monitor_info) {
         double dt = now - lastTime[name];
         if (it != lastSamples.end() && dt > 0) {
             const auto &last = it->second;
-            double read_ios = curr.reads - last.reads;
-            double write_ios = curr.writes - last.writes;
-            double read_bytes = (curr.sectors_read - last.sectors_read) * 512.0;
+            double read_ios = counterDelta(curr.reads, last.reads);
+            double write_ios = counterDelta(curr.writes, last.writes);
+            double read_bytes =
+                counterDelta(curr.sectors_read, last.sectors_read) * 512.0;
             double write_bytes =
-                (curr.sectors_written - last.sectors_written) * 512.0;
-            double read_time = curr.read_time_ms - last.read_time_ms;
-            double write_time = curr.write_time_ms - last.write_time_ms;
-            double io_time = curr.io_time_ms - last.io_time_ms;
+                counterDelta(curr.sectors_written, last.sectors_written) *
+                512.0;
+            double read_time =
+                counterDelta(curr.read_time_ms, last.read_time_ms);
+            double write_time =
+                counterDelta(curr.write_time_ms, last.write_time_ms);
+            double io_time = counterDelta(curr.io_time_ms, last.io_time_ms);
 
             disk->set_read_bytes_per_sec(read_bytes / dt);
             disk->set_write_bytes_per_sec(write_bytes / dt);

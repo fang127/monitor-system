@@ -14,12 +14,14 @@ func main() {
 	cfg := config.Load()
 	logger.Init(cfg.Mode)
 
+	// 初始化 gRPC 客户端
 	queryClient, err := grpcclient.New(cfg.ManagerAddr, cfg.ManagerTimeout)
 	if err != nil {
 		log.Fatalf("failed to initialize manager grpc client: %v", err)
 	}
 	defer queryClient.Close()
 
+	// 设置 HTTP 路由
 	router := handler.NewRouter(cfg, queryClient)
 	addr := fmt.Sprintf(":%s", cfg.Port)
 

@@ -13,6 +13,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+// grpc服务全名，格式为 /package.service/method
 const queryServiceFullName = "/monitor.proto.QueryService/"
 
 type Client struct {
@@ -25,26 +26,29 @@ type TimeRange struct {
 	End   time.Time
 }
 
+// TrendOptions 包含查询趋势图的选项
 type TrendOptions struct {
-	TimeRange       TimeRange
-	IntervalSeconds int32
+	TimeRange       TimeRange // 查询的时间范围
+	IntervalSeconds int32     // 趋势图的时间间隔，单位为秒，默认为0表示自动选择
 }
 
+// AnomalyOptions 包含查询异常数据的选项
 type AnomalyOptions struct {
-	TimeRange           TimeRange
-	CPUThreshold        float32
-	MemThreshold        float32
-	DiskThreshold       float32
-	ChangeRateThreshold float32
-	Page                int32
-	PageSize            int32
+	TimeRange           TimeRange // 查询的时间范围
+	CPUThreshold        float32   // CPU使用率的异常阈值，默认为0表示不使用
+	MemThreshold        float32   // 内存使用率的异常阈值，默认为0表示不使用
+	DiskThreshold       float32   // 磁盘使用率的异常阈值，默认为0表示不使用
+	ChangeRateThreshold float32   // 变化率的异常阈值，默认为0表示不使用
+	Page                int32     // 分页页码，默认为0表示不分页
+	PageSize            int32     // 分页大小，默认为0表示不分页
 }
 
 func New(address string, timeout time.Duration) (*Client, error) {
 	if timeout <= 0 {
 		timeout = 5 * time.Second
 	}
-	conn, err := grpc.Dial(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	// 使用不安全的连接选项，适用于本地开发和测试环境
+	conn, err := grpc.NewClient(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}
@@ -55,6 +59,7 @@ func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
+// Latest 获取最新的服务器性能数据
 func (c *Client) Latest(ctx context.Context) (json.RawMessage, error) {
 	req, err := newMessage("QueryLatestScoreRequest")
 	if err != nil {
@@ -67,6 +72,7 @@ func (c *Client) Latest(ctx context.Context) (json.RawMessage, error) {
 	return c.invokeJSON(ctx, "QueryLatestScore", req, resp)
 }
 
+// Trend 获取服务器性能的趋势数据
 func (c *Client) Trend(ctx context.Context, server string, opts TrendOptions) (json.RawMessage, error) {
 	req, err := newMessage("QueryTrendRequest")
 	if err != nil {
@@ -85,6 +91,7 @@ func (c *Client) Trend(ctx context.Context, server string, opts TrendOptions) (j
 	return c.invokeJSON(ctx, "QueryTrend", req, resp)
 }
 
+// Anomalies 获取服务器性能的异常数据
 func (c *Client) Anomalies(ctx context.Context, server string, opts AnomalyOptions) (json.RawMessage, error) {
 	req, err := newMessage("QueryAnomalyRequest")
 	if err != nil {
@@ -105,6 +112,7 @@ func (c *Client) Anomalies(ctx context.Context, server string, opts AnomalyOptio
 	return c.invokeJSON(ctx, "QueryAnomaly", req, resp)
 }
 
+// invokeJSON 调用gRPC方法并将响应转换为JSON格式
 func (c *Client) invokeJSON(ctx context.Context, method string, req *dynamicpb.Message, resp *dynamicpb.Message) (json.RawMessage, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
@@ -123,14 +131,18 @@ func (c *Client) invokeJSON(ctx context.Context, method string, req *dynamicpb.M
 	return json.RawMessage(data), nil
 }
 
+// newMessage 根据消息名称创建一个动态消息实例
 func newMessage(name protoreflect.Name) (*dynamicpb.Message, error) {
+	// 通过消息名称获取消息描述符
 	desc, err := messageDescriptor(name)
 	if err != nil {
 		return nil, err
 	}
+	// 创建一个动态消息实例
 	return dynamicpb.NewMessage(desc), nil
 }
 
+// messageDescriptor 根据消息名称获取消息描述符
 func setString(msg *dynamicpb.Message, name protoreflect.Name, value string) {
 	msg.Set(msg.Descriptor().Fields().ByName(name), protoreflect.ValueOfString(value))
 }
@@ -158,6 +170,7 @@ func setTimestamp(msg *dynamicpb.Message, name protoreflect.Name, value time.Tim
 	msg.Set(field, protoreflect.ValueOfMessage(timestamppb.New(value).ProtoReflect()))
 }
 
+// setPagination 设置分页参数
 func setPagination(msg *dynamicpb.Message, name protoreflect.Name, page int32, pageSize int32) {
 	field := msg.Descriptor().Fields().ByName(name)
 	pagination := dynamicpb.NewMessage(field.Message())

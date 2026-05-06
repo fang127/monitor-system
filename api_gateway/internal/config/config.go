@@ -14,13 +14,14 @@ const (
 )
 
 type Config struct {
-	Port          string
-	Mode          string
-	Version       string
-	ManagerAddr   string
+	Port           string
+	Mode           string
+	Version        string
+	ManagerAddr    string
 	ManagerTimeout time.Duration
 }
 
+// 加载配置，从环境变量获取，如果没有设置则使用默认值
 func Load() Config {
 	return Config{
 		Port:           getEnv("API_GATEWAY_PORT", defaultPort),
@@ -31,6 +32,7 @@ func Load() Config {
 	}
 }
 
+// 从环境变量获取值，如果没有设置则返回默认值
 func getEnv(key string, fallback string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
@@ -38,6 +40,7 @@ func getEnv(key string, fallback string) string {
 	return fallback
 }
 
+// 从环境变量获取时间值，如果没有设置或解析失败则返回默认值
 func getEnvDuration(key string, fallback time.Duration) time.Duration {
 	value := os.Getenv(key)
 	if value == "" {
