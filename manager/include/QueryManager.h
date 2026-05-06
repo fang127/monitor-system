@@ -242,6 +242,13 @@ public:
     void close();
 
     /**
+     * @brief         check whether the database connection is ready
+     *
+     * @return        true if initialized, false otherwise
+     */
+    bool isInitialized() const;
+
+    /**
      * @brief         validate the given time range for querying metrics
      *
      * @param         range time range to validate
@@ -262,7 +269,7 @@ public:
      */
     std::vector<PerformanceRecord> queryPerformanceRecords(
         const std::string &serverName, const TimeRange &range, int page,
-        int pageSize, int *totalCount);
+        int pageSize, int *totalCount, std::string *error = nullptr);
 
     /**
      * @brief         query trend data for a specific server over a given time
@@ -275,7 +282,8 @@ public:
      */
     std::vector<PerformanceRecord> queryTrend(const std::string &serverName,
                                               const TimeRange &range,
-                                              int intervalSeconds);
+                                              int intervalSeconds,
+                                              std::string *error = nullptr);
 
     /**
      * @brief         query anomaly records for a specific server within a given
@@ -292,7 +300,7 @@ public:
     std::vector<AnomalyRecord> queryAnomalyRecords(
         const std::string &serverName, const TimeRange &range,
         const AnomalyThreshold &threshold, int page, int pageSize,
-        int *totalCount);
+        int *totalCount, std::string *error = nullptr);
 
     /**
      * @brief         query server score summaries with pagination and sorting
@@ -303,9 +311,9 @@ public:
      * @param         totalCount
      * @return
      */
-    std::vector<ServerScoreSummary> queryServerScoreRank(SortOrder order,
-                                                         int page, int pageSize,
-                                                         int *totalCount);
+    std::vector<ServerScoreSummary> queryServerScoreRank(
+        SortOrder order, int page, int pageSize, int *totalCount,
+        std::string *error = nullptr);
 
     /**
      * @brief         query latest server scores and cluster statistics
@@ -314,7 +322,7 @@ public:
      * @return
      */
     std::vector<ServerScoreSummary> queryLatestServerScores(
-        ClusterStats *clusterStats);
+        ClusterStats *clusterStats, std::string *error = nullptr);
 
     /**
      * @brief         query net statistics
@@ -328,7 +336,7 @@ public:
      */
     std::vector<NetDetailRecord> queryNetDetailRecords(
         const std::string &serverName, const TimeRange &range, int page,
-        int pageSize, int *totalCount);
+        int pageSize, int *totalCount, std::string *error = nullptr);
 
     /**
      * @brief         query disk statistics
@@ -342,7 +350,7 @@ public:
      */
     std::vector<DiskDetailRecord> queryDiskDetailRecords(
         const std::string &serverName, const TimeRange &range, int page,
-        int pageSize, int *totalCount);
+        int pageSize, int *totalCount, std::string *error = nullptr);
 
     /**
      * @brief         query memory statistics
@@ -356,7 +364,7 @@ public:
      */
     std::vector<MemDetailRecord> queryMemDetailRecords(
         const std::string &serverName, const TimeRange &range, int page,
-        int pageSize, int *totalCount);
+        int pageSize, int *totalCount, std::string *error = nullptr);
 
     /**
      * @brief         query soft IRQ statistics
@@ -370,7 +378,7 @@ public:
      */
     std::vector<SoftIrqDetailRecord> querySoftIrqDetailRecords(
         const std::string &serverName, const TimeRange &range, int page,
-        int pageSize, int *totalCount);
+        int pageSize, int *totalCount, std::string *error = nullptr);
 
 private:
     /**
@@ -392,7 +400,7 @@ private:
         const std::string &timeStr) const;
 
 #ifdef ENABLE_MYSQL
-    MYSQL *conn_; // MySQL connection handle
+    MYSQL *conn_ = nullptr; // MySQL connection handle
 #endif
     std::mutex mutex_;
     bool initialized_ = false;

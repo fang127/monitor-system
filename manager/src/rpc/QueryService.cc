@@ -4,6 +4,24 @@
 
 namespace monitor {
 
+namespace {
+
+/**
+ * @brief         将查询错误转换为 gRPC 状态码，区分未初始化和其他内部错误
+ *
+ * @param         error
+ * @return
+ */
+grpc::Status queryErrorStatus(const std::string &error) {
+    if (error.find("not initialized") != std::string::npos ||
+        error.find("MySQL support is not enabled") != std::string::npos) {
+        return grpc::Status(grpc::StatusCode::UNAVAILABLE, error);
+    }
+    return grpc::Status(grpc::StatusCode::INTERNAL, error);
+}
+
+} // namespace
+
 QueryServiceImpl::QueryServiceImpl(QueryManager *queryManager)
     : queryManager_(queryManager) {}
 
@@ -33,7 +51,7 @@ void QueryServiceImpl::setTimestamp(
     ::monitor::proto::QueryPerformanceResponse *response) {
     (void)context;
 
-    if (!queryManager_) {
+    if (!queryManager_ || !queryManager_->isInitialized()) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                             "Query manager not initialized");
     }
@@ -51,8 +69,10 @@ void QueryServiceImpl::setTimestamp(
     if (pageSize < 1) pageSize = 100;
 
     int totalCount = 0;
+    std::string error;
     auto records = queryManager_->queryPerformanceRecords(
-        request->server_name(), range, page, pageSize, &totalCount);
+        request->server_name(), range, page, pageSize, &totalCount, &error);
+    if (!error.empty()) return queryErrorStatus(error);
 
     for (const auto &rec : records) {
         auto *protoRec = response->add_records();
@@ -96,7 +116,7 @@ void QueryServiceImpl::setTimestamp(
     ::monitor::proto::QueryTrendResponse *response) {
     (void)context;
 
-    if (!queryManager_) {
+    if (!queryManager_ || !queryManager_->isInitialized()) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                             "Query manager not initialized");
     }
@@ -107,8 +127,10 @@ void QueryServiceImpl::setTimestamp(
                             "Invalid time range: start_time > end_time");
     }
 
-    auto records = queryManager_->queryTrend(request->server_name(), range,
-                                             request->interval_seconds());
+    std::string error;
+    auto records = queryManager_->queryTrend(
+        request->server_name(), range, request->interval_seconds(), &error);
+    if (!error.empty()) return queryErrorStatus(error);
 
     for (const auto &rec : records) {
         auto *protoRec = response->add_records();
@@ -143,7 +165,7 @@ void QueryServiceImpl::setTimestamp(
     ::monitor::proto::QueryAnomalyResponse *response) {
     (void)context;
 
-    if (!queryManager_) {
+    if (!queryManager_ || !queryManager_->isInitialized()) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                             "Query manager not initialized");
     }
@@ -171,8 +193,11 @@ void QueryServiceImpl::setTimestamp(
     if (pageSize < 1) pageSize = 100;
 
     int totalCount = 0;
+    std::string error;
     auto records = queryManager_->queryAnomalyRecords(
-        request->server_name(), range, thresholds, page, pageSize, &totalCount);
+        request->server_name(), range, thresholds, page, pageSize, &totalCount,
+        &error);
+    if (!error.empty()) return queryErrorStatus(error);
 
     for (const auto &rec : records) {
         auto *protoRec = response->add_anomalies();
@@ -198,7 +223,7 @@ void QueryServiceImpl::setTimestamp(
     ::monitor::proto::QueryScoreRankResponse *response) {
     (void)context;
 
-    if (!queryManager_) {
+    if (!queryManager_ || !queryManager_->isInitialized()) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                             "Query manager not initialized");
     }
@@ -213,8 +238,10 @@ void QueryServiceImpl::setTimestamp(
     if (pageSize < 1) pageSize = 100;
 
     int totalCount = 0;
-    auto records =
-        queryManager_->queryServerScoreRank(order, page, pageSize, &totalCount);
+    std::string error;
+    auto records = queryManager_->queryServerScoreRank(order, page, pageSize,
+                                                       &totalCount, &error);
+    if (!error.empty()) return queryErrorStatus(error);
 
     for (const auto &rec : records) {
         auto *protoRec = response->add_servers();
@@ -244,13 +271,15 @@ void QueryServiceImpl::setTimestamp(
     (void)context;
     (void)request;
 
-    if (!queryManager_) {
+    if (!queryManager_ || !queryManager_->isInitialized()) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                             "Query manager not initialized");
     }
 
     ClusterStats stats;
-    auto records = queryManager_->queryLatestServerScores(&stats);
+    std::string error;
+    auto records = queryManager_->queryLatestServerScores(&stats, &error);
+    if (!error.empty()) return queryErrorStatus(error);
 
     for (const auto &rec : records) {
         auto *protoRec = response->add_servers();
@@ -285,7 +314,7 @@ void QueryServiceImpl::setTimestamp(
     ::monitor::proto::QueryNetDetailResponse *response) {
     (void)context;
 
-    if (!queryManager_) {
+    if (!queryManager_ || !queryManager_->isInitialized()) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                             "Query manager not initialized");
     }
@@ -302,8 +331,11 @@ void QueryServiceImpl::setTimestamp(
     if (pageSize < 1) pageSize = 100;
 
     int totalCount = 0;
+    std::string error;
     auto records = queryManager_->queryNetDetailRecords(
-        request->server_name(), time_range, page, pageSize, &totalCount);
+        request->server_name(), time_range, page, pageSize, &totalCount,
+        &error);
+    if (!error.empty()) return queryErrorStatus(error);
 
     for (const auto &rec : records) {
         auto *protoRec = response->add_records();
@@ -333,7 +365,7 @@ void QueryServiceImpl::setTimestamp(
     ::monitor::proto::QueryDiskDetailResponse *response) {
     (void)context;
 
-    if (!queryManager_) {
+    if (!queryManager_ || !queryManager_->isInitialized()) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                             "Query manager not initialized");
     }
@@ -350,8 +382,11 @@ void QueryServiceImpl::setTimestamp(
     if (pageSize < 1) pageSize = 100;
 
     int totalCount = 0;
+    std::string error;
     auto records = queryManager_->queryDiskDetailRecords(
-        request->server_name(), time_range, page, pageSize, &totalCount);
+        request->server_name(), time_range, page, pageSize, &totalCount,
+        &error);
+    if (!error.empty()) return queryErrorStatus(error);
 
     for (const auto &rec : records) {
         auto *protoRec = response->add_records();
@@ -380,7 +415,7 @@ void QueryServiceImpl::setTimestamp(
     ::monitor::proto::QueryMemDetailResponse *response) {
     (void)context;
 
-    if (!queryManager_) {
+    if (!queryManager_ || !queryManager_->isInitialized()) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                             "Query manager not initialized");
     }
@@ -397,8 +432,11 @@ void QueryServiceImpl::setTimestamp(
     if (pageSize < 1) pageSize = 100;
 
     int totalCount = 0;
+    std::string error;
     auto records = queryManager_->queryMemDetailRecords(
-        request->server_name(), time_range, page, pageSize, &totalCount);
+        request->server_name(), time_range, page, pageSize, &totalCount,
+        &error);
+    if (!error.empty()) return queryErrorStatus(error);
 
     for (const auto &rec : records) {
         auto *protoRec = response->add_records();
@@ -427,7 +465,7 @@ void QueryServiceImpl::setTimestamp(
     ::monitor::proto::QuerySoftIrqDetailResponse *response) {
     (void)context;
 
-    if (!queryManager_) {
+    if (!queryManager_ || !queryManager_->isInitialized()) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                             "Query manager not initialized");
     }
@@ -444,8 +482,11 @@ void QueryServiceImpl::setTimestamp(
     if (pageSize < 1) pageSize = 100;
 
     int totalCount = 0;
+    std::string error;
     auto records = queryManager_->querySoftIrqDetailRecords(
-        request->server_name(), time_range, page, pageSize, &totalCount);
+        request->server_name(), time_range, page, pageSize, &totalCount,
+        &error);
+    if (!error.empty()) return queryErrorStatus(error);
 
     for (const auto &rec : records) {
         auto *protoRec = response->add_records();
