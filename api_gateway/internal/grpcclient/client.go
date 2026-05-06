@@ -17,10 +17,11 @@ import (
 const queryServiceFullName = "/monitor.proto.QueryService/"
 
 type Client struct {
-	conn    *grpc.ClientConn
-	timeout time.Duration
+	conn    *grpc.ClientConn // gRPC连接
+	timeout time.Duration    // 请求超时时间，默认为5秒
 }
 
+// TimeRange 定义了一个时间范围，包含开始时间和结束时间
 type TimeRange struct {
 	Start time.Time
 	End   time.Time
@@ -43,6 +44,7 @@ type AnomalyOptions struct {
 	PageSize            int32     // 分页大小，默认为0表示不分页
 }
 
+// New 创建一个新的gRPC客户端实例，连接到指定的地址，并设置请求超时时间
 func New(address string, timeout time.Duration) (*Client, error) {
 	if timeout <= 0 {
 		timeout = 5 * time.Second
@@ -55,6 +57,7 @@ func New(address string, timeout time.Duration) (*Client, error) {
 	return &Client{conn: conn, timeout: timeout}, nil
 }
 
+// Close 关闭gRPC连接
 func (c *Client) Close() error {
 	return c.conn.Close()
 }
@@ -122,8 +125,8 @@ func (c *Client) invokeJSON(ctx context.Context, method string, req *dynamicpb.M
 	}
 
 	data, err := protojson.MarshalOptions{
-		EmitUnpopulated: true,
-		UseProtoNames:   true,
+		EmitUnpopulated: true, // 输出未设置的字段
+		UseProtoNames:   true, // 使用proto定义中的字段名称而不是驼峰命名
 	}.Marshal(resp)
 	if err != nil {
 		return nil, err

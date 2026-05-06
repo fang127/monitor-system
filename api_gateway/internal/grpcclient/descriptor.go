@@ -11,19 +11,23 @@ import (
 )
 
 var (
-	queryFileOnce sync.Once
-	queryFileDesc protoreflect.FileDescriptor
-	queryFileErr  error
+	queryFileOnce sync.Once                   // 确保只构建一次文件描述符
+	queryFileDesc protoreflect.FileDescriptor // 构建后的文件描述符
+	queryFileErr  error                       // 构建过程中可能发生的错误
 )
 
+// queryAPIFileDescriptor 构建并返回查询API的文件描述符，使用sync.Once确保只构建一次。
 func queryAPIFileDescriptor() (protoreflect.FileDescriptor, error) {
 	queryFileOnce.Do(func() {
+		// 构建查询API的文件描述符，并将其注册到全局文件注册表中，以便后续查询使用。
 		queryFileDesc, queryFileErr = protodesc.NewFile(buildQueryAPIFile(), protoregistry.GlobalFiles)
 	})
 	return queryFileDesc, queryFileErr
 }
 
+// messageDescriptor 根据消息名称查询并返回对应的消息描述符，如果未找到则返回错误。
 func messageDescriptor(name protoreflect.Name) (protoreflect.MessageDescriptor, error) {
+	// 查询全局文件注册表中是否已经存在该消息的描述符，如果存在则直接返回，不存在则构建查询API的文件描述符并从中查找。
 	file, err := queryAPIFileDescriptor()
 	if err != nil {
 		return nil, err
@@ -35,6 +39,7 @@ func messageDescriptor(name protoreflect.Name) (protoreflect.MessageDescriptor, 
 	return desc, nil
 }
 
+// buildQueryAPIFile 构建查询API的文件描述符，定义了消息、枚举和服务的结构。
 func buildQueryAPIFile() *descriptorpb.FileDescriptorProto {
 	return &descriptorpb.FileDescriptorProto{
 		Name:       stringPtr("query_api.proto"),
@@ -163,6 +168,7 @@ func buildQueryAPIFile() *descriptorpb.FileDescriptorProto {
 	}
 }
 
+// 以下是一些辅助函数，用于简化枚举、消息和字段的创建。
 func enum(name string, values ...string) *descriptorpb.EnumDescriptorProto {
 	enumValues := make([]*descriptorpb.EnumValueDescriptorProto, 0, len(values))
 	for i, value := range values {

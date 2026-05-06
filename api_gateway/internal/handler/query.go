@@ -14,6 +14,7 @@ import (
 	"monitor-system/api_gateway/internal/response"
 )
 
+// defaultQueryWindow 定义了默认的查询时间范围（1小时），如果用户没有提供start_time和end_time参数，系统将使用当前时间向前推一个小时作为查询范围。
 const defaultQueryWindow = time.Hour
 
 type QueryHandler struct {
@@ -30,6 +31,7 @@ func (h *QueryHandler) Latest(c *gin.Context) {
 	writeGRPCResult(c, data, err)
 }
 
+// Trend 处理查询监控数据趋势的请求，支持可选的时间范围和时间间隔参数
 func (h *QueryHandler) Trend(c *gin.Context) {
 	timeRange, ok := parseTimeRange(c)
 	if !ok {
@@ -48,6 +50,7 @@ func (h *QueryHandler) Trend(c *gin.Context) {
 	writeGRPCResult(c, data, err)
 }
 
+// Anomalies 处理查询监控数据异常的请求，支持可选的时间范围、分页参数和阈值参数
 func (h *QueryHandler) Anomalies(c *gin.Context) {
 	timeRange, ok := parseTimeRange(c)
 	if !ok {
