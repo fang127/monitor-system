@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -28,6 +30,25 @@ func NewQueryHandler(client *grpcclient.Client) *QueryHandler {
 // Latest 处理查询最新监控数据的请求
 func (h *QueryHandler) Latest(c *gin.Context) {
 	data, err := h.client.Latest(c.Request.Context())
+	writeGRPCResult(c, data, err)
+}
+
+// Performance 处理查询历史性能数据的请求
+func (h *QueryHandler) Performance(c *gin.Context) {
+	timeRange, ok := parseTimeRange(c)
+	if !ok {
+		return
+	}
+	page, pageSize, ok := parsePagination(c)
+	if !ok {
+		return
+	}
+
+	data, err := h.client.Performance(c.Request.Context(), c.Param("server"), grpcclient.PerformanceOptions{
+		TimeRange: timeRange,
+		Page:      page,
+		PageSize:  pageSize,
+	})
 	writeGRPCResult(c, data, err)
 }
 
@@ -94,6 +115,63 @@ func (h *QueryHandler) Anomalies(c *gin.Context) {
 	writeGRPCResult(c, data, err)
 }
 
+// ScoreRank 处理服务器评分排序查询请求
+func (h *QueryHandler) ScoreRank(c *gin.Context) {
+	page, pageSize, ok := parsePagination(c)
+	if !ok {
+		return
+	}
+	order, ok := parseSortOrder(c)
+	if !ok {
+		return
+	}
+
+	data, err := h.client.ScoreRank(c.Request.Context(), grpcclient.ScoreRankOptions{
+		Order:    order,
+		Page:     page,
+		PageSize: pageSize,
+	})
+	writeGRPCResult(c, data, err)
+}
+
+// NetDetail 处理网络详细指标查询请求
+func (h *QueryHandler) NetDetail(c *gin.Context) {
+	h.detail(c, h.client.NetDetail)
+}
+
+// DiskDetail 处理磁盘详细指标查询请求
+func (h *QueryHandler) DiskDetail(c *gin.Context) {
+	h.detail(c, h.client.DiskDetail)
+}
+
+// MemDetail 处理内存详细指标查询请求
+func (h *QueryHandler) MemDetail(c *gin.Context) {
+	h.detail(c, h.client.MemDetail)
+}
+
+// SoftIrqDetail 处理软中断详细指标查询请求
+func (h *QueryHandler) SoftIrqDetail(c *gin.Context) {
+	h.detail(c, h.client.SoftIrqDetail)
+}
+
+func (h *QueryHandler) detail(c *gin.Context, call func(ctx context.Context, server string, opts grpcclient.DetailOptions) (json.RawMessage, error)) {
+	timeRange, ok := parseTimeRange(c)
+	if !ok {
+		return
+	}
+	page, pageSize, ok := parsePagination(c)
+	if !ok {
+		return
+	}
+
+	data, err := call(c.Request.Context(), c.Param("server"), grpcclient.DetailOptions{
+		TimeRange: timeRange,
+		Page:      page,
+		PageSize:  pageSize,
+	})
+	writeGRPCResult(c, data, err)
+}
+
 // parseTimeRange 从查询参数中解析时间范围，支持两种格式：
 // 1. Unix时间戳（秒）
 // 2. RFC3339格式的时间字符串
@@ -134,6 +212,30 @@ func parseQueryTime(value string) (time.Time, error) {
 		return time.Unix(unixSeconds, 0), nil
 	}
 	return time.Parse(time.RFC3339, value)
+}
+
+func parsePagination(c *gin.Context) (int32, int32, bool) {
+	page, ok := parseOptionalInt32(c, "page", 1)
+	if !ok {
+		return 0, 0, false
+	}
+	pageSize, ok := parseOptionalInt32(c, "page_size", 100)
+	if !ok {
+		return 0, 0, false
+	}
+	return page, pageSize, true
+}
+
+func parseSortOrder(c *gin.Context) (int32, bool) {
+	switch strings.ToLower(c.DefaultQuery("order", "desc")) {
+	case "desc":
+		return 0, true
+	case "asc":
+		return 1, true
+	default:
+		response.Error(c, http.StatusBadRequest, "invalid order")
+		return 0, false
+	}
 }
 
 func parseOptionalInt32(c *gin.Context, key string, fallback int32) (int32, bool) {

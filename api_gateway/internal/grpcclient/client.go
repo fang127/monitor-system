@@ -33,6 +33,27 @@ type TrendOptions struct {
 	IntervalSeconds int32     // 趋势图的时间间隔，单位为秒，默认为0表示自动选择
 }
 
+// PerformanceOptions 包含查询历史性能数据的选项
+type PerformanceOptions struct {
+	TimeRange TimeRange
+	Page      int32
+	PageSize  int32
+}
+
+// ScoreRankOptions 包含评分排序查询的选项
+type ScoreRankOptions struct {
+	Order    int32
+	Page     int32
+	PageSize int32
+}
+
+// DetailOptions 包含详细指标查询的选项
+type DetailOptions struct {
+	TimeRange TimeRange
+	Page      int32
+	PageSize  int32
+}
+
 // AnomalyOptions 包含查询异常数据的选项
 type AnomalyOptions struct {
 	TimeRange           TimeRange // 查询的时间范围
@@ -75,6 +96,23 @@ func (c *Client) Latest(ctx context.Context) (json.RawMessage, error) {
 	return c.invokeJSON(ctx, "QueryLatestScore", req, resp)
 }
 
+// Performance 获取服务器历史性能数据
+func (c *Client) Performance(ctx context.Context, server string, opts PerformanceOptions) (json.RawMessage, error) {
+	req, err := newMessage("QueryPerformanceRequest")
+	if err != nil {
+		return nil, err
+	}
+	setString(req, "server_name", server)
+	setTimeRange(req, "time_range", opts.TimeRange)
+	setPagination(req, "pagination", opts.Page, opts.PageSize)
+
+	resp, err := newMessage("QueryPerformanceResponse")
+	if err != nil {
+		return nil, err
+	}
+	return c.invokeJSON(ctx, "QueryPerformance", req, resp)
+}
+
 // Trend 获取服务器性能的趋势数据
 func (c *Client) Trend(ctx context.Context, server string, opts TrendOptions) (json.RawMessage, error) {
 	req, err := newMessage("QueryTrendRequest")
@@ -113,6 +151,58 @@ func (c *Client) Anomalies(ctx context.Context, server string, opts AnomalyOptio
 		return nil, err
 	}
 	return c.invokeJSON(ctx, "QueryAnomaly", req, resp)
+}
+
+// ScoreRank 获取服务器评分排序
+func (c *Client) ScoreRank(ctx context.Context, opts ScoreRankOptions) (json.RawMessage, error) {
+	req, err := newMessage("QueryScoreRankRequest")
+	if err != nil {
+		return nil, err
+	}
+	setEnum(req, "order", opts.Order)
+	setPagination(req, "pagination", opts.Page, opts.PageSize)
+
+	resp, err := newMessage("QueryScoreRankResponse")
+	if err != nil {
+		return nil, err
+	}
+	return c.invokeJSON(ctx, "QueryScoreRank", req, resp)
+}
+
+// NetDetail 获取网络详细指标
+func (c *Client) NetDetail(ctx context.Context, server string, opts DetailOptions) (json.RawMessage, error) {
+	return c.detail(ctx, "QueryNetDetail", "QueryNetDetailResponse", server, opts)
+}
+
+// DiskDetail 获取磁盘详细指标
+func (c *Client) DiskDetail(ctx context.Context, server string, opts DetailOptions) (json.RawMessage, error) {
+	return c.detail(ctx, "QueryDiskDetail", "QueryDiskDetailResponse", server, opts)
+}
+
+// MemDetail 获取内存详细指标
+func (c *Client) MemDetail(ctx context.Context, server string, opts DetailOptions) (json.RawMessage, error) {
+	return c.detail(ctx, "QueryMemDetail", "QueryMemDetailResponse", server, opts)
+}
+
+// SoftIrqDetail 获取软中断详细指标
+func (c *Client) SoftIrqDetail(ctx context.Context, server string, opts DetailOptions) (json.RawMessage, error) {
+	return c.detail(ctx, "QuerySoftIrqDetail", "QuerySoftIrqDetailResponse", server, opts)
+}
+
+func (c *Client) detail(ctx context.Context, method string, responseName protoreflect.Name, server string, opts DetailOptions) (json.RawMessage, error) {
+	req, err := newMessage("QueryDetailRequest")
+	if err != nil {
+		return nil, err
+	}
+	setString(req, "server_name", server)
+	setTimeRange(req, "time_range", opts.TimeRange)
+	setPagination(req, "pagination", opts.Page, opts.PageSize)
+
+	resp, err := newMessage(responseName)
+	if err != nil {
+		return nil, err
+	}
+	return c.invokeJSON(ctx, method, req, resp)
 }
 
 // invokeJSON 调用gRPC方法并将响应转换为JSON格式
@@ -158,6 +248,10 @@ func setFloat32(msg *dynamicpb.Message, name protoreflect.Name, value float32) {
 	if value > 0 {
 		msg.Set(msg.Descriptor().Fields().ByName(name), protoreflect.ValueOfFloat32(value))
 	}
+}
+
+func setEnum(msg *dynamicpb.Message, name protoreflect.Name, value int32) {
+	msg.Set(msg.Descriptor().Fields().ByName(name), protoreflect.ValueOfEnum(protoreflect.EnumNumber(value)))
 }
 
 func setTimeRange(msg *dynamicpb.Message, name protoreflect.Name, value TimeRange) {

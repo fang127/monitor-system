@@ -7,8 +7,14 @@
 - `GET /health`：服务健康检查
 - `GET /api/version`：服务版本信息
 - `GET /api/servers/latest`：查询所有服务器最新评分和集群统计
+- `GET /api/servers/score-rank`：查询服务器评分排序
+- `GET /api/servers/:server/performance`：查询指定服务器历史性能数据
 - `GET /api/servers/:server/trend`：查询指定服务器趋势数据
 - `GET /api/servers/:server/anomalies`：查询指定服务器异常数据
+- `GET /api/servers/:server/net-detail`：查询指定服务器网络明细
+- `GET /api/servers/:server/disk-detail`：查询指定服务器磁盘明细
+- `GET /api/servers/:server/mem-detail`：查询指定服务器内存明细
+- `GET /api/servers/:server/softirq-detail`：查询指定服务器软中断明细
 
 ## 目录结构
 
@@ -65,6 +71,36 @@ api_gateway/internal/pb/queryapi/
 
 ## HTTP 查询参数
 
+### 通用分页参数
+
+适用于 `performance`、`anomalies`、`score-rank` 和各类 `*-detail` 接口。
+
+| 参数 | 说明 |
+|------|------|
+| `page` | 可选，默认 `1` |
+| `page_size` | 可选，默认 `100` |
+
+### 通用时间参数
+
+适用于 `performance`、`trend`、`anomalies` 和各类 `*-detail` 接口。
+
+| 参数 | 说明 |
+|------|------|
+| `start_time` | 可选，RFC3339 或 Unix 秒，默认最近 1 小时 |
+| `end_time` | 可选，RFC3339 或 Unix 秒，默认当前时间 |
+
+### `GET /api/servers/score-rank`
+
+| 参数 | 说明 |
+|------|------|
+| `order` | 可选，`desc` 或 `asc`，默认 `desc` |
+| `page` | 可选，默认 `1` |
+| `page_size` | 可选，默认 `100` |
+
+### `GET /api/servers/:server/performance`
+
+支持通用时间参数和通用分页参数。
+
 ### `GET /api/servers/:server/trend`
 
 | 参数 | 说明 |
@@ -86,12 +122,19 @@ api_gateway/internal/pb/queryapi/
 | `disk_threshold` | 可选，磁盘利用率阈值；不传时由 Manager 使用默认值 |
 | `change_rate_threshold` | 可选，变化率阈值；不传时由 Manager 使用默认值 |
 
+### `GET /api/servers/:server/{net,disk,mem,softirq}-detail`
+
+支持通用时间参数和通用分页参数。
+
 ## 示例
 
 ```bash
 curl http://127.0.0.1:8080/health
 curl http://127.0.0.1:8080/api/version
 curl http://127.0.0.1:8080/api/servers/latest
+curl "http://127.0.0.1:8080/api/servers/score-rank?order=desc&page=1&page_size=20"
+curl "http://127.0.0.1:8080/api/servers/server-01/performance?page=1&page_size=100"
 curl "http://127.0.0.1:8080/api/servers/server-01/trend?interval_seconds=60"
 curl "http://127.0.0.1:8080/api/servers/server-01/anomalies?page=1&page_size=50"
+curl "http://127.0.0.1:8080/api/servers/server-01/net-detail?page=1&page_size=50"
 ```
