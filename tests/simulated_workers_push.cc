@@ -35,6 +35,7 @@ std::string workerName(int id) {
 
 std::string workerIp(int id) { return "10.10.0." + std::to_string(100 + id); }
 
+// 产生一个在 [min, max) 范围内的随机浮点数
 float nextFloat(std::mt19937 &rng, float min, float max) {
     std::uniform_real_distribution<float> dist(min, max);
     return dist(rng);
@@ -44,6 +45,8 @@ void fillCpuStat(monitor::proto::MonitorInfo *info, std::mt19937 &rng,
                  int worker_id, int round) {
     auto add_cpu = [&](const std::string &name, float base) {
         auto *cpu = info->add_cpu_stat();
+        // CPU 使用率在 1% 到 98% 之间，受 worker_id 和 round
+        // 的影响，并有一定随机波动
         const float cpu_percent =
             std::min(98.0f, std::max(1.0f, base + nextFloat(rng, -5.0f, 5.0f)));
         const float usr = cpu_percent * nextFloat(rng, 0.45f, 0.60f);
@@ -65,8 +68,11 @@ void fillCpuStat(monitor::proto::MonitorInfo *info, std::mt19937 &rng,
         cpu->set_soft_irq_percent(soft_irq);
     };
 
+    // 根据 worker_id 和 round 生成一个 base 值，使得不同 worker 和不同轮次的
+    // CPU 使用率有一定规律但又不完全相同
     const float base = 18.0f + worker_id * 8.0f + (round % 4) * 3.0f;
     add_cpu("cpu", base);
+    // 假设每个 worker 有 4 个 CPU 核心，核心的使用率在 base 的基础上有一定差异
     for (int core = 0; core < 4; ++core)
         add_cpu("cpu" + std::to_string(core), base + core * 1.5f);
 }
@@ -83,6 +89,8 @@ void fillCpuLoad(monitor::proto::MonitorInfo *info, std::mt19937 &rng,
 void fillMemory(monitor::proto::MonitorInfo *info, std::mt19937 &rng,
                 int worker_id, int round) {
     auto *mem = info->mutable_mem_info();
+    // 总内存固定为 32GB，使用率根据 worker_id 和 round 生成一个在 25% 到 92%
+    // 之间的值，并有一定随机波动
     const float total = 32768.0f;
     const float used_percent =
         std::min(92.0f, 25.0f + worker_id * 8.0f + round * 1.2f +
@@ -117,6 +125,8 @@ void fillMemory(monitor::proto::MonitorInfo *info, std::mt19937 &rng,
 void fillNet(monitor::proto::MonitorInfo *info, std::mt19937 &rng,
              int worker_id, int round) {
     auto *net = info->add_net_info();
+    // 假设每个 worker 有一个名为 eth0 的网卡，发送速率和接收速率根据 worker_id
+    // 和 round 生成一个在 600Mbps 到 1200Mbps 之间的值，并有一定随机波动
     net->set_name("eth0");
     net->set_send_rate(600.0f + worker_id * 95.0f + round * 20.0f +
                        nextFloat(rng, 0.0f, 80.0f));
@@ -126,6 +136,8 @@ void fillNet(monitor::proto::MonitorInfo *info, std::mt19937 &rng,
                                nextFloat(rng, 0.0f, 50.0f));
     net->set_rcv_packets_rate(700.0f + worker_id * 30.0f +
                               nextFloat(rng, 0.0f, 70.0f));
+    // 每隔几轮模拟一次错误和丢包，worker_id 5 的发送偶尔出错，worker_id 4
+    // 的接收偶尔丢包
     net->set_err_in(worker_id == 5 && round % 4 == 0 ? 1 : 0);
     net->set_err_out(0);
     net->set_drop_in(worker_id == 4 && round % 5 == 0 ? 2 : 0);
@@ -176,6 +188,8 @@ void fillSoftIrq(monitor::proto::MonitorInfo *info, std::mt19937 &rng) {
     }
 }
 
+// 根据 worker_id 和 round 生成一个
+// MonitorInfo，内容会有一定规律但又不完全相同，以便测试不同数据的推送和处理
 monitor::proto::MonitorInfo makeMonitorInfo(int worker_id, int round) {
     std::mt19937 rng(static_cast<unsigned int>(worker_id * 1000 + round));
     monitor::proto::MonitorInfo info;
@@ -196,6 +210,7 @@ monitor::proto::MonitorInfo makeMonitorInfo(int worker_id, int round) {
     return info;
 }
 
+// 执行一次 push，返回是否成功
 bool pushOnce(monitor::proto::GrpcManager::Stub *stub, int worker_id,
               int round) {
     grpc::ClientContext context;
@@ -232,6 +247,7 @@ void runWorker(const WorkerConfig &config, std::atomic<int> *success_count,
     }
 }
 
+// 解析一个正整数，失败时返回 fallback
 int parsePositiveInt(const char *value, int fallback) {
     char *end = nullptr;
     long parsed = std::strtol(value, &end, 10);
@@ -239,6 +255,7 @@ int parsePositiveInt(const char *value, int fallback) {
     return static_cast<int>(parsed);
 }
 
+// 解析一个非负整数，失败时返回 fallback
 int parseNonNegativeInt(const char *value, int fallback) {
     char *end = nullptr;
     long parsed = std::strtol(value, &end, 10);
