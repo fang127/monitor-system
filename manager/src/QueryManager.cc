@@ -53,6 +53,15 @@ SqlParam doubleParam(double value) {
     return param;
 }
 
+/**
+ * @brief         绑定参数到预处理语句
+ *
+ * @param         stmt
+ * @param         binds
+ * @param         params
+ * @return
+ * @return
+ */
 bool bindParams(MYSQL_STMT *stmt, std::vector<MYSQL_BIND> &binds,
                 std::vector<SqlParam> &params) {
     if (params.empty()) return true;
@@ -63,27 +72,37 @@ bool bindParams(MYSQL_STMT *stmt, std::vector<MYSQL_BIND> &binds,
     for (std::size_t i = 0; i < params.size(); ++i) {
         SqlParam &param = params[i];
         switch (param.type) {
-        case SqlParam::Type::String:
-            binds[i].buffer_type = MYSQL_TYPE_STRING;
-            binds[i].buffer =
-                const_cast<char *>(param.string_value.data());
-            binds[i].buffer_length = param.length;
-            binds[i].length = &param.length;
-            break;
-        case SqlParam::Type::Int64:
-            binds[i].buffer_type = MYSQL_TYPE_LONGLONG;
-            binds[i].buffer = &param.int_value;
-            break;
-        case SqlParam::Type::Double:
-            binds[i].buffer_type = MYSQL_TYPE_DOUBLE;
-            binds[i].buffer = &param.double_value;
-            break;
+            case SqlParam::Type::String:
+                binds[i].buffer_type = MYSQL_TYPE_STRING;
+                binds[i].buffer = const_cast<char *>(param.string_value.data());
+                binds[i].buffer_length = param.length;
+                binds[i].length = &param.length;
+                break;
+            case SqlParam::Type::Int64:
+                binds[i].buffer_type = MYSQL_TYPE_LONGLONG;
+                binds[i].buffer = &param.int_value;
+                break;
+            case SqlParam::Type::Double:
+                binds[i].buffer_type = MYSQL_TYPE_DOUBLE;
+                binds[i].buffer = &param.double_value;
+                break;
         }
     }
 
     return mysql_stmt_bind_param(stmt, binds.data()) == 0;
 }
 
+/**
+ * @brief         执行预处理语句并获取结果行
+ *
+ * @param         conn
+ * @param         sql
+ * @param         params
+ * @param         rows
+ * @param         context
+ * @return
+ * @return
+ */
 bool executePreparedRows(MYSQL *conn, const std::string &sql,
                          std::vector<SqlParam> params,
                          std::vector<std::vector<std::string>> &rows,
@@ -103,15 +122,16 @@ bool executePreparedRows(MYSQL *conn, const std::string &sql,
         }
     };
 
+    // 准备预处理语句
     if (mysql_stmt_prepare(stmt, sql.c_str(),
                            static_cast<unsigned long>(sql.size())) != 0) {
         std::cerr << "QueryManager: " << context
-                  << " prepare failed: " << mysql_stmt_error(stmt)
-                  << std::endl;
+                  << " prepare failed: " << mysql_stmt_error(stmt) << std::endl;
         closeStmt();
         return false;
     }
 
+    // 绑定参数
     std::vector<MYSQL_BIND> paramBinds;
     if (!bindParams(stmt, paramBinds, params)) {
         std::cerr << "QueryManager: " << context
@@ -121,31 +141,34 @@ bool executePreparedRows(MYSQL *conn, const std::string &sql,
         return false;
     }
 
+    // 执行语句
     if (mysql_stmt_execute(stmt) != 0) {
         std::cerr << "QueryManager: " << context
-                  << " execute failed: " << mysql_stmt_error(stmt)
-                  << std::endl;
+                  << " execute failed: " << mysql_stmt_error(stmt) << std::endl;
         closeStmt();
         return false;
     }
 
+    // 获取结果元数据以确定字段数量和类型
     MYSQL_RES *metadata = mysql_stmt_result_metadata(stmt);
     if (!metadata) {
         closeStmt();
         return true;
     }
 
-    const unsigned int fieldCount = mysql_num_fields(metadata);
-    std::vector<MYSQL_BIND> resultBinds(fieldCount);
-    std::vector<std::vector<char>> buffers(fieldCount,
-                                           std::vector<char>(4096));
+    // 为每个字段准备缓冲区和绑定结构
+    const unsigned int fieldCount = mysql_num_fields(metadata); // 字段数量
+    std::vector<MYSQL_BIND> resultBinds(fieldCount);            // 结果绑定结构
+    std::vector<std::vector<char>> buffers(
+        fieldCount, std::vector<char>(4096)); // 结果缓冲区
     struct BoolFlag {
         bool value = false;
-    };
-    std::vector<unsigned long> lengths(fieldCount, 0);
-    std::vector<BoolFlag> isNull(fieldCount);
-    std::vector<BoolFlag> errors(fieldCount);
+    }; // 用于绑定is_null和error的布尔标志
+    std::vector<unsigned long> lengths(fieldCount, 0); // 字段长度
+    std::vector<BoolFlag> isNull(fieldCount);          // 字段是否为NULL
+    std::vector<BoolFlag> errors(fieldCount);          // 字段是否有错误
 
+    // 初始化绑定结构
     std::memset(resultBinds.data(), 0, sizeof(MYSQL_BIND) * fieldCount);
     for (unsigned int i = 0; i < fieldCount; ++i) {
         resultBinds[i].buffer_type = MYSQL_TYPE_STRING;
@@ -157,6 +180,7 @@ bool executePreparedRows(MYSQL *conn, const std::string &sql,
         resultBinds[i].error = &errors[i].value;
     }
 
+    // 绑定结果并获取所有结果行
     if (mysql_stmt_bind_result(stmt, resultBinds.data()) != 0 ||
         mysql_stmt_store_result(stmt) != 0) {
         std::cerr << "QueryManager: " << context
@@ -167,6 +191,7 @@ bool executePreparedRows(MYSQL *conn, const std::string &sql,
         return false;
     }
 
+    // 循环获取每一行结果，处理NULL值和错误，并将数据转换为字符串存储在rows中
     while (true) {
         int status = mysql_stmt_fetch(stmt);
         if (status == MYSQL_NO_DATA) break;
@@ -198,6 +223,15 @@ bool executePreparedRows(MYSQL *conn, const std::string &sql,
     return true;
 }
 
+/**
+ * @brief 执行预处理语句并返回第一行第一列的整数结果，适用于COUNT(*)等聚合查询
+ *
+ * @param         conn
+ * @param         sql
+ * @param         params
+ * @param         context
+ * @return
+ */
 int executePreparedCount(MYSQL *conn, const std::string &sql,
                          std::vector<SqlParam> params, const char *context) {
     std::vector<std::vector<std::string>> rows;
@@ -236,12 +270,16 @@ bool QueryManager::init(const std::string &host, unsigned int port,
     std::lock_guard<std::mutex> lock(mutex_);
     if (initialized_) return true;
 
+    // 初始化MySQL连接
+    // 使用mysql_init创建连接对象，传入nullptr表示使用默认选项
     conn_ = mysql_init(nullptr);
     if (!conn_) {
         std::cerr << "MySQL initialization failed" << std::endl;
         return false;
     }
 
+    // mysql_real_connect连接到MySQL服务器，传入连接参数
+    // 如果连接失败，输出错误信息并清理连接对象
     if (!mysql_real_connect(conn_, host.c_str(), user.c_str(), password.c_str(),
                             db.c_str(), port, nullptr, 0)) {
         std::cerr << "QueryManager mysql_real_connect failed: "
@@ -251,7 +289,7 @@ bool QueryManager::init(const std::string &host, unsigned int port,
         return false;
     }
 
-    // set character set to utf8
+    // 设置连接字符集为utf8mb4，确保支持多字节字符
     mysql_set_character_set(conn_, "utf8mb4");
     initialized_ = true;
     std::cout << "QueryManager: MySQL connection initialized successfully"
@@ -354,10 +392,9 @@ std::vector<PerformanceRecord> QueryManager::queryPerformanceRecords(
         int i = 0;
         rec.server_name = i < static_cast<int>(row.size()) ? row[i] : "";
         ++i;
-        rec.timestamp =
-            i < static_cast<int>(row.size()) && !row[i].empty()
-                ? parseTimeString(row[i])
-                : std::chrono::system_clock::now();
+        rec.timestamp = i < static_cast<int>(row.size()) && !row[i].empty()
+                            ? parseTimeString(row[i])
+                            : std::chrono::system_clock::now();
         ++i;
         rec.cpu_percent = toFloat(row, i);
         ++i;
@@ -488,10 +525,9 @@ std::vector<PerformanceRecord> QueryManager::queryTrend(
         int i = 0;
         rec.server_name = i < static_cast<int>(row.size()) ? row[i] : "";
         ++i;
-        rec.timestamp =
-            i < static_cast<int>(row.size()) && !row[i].empty()
-                ? parseTimeString(row[i])
-                : std::chrono::system_clock::now();
+        rec.timestamp = i < static_cast<int>(row.size()) && !row[i].empty()
+                            ? parseTimeString(row[i])
+                            : std::chrono::system_clock::now();
         i++;
         rec.cpu_percent = toFloat(row, i);
         i++;
@@ -594,10 +630,9 @@ std::vector<AnomalyRecord> QueryManager::queryAnomalyRecords(
 
     for (const auto &row : rows) {
         std::string name = !row.empty() ? row[0] : "";
-        auto ts =
-            row.size() > 1 && !row[1].empty()
-                ? parseTimeString(row[1])
-                : std::chrono::system_clock::now();
+        auto ts = row.size() > 1 && !row[1].empty()
+                      ? parseTimeString(row[1])
+                      : std::chrono::system_clock::now();
         float cpu = toFloat(row, 2);
         float mem = toFloat(row, 3);
         float disk = toFloat(row, 4);
@@ -693,8 +728,9 @@ std::vector<ServerScoreSummary> QueryManager::queryServerScoreRank(
         "ORDER BY p1.score " +
         orderBy + " LIMIT ? OFFSET ?";
     std::vector<std::vector<std::string>> rows;
-    if (!executePreparedRows(conn_, query, {intParam(pageSize), intParam(offset)},
-                             rows, "score rank query")) {
+    if (!executePreparedRows(conn_, query,
+                             {intParam(pageSize), intParam(offset)}, rows,
+                             "score rank query")) {
         return records;
     }
 
@@ -703,9 +739,8 @@ std::vector<ServerScoreSummary> QueryManager::queryServerScoreRank(
         ServerScoreSummary rec;
         rec.server_name = !row.empty() ? row[0] : "";
         rec.score = toFloat(row, 1);
-        rec.last_updated = row.size() > 2 && !row[2].empty()
-                               ? parseTimeString(row[2])
-                               : now;
+        rec.last_updated =
+            row.size() > 2 && !row[2].empty() ? parseTimeString(row[2]) : now;
         rec.cpu_percent = toFloat(row, 3);
         rec.mem_used_percent = toFloat(row, 4);
         rec.disk_util_percent = toFloat(row, 5);
@@ -747,9 +782,8 @@ std::vector<ServerScoreSummary> QueryManager::queryLatestServerScores(
         ") p2 ON p1.server_name = p2.server_name AND p1.timestamp = p2.max_ts "
         "ORDER BY p1.score DESC";
     std::vector<std::vector<std::string>> rows;
-    if (!executePreparedRows(conn_, query, {}, rows, "latest score query")) {
+    if (!executePreparedRows(conn_, query, {}, rows, "latest score query"))
         return records;
-    }
 
     auto now = std::chrono::system_clock::now();
     float totalScore = 0;
@@ -762,9 +796,8 @@ std::vector<ServerScoreSummary> QueryManager::queryLatestServerScores(
         ServerScoreSummary rec;
         rec.server_name = !row.empty() ? row[0] : "";
         rec.score = toFloat(row, 1);
-        rec.last_updated = row.size() > 2 && !row[2].empty()
-                               ? parseTimeString(row[2])
-                               : now;
+        rec.last_updated =
+            row.size() > 2 && !row[2].empty() ? parseTimeString(row[2]) : now;
         rec.cpu_percent = toFloat(row, 3);
         rec.mem_used_percent = toFloat(row, 4);
         rec.disk_util_percent = toFloat(row, 5);
@@ -864,10 +897,9 @@ std::vector<NetDetailRecord> QueryManager::queryNetDetailRecords(
         ++i;
         rec.net_name = i < static_cast<int>(row.size()) ? row[i] : "";
         ++i;
-        rec.timestamp =
-            i < static_cast<int>(row.size()) && !row[i].empty()
-                ? parseTimeString(row[i])
-                : std::chrono::system_clock::now();
+        rec.timestamp = i < static_cast<int>(row.size()) && !row[i].empty()
+                            ? parseTimeString(row[i])
+                            : std::chrono::system_clock::now();
         i++;
         rec.err_in = toU64(row, i);
         i++;
@@ -946,10 +978,9 @@ std::vector<DiskDetailRecord> QueryManager::queryDiskDetailRecords(
         ++i;
         rec.disk_name = i < static_cast<int>(row.size()) ? row[i] : "";
         ++i;
-        rec.timestamp =
-            i < static_cast<int>(row.size()) && !row[i].empty()
-                ? parseTimeString(row[i])
-                : std::chrono::system_clock::now();
+        rec.timestamp = i < static_cast<int>(row.size()) && !row[i].empty()
+                            ? parseTimeString(row[i])
+                            : std::chrono::system_clock::now();
         i++;
         rec.read_bytes_per_sec = toFloat(row, i);
         i++;
@@ -1023,10 +1054,9 @@ std::vector<MemDetailRecord> QueryManager::queryMemDetailRecords(
         int i = 0;
         rec.server_name = i < static_cast<int>(row.size()) ? row[i] : "";
         ++i;
-        rec.timestamp =
-            i < static_cast<int>(row.size()) && !row[i].empty()
-                ? parseTimeString(row[i])
-                : std::chrono::system_clock::now();
+        rec.timestamp = i < static_cast<int>(row.size()) && !row[i].empty()
+                            ? parseTimeString(row[i])
+                            : std::chrono::system_clock::now();
         i++;
         rec.mem_total = toFloat(row, i);
         i++;
@@ -1104,10 +1134,9 @@ std::vector<SoftIrqDetailRecord> QueryManager::querySoftIrqDetailRecords(
         ++i;
         rec.cpu_name = i < static_cast<int>(row.size()) ? row[i] : "";
         ++i;
-        rec.timestamp =
-            i < static_cast<int>(row.size()) && !row[i].empty()
-                ? parseTimeString(row[i])
-                : std::chrono::system_clock::now();
+        rec.timestamp = i < static_cast<int>(row.size()) && !row[i].empty()
+                            ? parseTimeString(row[i])
+                            : std::chrono::system_clock::now();
         i++;
         rec.hi = toI64(row, i);
         i++;
