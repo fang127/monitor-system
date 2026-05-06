@@ -23,6 +23,7 @@
 - 🔄 **Push 模式** - Worker 主动推送，降低 Manager 负载
 - 📈 **健康评分** - 多维度加权评分算法，快速评估服务器状态
 - 🔍 **丰富查询** - 9 个 gRPC 查询接口，支持历史数据、趋势分析、异常检测
+- 🌐 **HTTP API 网关** - Go/Gin API Gateway 将 Manager 的 gRPC 查询能力转换为 JSON HTTP 接口
 - 💾 **数据持久化** - MySQL 存储历史数据
 
 ## 📐 系统架构
@@ -79,6 +80,30 @@ Worker(多台)
          Query Client
 ```
 
+### api_gateway
+
+`api_gateway` 是新增的 Go HTTP 服务，对外提供 REST 风格 JSON API，对内连接 Manager 的 `QueryService` gRPC 服务。默认连接地址为 `127.0.0.1:50051`，可通过 `MANAGER_GRPC_ADDR` 覆盖。
+
+```
+HTTP Client
+    |
+    |  JSON/HTTP
+    v
++-------------------------------+
+|          api_gateway          |
+|  Go + Gin HTTP Server         |
+|                               |
+|  GET /health                  |
+|  GET /api/version             |
+|  GET /api/servers/latest      |
+|  GET /api/servers/:server/... |
++---------------+---------------+
+                |
+                | gRPC QueryService
+                v
+           Manager(C++)
+```
+
 ### worker
 
 ```
@@ -129,6 +154,15 @@ monitor_system/
 │   └── manager.env            # Manager/MySQL 环境变量
 ├── deploy/                    # 部署配置
 │   └── docker-compose.yml     # MySQL、Redis 基础服务
+├── api_gateway/               # Go HTTP API 网关
+│   ├── cmd/server             # Gin HTTP Server 入口
+│   ├── internal/config        # 配置加载
+│   ├── internal/grpcclient    # QueryService gRPC client
+│   ├── internal/handler       # HTTP Handler
+│   ├── internal/logger        # 日志初始化
+│   ├── internal/response      # JSON 响应封装
+│   ├── Makefile               # make run / make proto
+│   └── README.md              # API 网关说明
 ├── worker/                    # 工作者服务器（部署在被监控机器）
 │   ├── include/               # 头文件
 │   │   ├── monitor/           # 监控器接口
@@ -175,6 +209,48 @@ monitor-system
 - **MySQL**: 8.0+ (必须)
 - **Conan**: 1.40+ (依赖管理)
 - **Python**: 3.6+ (构建脚本)
+- **Go**: 1.22+ (api_gateway)
+- **protoc + protoc-gen-go + protoc-gen-go-grpc**: 生成 Go gRPC client（`api_gateway/make proto` 会自动安装 Go 插件到本地 `.bin/`）
+
+## 🌐 API Gateway
+
+`api_gateway` 提供面向前端或运维脚本的 HTTP JSON API，避免客户端直接依赖 Manager 的 gRPC 协议。
+
+### 启动
+
+```bash
+cd api_gateway
+make run
+```
+
+### 配置
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `API_GATEWAY_PORT` | `8080` | HTTP 服务端口 |
+| `API_GATEWAY_VERSION` | `v0.1.0` | API 网关版本号 |
+| `GIN_MODE` | `debug` | Gin 运行模式 |
+| `MANAGER_GRPC_ADDR` | `127.0.0.1:50051` | Manager gRPC 地址 |
+| `MANAGER_GRPC_TIMEOUT` | `5s` | Manager 调用超时时间 |
+
+### 接口
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/health` | 健康检查 |
+| `GET` | `/api/version` | 版本信息 |
+| `GET` | `/api/servers/latest` | 所有服务器最新评分与集群统计 |
+| `GET` | `/api/servers/:server/trend` | 指定服务器趋势数据 |
+| `GET` | `/api/servers/:server/anomalies` | 指定服务器异常数据 |
+
+### 生成 Go gRPC client
+
+```bash
+cd api_gateway
+make proto
+```
+
+生成文件输出到 `api_gateway/internal/pb/queryapi/`。
 
 ## 📚 系统指标说明
 
