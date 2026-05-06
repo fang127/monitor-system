@@ -18,9 +18,8 @@ BPF_SKELS := $(patsubst %.bpf.c,$(SKEL_DIR)/%.skel.h,$(BPF_SRCS))
 BPF_CFLAGS := -g -O2 -target bpf -D__TARGET_ARCH_$(ARCH)
 BPF_CFLAGS += -I$(dir $(VMLINUX_H))
 BPF_CFLAGS += -I/usr/include
-LIBBPF_INCLUDE ?= $(HOME)/.conan2/p/libbp7fccbc223c91f/p/include
-BPF_CFLAGS += -I$(LIBBPF_INCLUDE)
-BPF_CFLAGS += -I$(HOME)/.conan2/p/libbp7fccbc223c91f/s/src/src
+LIBBPF_INCLUDE ?= /usr/include
+BPF_CFLAGS += $(addprefix -I,$(LIBBPF_INCLUDE))
 
 
 .PHONY: all clean
@@ -42,7 +41,14 @@ $(OUTPUT_DIR)/%.bpf.o: %.bpf.c vmlinux.h | $(OUTPUT_DIR)
 
 # 生成 skeleton 头文件
 $(SKEL_DIR)/%.skel.h: $(OUTPUT_DIR)/%.bpf.o | $(OUTPUT_DIR)
-	$(BPFTOOL) gen skeleton $< > $@
+	@tmp="$@.tmp"; \
+	rm -f "$$tmp"; \
+	if $(BPFTOOL) gen skeleton $< > "$$tmp"; then \
+		mv "$$tmp" "$@"; \
+	else \
+		rm -f "$$tmp"; \
+		exit 1; \
+	fi
 
 clean:
 	rm -rf $(OUTPUT_DIR)

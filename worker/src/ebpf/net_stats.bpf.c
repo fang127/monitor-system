@@ -18,8 +18,8 @@
  */
 
 #include "vmlinux.h"
-#include <bpf_helpers.h>
-#include <bpf_endian.h>
+#include <bpf/bpf_helpers.h>
+#include <bpf/bpf_endian.h>
 
 /* TC 返回值 */
 #define TC_ACT_OK     0

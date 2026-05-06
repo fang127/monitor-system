@@ -1,6 +1,4 @@
 find_package(gRPC CONFIG REQUIRED)
-add_library(worker_grpc_lib INTERFACE)
-target_link_libraries(worker_grpc_lib INTERFACE gRPC::grpc gRPC::grpc++)
 
 # eBPF 支持选项
 option(ENABLE_EBPF "Enable eBPF-based network monitoring" ON)
@@ -14,15 +12,23 @@ if(ENABLE_EBPF)
 
     set(EBPF_SRC_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/src/ebpf)
     set(EBPF_SKEL_H ${CMAKE_CURRENT_BINARY_DIR}/include/monitor/net_stats.skel.h)
+    get_target_property(LIBBPF_INCLUDE_DIRS libbpf::libbpf INTERFACE_INCLUDE_DIRECTORIES)
+    if(NOT LIBBPF_INCLUDE_DIRS)
+        set(LIBBPF_INCLUDE_DIRS ${libbpf_INCLUDE_DIRS})
+    endif()
+    if(NOT LIBBPF_INCLUDE_DIRS)
+        message(FATAL_ERROR "Could not determine libbpf include directories")
+    endif()
+    string(REPLACE ";" " " LIBBPF_INCLUDE_DIRS "${LIBBPF_INCLUDE_DIRS}")
     # 生成eBPF骨架头文件
     add_custom_command(
         OUTPUT ${EBPF_SKEL_H}   
-        COMMAND  make -C ${EBPF_SRC_DIRS} 
-        COMMAND ${CMAKE_COMMAND} -E copy ${EBPF_SRC_DIRS}/.output/net_stats.skel.h ${EBPF_SKEL_H}
-        DEPENDS ${EBPF_SRC_DIRS}/net_stats.bpf.c
+        COMMAND  make -C ${EBPF_SRC_DIRS} "LIBBPF_INCLUDE=${LIBBPF_INCLUDE_DIRS}"  # 构建eBPF程序
+        COMMAND ${CMAKE_COMMAND} -E copy ${EBPF_SRC_DIRS}/.output/net_stats.skel.h ${EBPF_SKEL_H} # 复制生成的骨架头文件到构建目录
+        DEPENDS ${EBPF_SRC_DIRS}/net_stats.bpf.c # 依赖eBPF源文件
         COMMENT "Building eBPF program and generating skeleton header"
     )
-    add_custom_target(ebpf_skeleton DEPENDS ${EBPF_SKEL_H})
+    add_custom_target(ebpf_skeleton DEPENDS ${EBPF_SKEL_H}) # 定义一个目标来生成eBPF骨架头文件
     set(EBPF_FOUND TRUE)
 endif()
 
@@ -60,9 +66,9 @@ set(WORKER_LIBS monitor_proto gRPC::grpc++)
 
 # eBPF 依赖
 if(EBPF_FOUND)
-    add_dependencies(worker ebpf_skeleton)
-    target_compile_definitions(worker PRIVATE ENABLE_EBPF=1)
-    list(APPEND WORKER_LIBS libbpf::libbpf elfutils::elfutils ZLIB::ZLIB)
+    add_dependencies(worker ebpf_skeleton) # 确保在构建 worker 之前生成 eBPF 骨架头文件
+    target_compile_definitions(worker PRIVATE ENABLE_EBPF=1) # 定义宏以启用 eBPF 相关代码
+    list(APPEND WORKER_LIBS libbpf::libbpf elfutils::elfutils ZLIB::ZLIB) # 添加 eBPF 相关库链接
 endif()
 
 target_link_libraries(worker PUBLIC ${WORKER_LIBS})
@@ -76,7 +82,7 @@ add_custom_target(kernel_modules
 # eBPF 程序构建（可选）
 if(EBPF_FOUND)
     add_custom_target(ebpf_programs
-        COMMAND make -C ${CMAKE_CURRENT_SOURCE_DIR}/src/ebpf
+        COMMAND make -C ${CMAKE_CURRENT_SOURCE_DIR}/src/ebpf "LIBBPF_INCLUDE=${LIBBPF_INCLUDE_DIRS}"
         COMMENT "Building eBPF programs"
     )
 endif()
