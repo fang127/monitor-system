@@ -1,8 +1,8 @@
-name: monitor-system
+name: monitor_system
 services:
   mysql:
     image: mysql:latest
-    container_name: monitor-system-mysql
+    container_name: monitor_system_mysql
     restart: unless-stopped # 容器重启策略：除非手动停止，否则总是重启
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
@@ -21,7 +21,7 @@ services:
 
   redis:
     image: redis:latest
-    container_name: monitor-system-redis
+    container_name: monitor_system_redis
     restart: unless-stopped
     ports:
       - "6379:6379"

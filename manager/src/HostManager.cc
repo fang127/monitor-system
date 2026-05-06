@@ -266,8 +266,8 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
             memUsedPercent = info.mem_info().used_percent();
         }
         if (info.net_info_size() > 0) {
-            sendRate = info.net_info(0).send_rate() / 1024.0;
-            rcvRate = info.net_info(0).rcv_rate() / 1024.0;
+            sendRate = info.net_info(0).send_rate();
+            rcvRate = info.net_info(0).rcv_rate();
         }
         if (info.cpu_stat_size() > 0) {
             const auto &cpu = info.cpu_stat(0);
@@ -562,7 +562,7 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
 
             std::ostringstream oss;
             oss << "INSERT INTO server_disk_detail "
-                << "(server_name, disk_name, reads, writes, sectors_read, "
+                << "(server_name, disk_name, read_ops, write_ops, sectors_read, "
                    "sectors_written, "
                 << "read_time_ms, write_time_ms, io_in_progress, io_time_ms, "
                    "weighted_io_time_ms, "

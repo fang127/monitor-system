@@ -23,14 +23,14 @@ CREATE TABLE IF NOT EXISTS server_performance (
     load_avg_15 FLOAT DEFAULT 0,              -- 15分钟负载
     -- 内存指标
     mem_used_percent FLOAT DEFAULT 0,         -- 内存使用率，单位：%
-    total FLOAT DEFAULT 0,                    -- 总内存，单位：GB
-    free FLOAT DEFAULT 0,                     -- 空闲内存，单位：GB
-    avail FLOAT DEFAULT 0,                    -- 可用内存，单位：GB
+    total FLOAT DEFAULT 0,                    -- 总内存，单位：MB
+    free FLOAT DEFAULT 0,                     -- 空闲内存，单位：MB
+    avail FLOAT DEFAULT 0,                    -- 可用内存，单位：MB
     -- 磁盘指标
     disk_util_percent FLOAT DEFAULT 0,        -- 磁盘利用率（最大值），单位：%
     -- 网络指标
-    send_rate FLOAT DEFAULT 0,                -- 发送速率，单位：kB/s
-    rcv_rate FLOAT DEFAULT 0,                 -- 接收速率，单位：kB/s
+    send_rate FLOAT DEFAULT 0,                -- 发送速率，单位：B/s
+    rcv_rate FLOAT DEFAULT 0,                 -- 接收速率，单位：B/s
     -- 性能评分
     score FLOAT DEFAULT 0,                    -- 综合评分，范围：0-100，分数越高性能越好
     -- CPU 变化率
@@ -73,10 +73,10 @@ CREATE TABLE IF NOT EXISTS server_net_detail (
     drop_in BIGINT DEFAULT 0,                   -- 接收丢弃数
     drop_out BIGINT DEFAULT 0,                  -- 发送丢弃数
     -- 速率指标
-    rcv_bytes_rate FLOAT DEFAULT 0,             -- 接收速率，单位：kB/s
-    rcv_packets_rate FLOAT DEFAULT 0,           -- 接收包数速率，单位：个/s
-    snd_bytes_rate FLOAT DEFAULT 0,             -- 发送速率，单位：kB/s
-    snd_packets_rate FLOAT DEFAULT 0,           -- 发送包数速率，单位：个/s
+    rcv_bytes_rate FLOAT DEFAULT 0,             -- 接收速率，单位：B/s
+    rcv_packets_rate FLOAT DEFAULT 0,           -- 接收包数速率，单位：packets/s
+    snd_bytes_rate FLOAT DEFAULT 0,             -- 发送速率，单位：B/s
+    snd_packets_rate FLOAT DEFAULT 0,           -- 发送包数速率，单位：packets/s
     -- 速率变化率
     rcv_bytes_rate_rate FLOAT DEFAULT 0,        -- 接收速率变化率
     rcv_packets_rate_rate FLOAT DEFAULT 0,      -- 接收包数速率变化率
@@ -180,8 +180,8 @@ CREATE TABLE IF NOT EXISTS server_disk_detail (
     server_name VARCHAR(255) NOT NULL,
     disk_name VARCHAR(64) NOT NULL,
     -- 磁盘计数器
-    `reads` BIGINT DEFAULT 0,
-    `writes` BIGINT DEFAULT 0,
+    read_ops BIGINT DEFAULT 0,
+    write_ops BIGINT DEFAULT 0,
     sectors_read BIGINT DEFAULT 0,
     sectors_written BIGINT DEFAULT 0,
     read_time_ms BIGINT DEFAULT 0,

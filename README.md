@@ -146,6 +146,10 @@ monitor_system/
 │   ├── src/                   # 源码实现
 │   └── sql/                   # 数据库初始化脚本
 │
+├── tests/                     # 本地集成测试工具
+│   ├── simulated_workers_push.cc  # 模拟多台 worker 推送数据
+│   └── README.md              # 模拟测试说明
+│
 ├── proto/                     # Protobuf/gRPC 定义
 └── CMakeLists.txt             # 构建配置
 ```
@@ -185,6 +189,20 @@ monitor-system
 | 磁盘 | `/proc/diskstats` | 读写速率、IOPS、延迟、利用率 |
 | 网络 | eBPF / procfs | 收发速率、包数、错误/丢包统计 |
 
+### 指标单位约定
+
+| 指标 | 字段/表 | 单位 | 说明 |
+|------|---------|------|------|
+| 网络吞吐 | `NetInfo.send_rate`、`NetInfo.rcv_rate`、`server_performance.send_rate/rcv_rate`、`server_net_detail.*_bytes_rate` | B/s | 全链路按字节每秒保存；日志直接显示 B/s |
+| 网络包速率 | `send_packets_rate`、`rcv_packets_rate`、`*_packets_rate` | packets/s | 每秒包数 |
+| 内存容量 | `MemInfo.total/free/avail/...`、`server_mem_detail`、`server_performance.total/free/avail` | MB | 来自 `/proc/meminfo` 后统一换算为 MB |
+| 内存使用率 | `used_percent`、`mem_used_percent` | % | 百分比数值，范围通常为 0-100 |
+| 磁盘吞吐 | `DiskInfo.read_bytes_per_sec/write_bytes_per_sec`、`server_disk_detail.*_bytes_per_sec` | B/s | MySQL 保存 B/s；Manager 控制台为了可读性显示为 KB/s |
+| 磁盘 IOPS | `read_iops`、`write_iops` | ops/s | 每秒 IO 次数 |
+| 磁盘延迟 | `avg_read_latency_ms`、`avg_write_latency_ms` | ms | 平均读写延迟 |
+| 磁盘利用率 | `util_percent`、`disk_util_percent` | % | 百分比数值，范围通常为 0-100 |
+| 变化率字段 | `*_rate` 后缀 | ratio | 保存相对变化率；日志展示时乘以 100 显示为百分比 |
+
 ### Manager 查询接口
 
 | 接口 | 功能 | 用途 |
@@ -218,6 +236,8 @@ Score = CPU_Score × 35% + Mem_Score × 30% + Load_Score × 15%
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
 | 推送间隔 | 10 秒 | Worker 向 Manager 推送数据的间隔 |
+| 模拟测试推送间隔 | 2 秒 | `simulated_workers_push` 默认推送间隔 |
+| 模拟测试轮次 | 5 轮 | `simulated_workers_push` 默认每台 worker 推送 5 轮；设置为 0 表示持续推送 |
 | 离线阈值 | 60 秒 | 超过此时间无数据视为离线 |
 | gRPC 端口 | 50051 | Manager 监听端口 |
 
@@ -306,7 +326,50 @@ Received monitor data from: server1
 Processed data from server1_192.168.1.101, score: 75.32
 ```
 
-### 8. 停止服务和卸载内核模块
+### 8. 使用模拟 Worker 测试
+
+如果只想验证 Manager 接收、评分和 MySQL 写库，可以使用 `tests/simulated_workers_push`，不需要启动真实 worker、内核模块或 eBPF。测试程序默认模拟 5 台 worker：`worker-01` 到 `worker-05`，IP 为 `10.10.0.101` 到 `10.10.0.105`。
+
+构建测试工具：
+
+```bash
+conan install . --build=missing --settings=build_type=Debug
+cmake -S . -B build/Debug \
+  -DCMAKE_TOOLCHAIN_FILE=build/Debug/generators/conan_toolchain.cmake \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DBUILD_MANAGER=OFF \
+  -DENABLE_EBPF=OFF \
+  -DBUILD_TESTS=ON
+cmake --build build/Debug --target simulated_workers_push
+```
+
+启动模拟推送：
+
+```bash
+./build/Debug/tests/simulated_workers_push localhost:50051
+```
+
+参数格式：
+
+```bash
+./build/Debug/tests/simulated_workers_push [manager_address] [worker_count] [interval_seconds] [rounds]
+```
+
+示例：模拟 5 台 worker，每 1 秒推送一次，每台推送 20 轮：
+
+```bash
+./build/Debug/tests/simulated_workers_push localhost:50051 5 1 20
+```
+
+示例：持续推送，手动按 Ctrl+C 停止：
+
+```bash
+./build/Debug/tests/simulated_workers_push localhost:50051 5 2 0
+```
+
+Manager 并发接收多台 worker 推送时，`std::cout`/`std::cerr` 日志可能交叉显示；这只影响控制台可读性，不代表数据接收或 MySQL 写库失败。
+
+### 9. 停止服务和卸载内核模块
 
 ```bash
 # 停止 Worker 和 Manager（Ctrl+C）
@@ -321,6 +384,12 @@ lsmod | grep -E "CpuStat|Softirq"
 # 停止基础服务
 docker compose --env-file configs/manager.env -f deploy/docker-compose.yml down
 ```
+
+## MySQL 字段注意事项
+
+`server_disk_detail` 使用 `read_ops` 和 `write_ops` 保存磁盘读写累计次数，避免使用 `reads`/`writes` 这类容易与 SQL 关键字或语法产生歧义的列名。
+
+网络明细、内存明细和磁盘明细已经按上面的单位约定写入 MySQL：网络吞吐为 B/s，内存容量为 MB，磁盘吞吐为 B/s。
 
 ## 📄 许可证
 
