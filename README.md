@@ -240,8 +240,14 @@ make run
 | `GET` | `/health` | 健康检查 |
 | `GET` | `/api/version` | 版本信息 |
 | `GET` | `/api/servers/latest` | 所有服务器最新评分与集群统计 |
+| `GET` | `/api/servers/score-rank` | 服务器评分排序 |
+| `GET` | `/api/servers/:server/performance` | 指定服务器历史性能数据 |
 | `GET` | `/api/servers/:server/trend` | 指定服务器趋势数据 |
 | `GET` | `/api/servers/:server/anomalies` | 指定服务器异常数据 |
+| `GET` | `/api/servers/:server/net-detail` | 指定服务器网络明细 |
+| `GET` | `/api/servers/:server/disk-detail` | 指定服务器磁盘明细 |
+| `GET` | `/api/servers/:server/mem-detail` | 指定服务器内存明细 |
+| `GET` | `/api/servers/:server/softirq-detail` | 指定服务器软中断明细 |
 
 ### 生成 Go gRPC client
 
