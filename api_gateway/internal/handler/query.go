@@ -154,6 +154,7 @@ func (h *QueryHandler) SoftIrqDetail(c *gin.Context) {
 	h.detail(c, h.client.SoftIrqDetail)
 }
 
+// detail 是一个通用的处理函数，用于处理网络、磁盘、内存和软中断等详细指标的查询请求。它首先解析时间范围和分页参数，然后调用传入的gRPC函数获取数据，并将结果写入HTTP响应。
 func (h *QueryHandler) detail(c *gin.Context, call func(ctx context.Context, server string, opts grpcclient.DetailOptions) (json.RawMessage, error)) {
 	timeRange, ok := parseTimeRange(c)
 	if !ok {
@@ -207,6 +208,7 @@ func parseTimeRange(c *gin.Context) (grpcclient.TimeRange, bool) {
 	return grpcclient.TimeRange{Start: start, End: end}, true
 }
 
+// parseQueryTime 尝试将查询参数解析为时间，首先尝试将其解析为Unix时间戳（秒），如果失败则尝试解析为RFC3339格式的时间字符串。如果两种解析方式都失败，函数会返回错误。
 func parseQueryTime(value string) (time.Time, error) {
 	if unixSeconds, err := strconv.ParseInt(value, 10, 64); err == nil {
 		return time.Unix(unixSeconds, 0), nil
@@ -214,6 +216,7 @@ func parseQueryTime(value string) (time.Time, error) {
 	return time.Parse(time.RFC3339, value)
 }
 
+// parsePagination 解析分页参数，支持page和page_size两个参数，默认值分别为1和100。如果参数无效，函数会直接返回错误响应并返回false。
 func parsePagination(c *gin.Context) (int32, int32, bool) {
 	page, ok := parseOptionalInt32(c, "page", 1)
 	if !ok {
@@ -226,6 +229,7 @@ func parsePagination(c *gin.Context) (int32, int32, bool) {
 	return page, pageSize, true
 }
 
+// parseSortOrder 解析排序顺序参数，支持"asc"和"desc"，默认值为"desc"。如果参数无效，函数会直接返回错误响应并返回false。
 func parseSortOrder(c *gin.Context) (int32, bool) {
 	switch strings.ToLower(c.DefaultQuery("order", "desc")) {
 	case "desc":
@@ -238,6 +242,7 @@ func parseSortOrder(c *gin.Context) (int32, bool) {
 	}
 }
 
+// parseOptionalInt32 解析可选的整数查询参数，如果参数缺失则返回默认值，如果参数无效则返回错误响应。
 func parseOptionalInt32(c *gin.Context, key string, fallback int32) (int32, bool) {
 	value := c.Query(key)
 	if value == "" {
@@ -251,6 +256,7 @@ func parseOptionalInt32(c *gin.Context, key string, fallback int32) (int32, bool
 	return int32(parsed), true
 }
 
+// parseOptionalFloat32 解析可选的浮点数查询参数，如果参数缺失则返回默认值，如果参数无效则返回错误响应。
 func parseOptionalFloat32(c *gin.Context, key string, fallback float32) (float32, bool) {
 	value := c.Query(key)
 	if value == "" {
@@ -264,6 +270,7 @@ func parseOptionalFloat32(c *gin.Context, key string, fallback float32) (float32
 	return float32(parsed), true
 }
 
+// writeGRPCResult 将gRPC调用的结果写入HTTP响应，如果gRPC调用返回错误，则根据错误类型返回相应的HTTP状态码和错误消息。
 func writeGRPCResult(c *gin.Context, data json.RawMessage, err error) {
 	if err != nil {
 		response.Error(c, grpcHTTPStatus(err), err.Error())
@@ -272,6 +279,12 @@ func writeGRPCResult(c *gin.Context, data json.RawMessage, err error) {
 	response.OK(c, http.StatusOK, data)
 }
 
+// grpcHTTPStatus 根据gRPC错误的状态码映射到相应的HTTP状态码，常见的映射包括：
+// - InvalidArgument -> 400 Bad Request
+// - NotFound -> 404 Not Found
+// - DeadlineExceeded -> 504 Gateway Timeout
+// - Unavailable -> 502 Bad Gateway
+// 对于其他未明确映射的错误，默认返回500 Internal Server Error。
 func grpcHTTPStatus(err error) int {
 	switch status.Code(err) {
 	case codes.InvalidArgument:

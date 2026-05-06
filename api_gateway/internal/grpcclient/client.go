@@ -189,6 +189,7 @@ func (c *Client) SoftIrqDetail(ctx context.Context, server string, opts DetailOp
 	return c.detail(ctx, "QuerySoftIrqDetail", "QuerySoftIrqDetailResponse", server, opts)
 }
 
+// detail 获取详细指标的通用方法，适用于网络、磁盘、内存和软中断等指标
 func (c *Client) detail(ctx context.Context, method string, responseName protoreflect.Name, server string, opts DetailOptions) (json.RawMessage, error) {
 	req, err := newMessage("QueryDetailRequest")
 	if err != nil {
