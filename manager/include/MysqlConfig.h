@@ -5,6 +5,10 @@
 
 namespace monitor {
 
+/**
+ * @brief         mysql 环境变量配置结构体
+ *
+ */
 struct MysqlConfig {
     std::string host;
     unsigned int port;
@@ -13,11 +17,25 @@ struct MysqlConfig {
     std::string database;
 };
 
+/**
+ * @brief         从环境变量获取配置，如果环境变量不存在或为空，则使用默认值
+ *
+ * @param         name
+ * @param         defaultValue
+ * @return
+ */
 inline std::string getEnvOrDefault(const char *name, const char *defaultValue) {
     const char *value = std::getenv(name);
     return (value && value[0] != '\0') ? value : defaultValue;
 }
 
+/**
+ * @brief 从环境变量获取端口配置，如果环境变量不存在、为空或无效，则使用默认值
+ *
+ * @param         name
+ * @param         defaultValue
+ * @return
+ */
 inline unsigned int getEnvPortOrDefault(const char *name,
                                         unsigned int defaultValue) {
     const char *value = std::getenv(name);
@@ -31,6 +49,11 @@ inline unsigned int getEnvPortOrDefault(const char *name,
     return static_cast<unsigned int>(port);
 }
 
+/**
+ * @brief         从环境变量加载 MySQL 配置，提供默认值以确保配置的完整性
+ *
+ * @return
+ */
 inline MysqlConfig loadMysqlConfigFromEnv() {
     const char *password = std::getenv("MYSQL_PASSWORD");
     return MysqlConfig{

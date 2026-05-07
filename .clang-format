@@ -28,7 +28,7 @@ AllowShortLambdasOnASingleLine: All
 AllowShortLoopsOnASingleLine: true
 
 # 控制行宽，避免行太长
-ColumnLimit: 80
+ColumnLimit: 120
 
 # 对头文件排序
 SortIncludes: Never
