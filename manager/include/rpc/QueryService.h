@@ -16,8 +16,7 @@ namespace monitor {
  */
 class QueryServiceImpl final : public monitor::proto::QueryService::Service {
 public:
-    explicit QueryServiceImpl(QueryManager *query_manager,
-                              ManagerDispatcher *dispatcher = nullptr,
+    explicit QueryServiceImpl(QueryManager *query_manager, ManagerDispatcher *dispatcher = nullptr,
                               RedisCache *redis_cache = nullptr);
     virtual ~QueryServiceImpl() = default;
 
@@ -36,10 +35,9 @@ public:
      * @param         response
      * @return
      */
-    ::grpc::Status QueryPerformance(
-        ::grpc::ServerContext *context,
-        const ::monitor::proto::QueryPerformanceRequest *request,
-        ::monitor::proto::QueryPerformanceResponse *response) override;
+    ::grpc::Status QueryPerformance(::grpc::ServerContext *context,
+                                    const ::monitor::proto::QueryPerformanceRequest *request,
+                                    ::monitor::proto::QueryPerformanceResponse *response) override;
 
     /**
      * @brief         query performance trends based on the provided request
@@ -55,10 +53,8 @@ public:
      * @param         response
      * @return
      */
-    ::grpc::Status QueryTrend(
-        ::grpc::ServerContext *context,
-        const ::monitor::proto::QueryTrendRequest *request,
-        ::monitor::proto::QueryTrendResponse *response) override;
+    ::grpc::Status QueryTrend(::grpc::ServerContext *context, const ::monitor::proto::QueryTrendRequest *request,
+                              ::monitor::proto::QueryTrendResponse *response) override;
 
     /**
      * @brief         query performance anomalies based on the provided request
@@ -70,10 +66,8 @@ public:
      * @param         response
      * @return
      */
-    ::grpc::Status QueryAnomaly(
-        ::grpc::ServerContext *context,
-        const ::monitor::proto::QueryAnomalyRequest *request,
-        ::monitor::proto::QueryAnomalyResponse *response) override;
+    ::grpc::Status QueryAnomaly(::grpc::ServerContext *context, const ::monitor::proto::QueryAnomalyRequest *request,
+                                ::monitor::proto::QueryAnomalyResponse *response) override;
 
     /**
      * @brief         query performance score ranks based on the provided
@@ -86,10 +80,9 @@ public:
      * @param         response
      * @return
      */
-    ::grpc::Status QueryScoreRank(
-        ::grpc::ServerContext *context,
-        const ::monitor::proto::QueryScoreRankRequest *request,
-        ::monitor::proto::QueryScoreRankResponse *response) override;
+    ::grpc::Status QueryScoreRank(::grpc::ServerContext *context,
+                                  const ::monitor::proto::QueryScoreRankRequest *request,
+                                  ::monitor::proto::QueryScoreRankResponse *response) override;
 
     /**
      * @brief         query the latest performance score based on the provided
@@ -107,10 +100,9 @@ public:
      * @param         response
      * @return
      */
-    ::grpc::Status QueryLatestScore(
-        ::grpc::ServerContext *context,
-        const ::monitor::proto::QueryLatestScoreRequest *request,
-        ::monitor::proto::QueryLatestScoreResponse *response) override;
+    ::grpc::Status QueryLatestScore(::grpc::ServerContext *context,
+                                    const ::monitor::proto::QueryLatestScoreRequest *request,
+                                    ::monitor::proto::QueryLatestScoreResponse *response) override;
 
     /**
      * @brief         query detailed performance data for network metrics based
@@ -127,10 +119,8 @@ public:
      * @param         response
      * @return
      */
-    ::grpc::Status QueryNetDetail(
-        ::grpc::ServerContext *context,
-        const ::monitor::proto::QueryDetailRequest *request,
-        ::monitor::proto::QueryNetDetailResponse *response) override;
+    ::grpc::Status QueryNetDetail(::grpc::ServerContext *context, const ::monitor::proto::QueryDetailRequest *request,
+                                  ::monitor::proto::QueryNetDetailResponse *response) override;
 
     /**
      * @brief         query detailed performance data for disk metrics based on
@@ -147,10 +137,8 @@ public:
      * @param         response
      * @return
      */
-    ::grpc::Status QueryDiskDetail(
-        ::grpc::ServerContext *context,
-        const ::monitor::proto::QueryDetailRequest *request,
-        ::monitor::proto::QueryDiskDetailResponse *response) override;
+    ::grpc::Status QueryDiskDetail(::grpc::ServerContext *context, const ::monitor::proto::QueryDetailRequest *request,
+                                   ::monitor::proto::QueryDiskDetailResponse *response) override;
 
     /**
      * @brief         query detailed performance data for memory metrics based
@@ -167,10 +155,8 @@ public:
      * @param         response
      * @return
      */
-    ::grpc::Status QueryMemDetail(
-        ::grpc::ServerContext *context,
-        const ::monitor::proto::QueryDetailRequest *request,
-        ::monitor::proto::QueryMemDetailResponse *response) override;
+    ::grpc::Status QueryMemDetail(::grpc::ServerContext *context, const ::monitor::proto::QueryDetailRequest *request,
+                                  ::monitor::proto::QueryMemDetailResponse *response) override;
 
     /**
      * @brief         query detailed performance data for soft interrupt metrics
@@ -187,10 +173,9 @@ public:
      * @param         response
      * @return
      */
-    ::grpc::Status QuerySoftIrqDetail(
-        ::grpc::ServerContext *context,
-        const ::monitor::proto::QueryDetailRequest *request,
-        ::monitor::proto::QuerySoftIrqDetailResponse *response) override;
+    ::grpc::Status QuerySoftIrqDetail(::grpc::ServerContext *context,
+                                      const ::monitor::proto::QueryDetailRequest *request,
+                                      ::monitor::proto::QuerySoftIrqDetailResponse *response) override;
 
 private:
     /**
@@ -208,12 +193,14 @@ private:
      * @param         ts
      * @param         tp
      */
-    void setTimestamp(::google::protobuf::Timestamp *ts,
-                      const std::chrono::system_clock::time_point &tp);
+    void setTimestamp(::google::protobuf::Timestamp *ts, const std::chrono::system_clock::time_point &tp);
 
-    QueryManager *queryManager_;
-    ManagerDispatcher *dispatcher_;
-    RedisCache *redisCache_;
+    QueryManager
+        *queryManager_; // Pointer to the QueryManager instance responsible for handling query logic and data retrieval.
+    ManagerDispatcher *dispatcher_; // Pointer to the ManagerDispatcher instance responsible for dispatching queries to
+                                    // the appropriate handlers or managers based on the query type and parameters.
+    RedisCache *redisCache_; // Pointer to the RedisCache instance responsible for caching query results and improving
+                             // performance by reducing redundant data retrieval from the underlying data sources.
 };
 
 } // namespace monitor

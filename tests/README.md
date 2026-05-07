@@ -1,6 +1,65 @@
 # Simulated worker push test
 
-这个目录提供一个轻量级 gRPC 推送测试程序，用来模拟多台 worker 主机向 manager 上报 `MonitorInfo` 数据。
+这个目录提供两个 manager 测试工具：
+
+- `simulated_workers_push`：轻量级 gRPC 推送测试程序，用来模拟多台 worker 主机向 manager 上报 `MonitorInfo` 数据。
+- `manager_stress_test`：manager 压测客户端，用来探测 worker 推送侧、query 查询侧，以及二者同时工作时的最大通过并发。
+
+## manager 压测
+
+压测判定默认使用三个条件：
+
+- 成功率 `>= 0.99`
+- 成功请求 p95 延迟 `<= 2000ms`
+- gRPC 调用没有出现明显的 `DEADLINE_EXCEEDED`、`RESOURCE_EXHAUSTED` 等错误堆积
+
+一键自动探测：
+
+```bash
+cmake --build build/Debug --target manager_stress_test
+./tests/manager_pressure_test.sh localhost:50051 \
+  --duration-seconds 10 \
+  --max-worker-concurrency 256 \
+  --max-query-concurrency 256
+```
+
+输出最后的 `Summary` 会给出：
+
+```text
+worker_only_max_concurrency=...
+query_only_max_concurrency=...
+mixed_max_worker_concurrency=...
+mixed_max_query_concurrency=...
+mixed_max_total_concurrency=...
+```
+
+也可以单独压某一侧：
+
+```bash
+./build/Debug/tests/manager_stress_test --manager localhost:50051 --mode worker --worker-concurrency 64
+./build/Debug/tests/manager_stress_test --manager localhost:50051 --mode query --query-concurrency 64
+./build/Debug/tests/manager_stress_test --manager localhost:50051 --mode mixed --worker-concurrency 32 --query-concurrency 32
+```
+
+查询默认压 `QueryLatestScore`。如果想压更重的 SQL 查询，可指定：
+
+```bash
+./tests/manager_pressure_test.sh localhost:50051 --query-kind performance --query-server stress-worker-0001
+```
+
+可调参数：
+
+```text
+--min-success-rate FLOAT    默认 0.99
+--max-p95-ms FLOAT          默认 2000，传 0 表示不限制 p95
+--request-timeout-ms N      默认 3000
+--duration-seconds N        默认 10
+--query-kind latest|rank|performance
+```
+
+自动模式会先分别寻找 worker-only 和 query-only 的最大通过并发，再按两者独立最大值的比例缩放，搜索 mixed 场景下可同时通过的 worker/query 并发组合。
+
+## 模拟 worker 推送
 
 默认行为：
 

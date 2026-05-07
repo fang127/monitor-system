@@ -69,8 +69,16 @@ public:
     HostManager();
     ~HostManager();
 
-    void configure(const ManagerConfig &config, ManagerMetrics *metrics,
-                   MysqlConnectionPool *mysqlWritePool, RedisCache *redisCache);
+    /**
+     * @brief         configure HostManager with necessary parameters and dependencies
+     *
+     * @param         config
+     * @param         metrics
+     * @param         mysqlWritePool
+     * @param         redisCache
+     */
+    void configure(const ManagerConfig &config, ManagerMetrics *metrics, MysqlConnectionPool *mysqlWritePool,
+                   RedisCache *redisCache);
 
     /**
      * @brief         start HostManager thread
@@ -128,23 +136,37 @@ private:
      */
     void writeToMysql(HostMonitoringData &data);
 
+    /**
+     * @brief         Enqueue the host monitoring data to the MySQL write queue for asynchronous processing.
+     *
+     * @param         data
+     */
     void enqueueMysqlWrite(HostMonitoringData data);
+
+    /**
+     * @brief         Running in a loop to process the MySQL write queue and persist the host monitoring data to the
+     * MySQL database.
+     *
+     */
     void mysqlWriteLoop();
 
-    std::unordered_map<std::string, HostScore> hostScores_;
-    std::mutex mutex_;
-    std::atomic<bool> running_;
-    std::unique_ptr<std::thread> thread_;
-    ManagerConfig config_;
-    ManagerMetrics *metrics_ = nullptr;
-    MysqlConnectionPool *mysqlWritePool_ = nullptr;
-    RedisCache *redisCache_ = nullptr;
+    std::unordered_map<std::string, HostScore> hostScores_; // key: host_name, value: HostScore
+    std::mutex mutex_;                                      // protects hostScores_
+    std::atomic<bool> running_;                             // flag to control the running state of the processing loop
+    std::unique_ptr<std::thread> thread_;                   // thread for processing host scores
+    ManagerConfig config_;                                  // configuration parameters for HostManager
+    ManagerMetrics *metrics_ = nullptr;                     // pointer to ManagerMetrics for recording metrics
+    MysqlConnectionPool *mysqlWritePool_ =
+        nullptr; // pointer to MysqlConnectionPool for writing host monitoring data to MySQL database
+    RedisCache *redisCache_ = nullptr; // pointer to RedisCache for caching host scores and related information
 
-    std::deque<HostMonitoringData> mysqlWriteQueue_;
-    std::mutex mysqlWriteQueueMutex_;
-    std::condition_variable mysqlWriteQueueCv_;
-    std::vector<std::thread> mysqlWriteThreads_;
-    std::mutex mysqlWriteMutex_;
+    std::deque<HostMonitoringData>
+        mysqlWriteQueue_;             // queue for storing host monitoring data to be written to MySQL database
+    std::mutex mysqlWriteQueueMutex_; // mutex for protecting access to the MySQL write queue
+    std::condition_variable
+        mysqlWriteQueueCv_; // condition variable for signaling the MySQL write thread when new data is enqueued
+    std::vector<std::thread> mysqlWriteThreads_; // threads for processing the MySQL write queue
+    std::mutex mysqlWriteMutex_;                 // mutex for protecting access to the MySQL write threads
 };
 
 }; // namespace monitor
