@@ -19,6 +19,8 @@
 cmake --build build/Debug --target manager_stress_test
 ./tests/manager_pressure_test.sh localhost:50051 \
   --duration-seconds 10 \
+  --worker-interval-ms 10000 \
+  --query-interval-ms 100 \
   --max-worker-concurrency 256 \
   --max-query-concurrency 256
 ```
@@ -41,6 +43,18 @@ mixed_max_total_concurrency=...
 ./build/Debug/tests/manager_stress_test --manager localhost:50051 --mode mixed --worker-concurrency 32 --query-concurrency 32
 ```
 
+默认 `--worker-interval-ms 0` 和 `--query-interval-ms 0`，表示不限制频率：每个并发线程在一次 RPC 返回后立刻发下一次。要模拟真实 worker 每 10 秒推送一次，可以设置：
+
+```bash
+./build/Debug/tests/manager_stress_test \
+  --manager localhost:50051 \
+  --mode mixed \
+  --worker-concurrency 256 \
+  --query-concurrency 32 \
+  --worker-interval-ms 10000 \
+  --query-interval-ms 100
+```
+
 查询默认压 `QueryLatestScore`。如果想压更重的 SQL 查询，可指定：
 
 ```bash
@@ -54,6 +68,8 @@ mixed_max_total_concurrency=...
 --max-p95-ms FLOAT          默认 2000，传 0 表示不限制 p95
 --request-timeout-ms N      默认 3000
 --duration-seconds N        默认 10
+--worker-interval-ms N      默认 0，单个 worker 并发线程两次请求开始时间的间隔
+--query-interval-ms N       默认 0，单个 query 并发线程两次请求开始时间的间隔
 --query-kind latest|rank|performance
 ```
 

@@ -4,6 +4,7 @@
 #include "mysql.h"
 #include <sys/types.h>
 #include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <mutex>
 #include <random>
@@ -96,6 +97,34 @@ std::string quoteSqlString(MYSQL *conn, const std::string &value) {
 } // namespace
 #endif
 
+namespace {
+const monitor::proto::CpuStat *
+selectAggregateCpuStat(const monitor::proto::MonitorInfo &info) {
+    const monitor::proto::CpuStat *legacyCpu = nullptr;
+    for (int i = 0; i < info.cpu_stat_size(); ++i) {
+        const auto &cpu = info.cpu_stat(i);
+        if (cpu.cpu_name() == "all") return &cpu;
+        if (!legacyCpu && cpu.cpu_name() == "cpu") legacyCpu = &cpu;
+    }
+    if (legacyCpu) return legacyCpu;
+    return info.cpu_stat_size() > 0 ? &info.cpu_stat(0) : nullptr;
+}
+
+bool isPerCoreCpuName(const std::string &name) {
+    if (name.size() <= 3 || name.compare(0, 3, "cpu") != 0) return false;
+    return std::all_of(name.begin() + 3, name.end(),
+                       [](unsigned char ch) { return std::isdigit(ch); });
+}
+
+int countCpuCores(const monitor::proto::MonitorInfo &info) {
+    int cores = 0;
+    for (int i = 0; i < info.cpu_stat_size(); ++i) {
+        if (isPerCoreCpuName(info.cpu_stat(i).cpu_name())) ++cores;
+    }
+    return cores > 0 ? cores : 1;
+}
+} // namespace
+
 /**
  * @brief         network recv/send bytes and packets rate, and error/drop count
  * for each network interface, including eth0, eth1, lo, etc.
@@ -173,10 +202,9 @@ double HostManager::calculateScore(const monitor::proto::MonitorInfo &info) {
     int cpuCores = 1;
 
     // Calculate CPU usage percentage and number of CPU cores
-    if (info.cpu_stat_size() > 0) {
-        cpuPercent = info.cpu_stat(0).cpu_percent();
-        cpuCores = info.cpu_stat_size() - 1;
-        if (cpuCores < 1) cpuCores = 1;
+    if (const auto *cpu = selectAggregateCpuStat(info)) {
+        cpuPercent = cpu->cpu_percent();
+        cpuCores = countCpuCores(info);
     }
 
     // Calculate load average
@@ -216,37 +244,19 @@ double HostManager::calculateScore(const monitor::proto::MonitorInfo &info) {
 
 void HostManager::writeToMysql(HostMonitoringData &data) {
 #ifdef ENABLE_MYSQL
-    MysqlConnectionPool::Guard pooledConn;
-    MYSQL *conn = nullptr;
-    bool closeLocalConn = false;
-    // 获取MySQL连接，如果使用连接池则从池中获取，否则本地创建连接
-    if (mysqlWritePool_) {
-        pooledConn = mysqlWritePool_->acquire(config_.mysql_read_timeout);
-        // 如果获取连接失败，记录超时指标并返回
-        if (!pooledConn) {
-            if (metrics_) metrics_->pool_timeouts.fetch_add(1);
-            return;
-        }
-        conn = pooledConn.get();
-    } else { // 本地创建MySQL连接
-        const MysqlConfig mysqlConfig = loadMysqlConfigFromEnv();
-        conn = mysql_init(nullptr);
-        if (!conn) {
-            std::cerr << "MySQL initialization failed" << std::endl;
-            return;
-        }
-
-        if (!mysql_real_connect(conn, mysqlConfig.host.c_str(), mysqlConfig.user.c_str(), mysqlConfig.password.c_str(),
-                                mysqlConfig.database.c_str(), mysqlConfig.port, nullptr, 0)) {
-            std::cerr << "MySQL connection failed: " << mysql_error(conn) << std::endl;
-            mysql_close(conn);
-            if (metrics_) metrics_->mysql_errors.fetch_add(1);
-            return;
-        }
-
-        mysql_set_character_set(conn, "utf8mb4");
-        closeLocalConn = true;
+    // 检查MySQL写入连接池是否配置
+    if (!mysqlWritePool_) {
+        std::cerr << "HostManager: MySQL write pool is not configured" << std::endl;
+        if (metrics_) metrics_->mysql_errors.fetch_add(1);
+        return;
     }
+    // 从连接池获取一个MySQL连接，设置超时时间为配置中的mysql_read_timeout
+    MysqlConnectionPool::Guard pooledConn = mysqlWritePool_->acquire(config_.mysql_read_timeout);
+    if (!pooledConn) {
+        if (metrics_) metrics_->pool_timeouts.fetch_add(1);
+        return;
+    }
+    MYSQL *conn = pooledConn.get();
 
     // 转换时间戳为可读格式并进行SQL转义
     std::time_t t = std::chrono::system_clock::to_time_t(data.host_score.timestamp);
@@ -281,16 +291,15 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
             sendRate = info.net_info(0).send_rate();
             rcvRate = info.net_info(0).rcv_rate();
         }
-        if (info.cpu_stat_size() > 0) {
-            const auto &cpu = info.cpu_stat(0);
-            cpuPercent = cpu.cpu_percent();
-            usrPercent = cpu.usr_percent();
-            systemPercent = cpu.system_percent();
-            nicePercent = cpu.nice_percent();
-            idlePercent = cpu.idle_percent();
-            ioWaitPercent = cpu.io_wait_percent();
-            irqPercent = cpu.irq_percent();
-            softIrqPercent = cpu.soft_irq_percent();
+        if (const auto *cpu = selectAggregateCpuStat(info)) {
+            cpuPercent = cpu->cpu_percent();
+            usrPercent = cpu->usr_percent();
+            systemPercent = cpu->system_percent();
+            nicePercent = cpu->nice_percent();
+            idlePercent = cpu->idle_percent();
+            ioWaitPercent = cpu->io_wait_percent();
+            irqPercent = cpu->irq_percent();
+            softIrqPercent = cpu->soft_irq_percent();
         }
         if (info.has_cpu_load()) {
             loadAvg1 = info.cpu_load().load_avg_1();
@@ -570,7 +579,6 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
         }
     }
 
-    if (closeLocalConn) mysql_close(conn);
 #else
     (void)data; // avoid unused parameter warning
 #endif
@@ -631,16 +639,15 @@ void HostManager::onDataReceived(const monitor::proto::MonitorInfo &info) {
     // store the current performance metrics for rate calculation in the next
     // round
     PerfSample curr;
-    if (info.cpu_stat_size() > 0) {
-        const auto &cpu = info.cpu_stat(0);
-        curr.cpu_percent = cpu.cpu_percent();
-        curr.usr_percent = cpu.usr_percent();
-        curr.system_percent = cpu.system_percent();
-        curr.nice_percent = cpu.nice_percent();
-        curr.idle_percent = cpu.idle_percent();
-        curr.io_wait_percent = cpu.io_wait_percent();
-        curr.irq_percent = cpu.irq_percent();
-        curr.soft_irq_percent = cpu.soft_irq_percent();
+    if (const auto *cpu = selectAggregateCpuStat(info)) {
+        curr.cpu_percent = cpu->cpu_percent();
+        curr.usr_percent = cpu->usr_percent();
+        curr.system_percent = cpu->system_percent();
+        curr.nice_percent = cpu->nice_percent();
+        curr.idle_percent = cpu->idle_percent();
+        curr.io_wait_percent = cpu->io_wait_percent();
+        curr.irq_percent = cpu->irq_percent();
+        curr.soft_irq_percent = cpu->soft_irq_percent();
     }
 
     if (info.has_cpu_load()) {
@@ -808,8 +815,7 @@ void HostManager::onDataReceived(const monitor::proto::MonitorInfo &info) {
 
     std::cout << "\n--- Database ---" << std::endl;
 #ifdef ENABLE_MYSQL
-    const MysqlConfig mysqlConfig = loadMysqlConfigFromEnv();
-    std::cout << "  Data saved to MySQL (" << mysqlConfig.database << ")" << std::endl;
+    std::cout << "  Data enqueued for MySQL writer pool" << std::endl;
 #else
     std::cout << "  MySQL support is disabled" << std::endl;
 #endif
@@ -846,9 +852,8 @@ void HostManager::mysqlWriteLoop() {
             mysqlWriteQueue_.pop_front();
         }
 
-        // writeToMysql still maintains per-host previous samples for detailed
-        // rates, so keep that section serialized while DB connections are
-        // pooled underneath.
+        // writeToMysql 仍要避免长时间持有
+        // mysqlWriteMutex_，因为它可能会涉及网络IO等耗时操作，所以在外层只锁定队列操作，写入数据库的部分不锁定，以提高吞吐量
         std::lock_guard<std::mutex> writeLock(mysqlWriteMutex_);
         writeToMysql(data);
     }

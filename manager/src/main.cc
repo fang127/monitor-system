@@ -95,9 +95,10 @@ int main(int argc, char *argv[]) {
     }
 #endif
 
-    // create query service
+    // 创建查询服务实现，提供性能数据查询接口，依赖 QueryManager、调度器和 Redis 缓存
     monitor::QueryServiceImpl queryService(&queryManager, &dispatcher, redisCache.get());
 
+    // 启动一个线程定期打印监控指标
     std::atomic<bool> metricsRunning{true};
     std::thread metricsThread([&] {
         while (metricsRunning.load()) {
@@ -112,11 +113,14 @@ int main(int argc, char *argv[]) {
         }
     });
 
-    // start grpc server
+    // 启动 gRPC 服务器
     grpc::ServerBuilder builder;
-    builder.SetSyncServerOption(grpc::ServerBuilder::SyncServerOption::NUM_CQS, managerConfig.grpc_num_cqs);
-    builder.SetSyncServerOption(grpc::ServerBuilder::SyncServerOption::MIN_POLLERS, managerConfig.grpc_min_pollers);
-    builder.SetSyncServerOption(grpc::ServerBuilder::SyncServerOption::MAX_POLLERS, managerConfig.grpc_max_pollers);
+    builder.SetSyncServerOption(grpc::ServerBuilder::SyncServerOption::NUM_CQS,
+                                managerConfig.grpc_num_cqs); // 设置完成队列数量
+    builder.SetSyncServerOption(grpc::ServerBuilder::SyncServerOption::MIN_POLLERS,
+                                managerConfig.grpc_min_pollers); // 设置最小线程数
+    builder.SetSyncServerOption(grpc::ServerBuilder::SyncServerOption::MAX_POLLERS,
+                                managerConfig.grpc_max_pollers); // 设置最大线程数
     builder.AddListeningPort(listenAddress, grpc::InsecureServerCredentials());
     builder.RegisterService(&service);      // 注册数据接收服务
     builder.RegisterService(&queryService); // 注册查询服务

@@ -302,37 +302,14 @@ bool QueryManager::init(const std::string &host, unsigned int port,
     metrics_ = metrics;
     queryPool_ = queryPool;
 
-    if (queryPool_) {
-        initialized_ = true;
-        std::cout << "QueryManager: MySQL query pool initialized" << std::endl;
-        return true;
-    }
-
-    // 初始化MySQL连接
-    // 使用mysql_init创建连接对象，传入nullptr表示使用默认选项
-    conn_ = mysql_init(nullptr);
-    if (!conn_) {
-        std::cerr << "MySQL initialization failed" << std::endl;
+    if (!queryPool_) {
+        std::cerr << "QueryManager: MySQL query pool is required"
+                  << std::endl;
         return false;
     }
 
-    // mysql_real_connect连接到MySQL服务器，传入连接参数
-    // 如果连接失败，输出错误信息并清理连接对象
-    if (!mysql_real_connect(conn_, host.c_str(), user.c_str(), password.c_str(),
-                            db.c_str(), port, nullptr, 0)) {
-        std::cerr << "QueryManager mysql_real_connect failed: "
-                  << mysql_error(conn_) << std::endl;
-        if (metrics_) metrics_->mysql_errors.fetch_add(1);
-        mysql_close(conn_);
-        conn_ = nullptr;
-        return false;
-    }
-
-    // 设置连接字符集为utf8mb4，确保支持多字节字符
-    mysql_set_character_set(conn_, "utf8mb4");
     initialized_ = true;
-    std::cout << "QueryManager: MySQL connection initialized successfully"
-              << std::endl;
+    std::cout << "QueryManager: MySQL query pool initialized" << std::endl;
     return true;
 #else
     (void)host;
@@ -351,20 +328,14 @@ bool QueryManager::init(const std::string &host, unsigned int port,
 void QueryManager::close() {
 #ifdef ENABLE_MYSQL
     std::lock_guard<std::mutex> lock(mutex_);
-    if (queryPool_) {
-        initialized_ = false;
-        queryPool_ = nullptr;
-    } else if (conn_) {
-        mysql_close(conn_);
-        conn_ = nullptr;
-        initialized_ = false;
-    }
+    initialized_ = false;
+    queryPool_ = nullptr;
 #endif
 }
 
 bool QueryManager::isInitialized() const {
 #ifdef ENABLE_MYSQL
-    return initialized_ && (queryPool_ != nullptr || conn_ != nullptr);
+    return initialized_ && queryPool_ != nullptr;
 #else
     return false;
 #endif
@@ -400,23 +371,18 @@ QueryManager::MysqlConnectionLease QueryManager::acquireConnection(
         return lease;
     }
 
-    if (queryPool_) {
-        lease.guard = queryPool_->acquire(config_.mysql_read_timeout);
-        if (!lease.guard) {
-            setError(error, "QueryManager query connection acquire timed out");
-            if (metrics_) metrics_->pool_timeouts.fetch_add(1);
-            return lease;
-        }
-        lease.conn = lease.guard.get();
-        return lease;
-    }
-
-    lease.fallback_lock = std::unique_lock<std::mutex>(mutex_);
-    if (!conn_) {
+    if (!queryPool_) {
         setError(error, "QueryManager is not initialized");
         return lease;
     }
-    lease.conn = conn_;
+
+    lease.guard = queryPool_->acquire(config_.mysql_read_timeout);
+    if (!lease.guard) {
+        setError(error, "QueryManager query connection acquire timed out");
+        if (metrics_) metrics_->pool_timeouts.fetch_add(1);
+        return lease;
+    }
+    lease.conn = lease.guard.get();
     return lease;
 }
 #endif

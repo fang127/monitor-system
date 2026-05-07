@@ -39,6 +39,8 @@ struct Options {
     int duration_seconds = 10;
     int warmup_seconds = 1;
     int request_timeout_ms = 3000;
+    int worker_interval_ms = 0;
+    int query_interval_ms = 0;
     int page_size = 100;
     int query_window_seconds = 3600;
     double min_success_rate = 0.99;
@@ -287,6 +289,16 @@ void mergeSideStats(SideStats *dst, const SideStats &src) {
     for (const auto &entry : src.grpc_codes) dst->grpc_codes[entry.first] += entry.second;
 }
 
+void sleepUntilNextRequest(const Clock::time_point request_begin,
+                           int interval_ms,
+                           const Clock::time_point end_at) {
+    if (interval_ms <= 0) return;
+    const auto next_at = request_begin + std::chrono::milliseconds(interval_ms);
+    const auto now = Clock::now();
+    if (next_at <= now || now >= end_at) return;
+    std::this_thread::sleep_until(std::min(next_at, end_at));
+}
+
 void workerLoop(const Options &options, int id, const RunWindow *window,
                 std::atomic<int> *ready, std::atomic<bool> *start,
                 SideStats *result) {
@@ -307,15 +319,18 @@ void workerLoop(const Options &options, int id, const RunWindow *window,
         grpc::Status status = stub->SetMonitorInfo(&context, request, &response);
         const auto elapsed =
             std::chrono::duration<double, std::milli>(Clock::now() - begin).count();
-        if (begin < window->measure_from) continue;
 
-        if (status.ok()) {
-            ++result->success;
-            result->success_latencies_ms.push_back(elapsed);
-        } else {
-            ++result->failure;
-            ++result->grpc_codes[static_cast<int>(status.error_code())];
+        if (begin >= window->measure_from) {
+            if (status.ok()) {
+                ++result->success;
+                result->success_latencies_ms.push_back(elapsed);
+            } else {
+                ++result->failure;
+                ++result->grpc_codes[static_cast<int>(status.error_code())];
+            }
         }
+
+        sleepUntilNextRequest(begin, options.worker_interval_ms, window->end_at);
     }
 }
 
@@ -334,15 +349,18 @@ void queryLoop(const Options &options, int id, const RunWindow *window,
         grpc::Status status = runQueryOnce(stub.get(), options);
         const auto elapsed =
             std::chrono::duration<double, std::milli>(Clock::now() - begin).count();
-        if (begin < window->measure_from) continue;
 
-        if (status.ok()) {
-            ++result->success;
-            result->success_latencies_ms.push_back(elapsed);
-        } else {
-            ++result->failure;
-            ++result->grpc_codes[static_cast<int>(status.error_code())];
+        if (begin >= window->measure_from) {
+            if (status.ok()) {
+                ++result->success;
+                result->success_latencies_ms.push_back(elapsed);
+            } else {
+                ++result->failure;
+                ++result->grpc_codes[static_cast<int>(status.error_code())];
+            }
         }
+
+        sleepUntilNextRequest(begin, options.query_interval_ms, window->end_at);
     }
 }
 
@@ -352,6 +370,8 @@ RunStats runLoad(const Options &options, int worker_concurrency,
         std::cout << "\n[run] workers=" << worker_concurrency
                   << " queries=" << query_concurrency
                   << " duration=" << options.duration_seconds << "s"
+                  << " worker_interval_ms=" << options.worker_interval_ms
+                  << " query_interval_ms=" << options.query_interval_ms
                   << " query_kind=" << options.query_kind << std::endl;
     }
 
@@ -551,6 +571,8 @@ void printUsage(const char *program) {
         << "  --duration-seconds N             default: 10\n"
         << "  --warmup-seconds N               default: 1\n"
         << "  --request-timeout-ms N           default: 3000\n"
+        << "  --worker-interval-ms N           per worker start interval, default: 0(unlimited)\n"
+        << "  --query-interval-ms N            per query thread start interval, default: 0(unlimited)\n"
         << "  --page-size N                    default: 100\n"
         << "  --query-window-seconds N         default: 3600\n"
         << "\n"
@@ -616,6 +638,14 @@ bool parseArgs(int argc, char **argv, Options *options) {
             if (!requireValue(&value) ||
                 !parsePositiveInt(value, &options->request_timeout_ms))
                 return false;
+        } else if (key == "--worker-interval-ms") {
+            if (!requireValue(&value) ||
+                !parseNonNegativeInt(value, &options->worker_interval_ms))
+                return false;
+        } else if (key == "--query-interval-ms") {
+            if (!requireValue(&value) ||
+                !parseNonNegativeInt(value, &options->query_interval_ms))
+                return false;
         } else if (key == "--page-size") {
             if (!requireValue(&value) || !parsePositiveInt(value, &options->page_size))
                 return false;
@@ -662,6 +692,8 @@ void printConfig(const Options &options) {
               << "  duration=" << options.duration_seconds << "s"
               << " warmup=" << options.warmup_seconds << "s"
               << " timeout=" << options.request_timeout_ms << "ms\n"
+              << "  intervals: worker=" << options.worker_interval_ms
+              << "ms query=" << options.query_interval_ms << "ms\n"
               << "  pass: success_rate>=" << options.min_success_rate
               << " p95<="
               << (options.max_p95_ms <= 0.0 ? std::string("disabled")

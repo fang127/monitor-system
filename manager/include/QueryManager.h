@@ -84,16 +84,12 @@ struct PerformanceRecord {
     // score
     float score = 0.0f; // overall performance score
     // rate of change
-    float cpu_percent_rate = 0.0f; // rate of change of CPU usage percentage
-    float mem_used_percent_rate =
-        0.0f; // rate of change of memory usage percentage
-    float disk_util_percent_rate =
-        0.0f; // rate of change of disk utilization percentage
-    float load_avg_1_rate = 0.0f; // rate of change of 1-minute load average
-    float net_recv_bytes_rate =
-        0.0f; // rate of change of network received bytes per second
-    float net_sent_bytes_rate =
-        0.0f; // rate of change of network sent bytes per second
+    float cpu_percent_rate = 0.0f;       // rate of change of CPU usage percentage
+    float mem_used_percent_rate = 0.0f;  // rate of change of memory usage percentage
+    float disk_util_percent_rate = 0.0f; // rate of change of disk utilization percentage
+    float load_avg_1_rate = 0.0f;        // rate of change of 1-minute load average
+    float net_recv_bytes_rate = 0.0f;    // rate of change of network received bytes per second
+    float net_sent_bytes_rate = 0.0f;    // rate of change of network sent bytes per second
 };
 
 /**
@@ -103,12 +99,11 @@ struct PerformanceRecord {
 struct AnomalyRecord {
     std::string server_name;                         // name of the server
     std::chrono::system_clock::time_point timestamp; // timestamp of the anomaly
-    std::string anomaly_type; // type of anomaly (e.g., "CPU", "Memory", "Disk")
-    std::string
-        severity;       // severity of the anomaly (e.g., "Critical", "Warning")
-    float value = 0.0f; // value that triggered the anomaly
-    float threshold = 0.0f;  // threshold that was exceeded
-    std::string metric_name; // name of the metric that triggered the anomaly
+    std::string anomaly_type;                        // type of anomaly (e.g., "CPU", "Memory", "Disk")
+    std::string severity;                            // severity of the anomaly (e.g., "Critical", "Warning")
+    float value = 0.0f;                              // value that triggered the anomaly
+    float threshold = 0.0f;                          // threshold that was exceeded
+    std::string metric_name;                         // name of the metric that triggered the anomaly
 };
 
 /**
@@ -116,15 +111,14 @@ struct AnomalyRecord {
  *
  */
 struct ServerScoreSummary {
-    std::string server_name; // name of the server
-    float score = 0.0f;      // overall performance score
-    std::chrono::system_clock::time_point
-        last_updated;                           // timestamp of the last update
-    ServerStatus status = ServerStatus::ONLINE; // current status of the server
-    float cpu_percent = 0.0f;                   // current CPU usage percentage
-    float mem_used_percent = 0.0f;  // current memory usage percentage
-    float disk_util_percent = 0.0f; // current disk utilization percentage
-    float load_avg_1 = 0.0f;        // current 1-minute load average
+    std::string server_name;                            // name of the server
+    float score = 0.0f;                                 // overall performance score
+    std::chrono::system_clock::time_point last_updated; // timestamp of the last update
+    ServerStatus status = ServerStatus::ONLINE;         // current status of the server
+    float cpu_percent = 0.0f;                           // current CPU usage percentage
+    float mem_used_percent = 0.0f;                      // current memory usage percentage
+    float disk_util_percent = 0.0f;                     // current disk utilization percentage
+    float load_avg_1 = 0.0f;                            // current 1-minute load average
 };
 
 /**
@@ -148,21 +142,17 @@ struct ClusterStats {
  *
  */
 struct NetDetailRecord {
-    std::string server_name; // name of the server
-    std::string net_name;    // name of the network interface
+    std::string server_name;                         // name of the server
+    std::string net_name;                            // name of the network interface
     std::chrono::system_clock::time_point timestamp; // timestamp of the record
-    uint64_t err_in = 0;   // number of input errors per second
-    uint64_t err_out = 0;  // number of output errors per second
-    uint64_t drop_in = 0;  // number of input packets dropped per second
-    uint64_t drop_out = 0; // number of output packets dropped per second
-    float recv_bytes_rate =
-        0.0f; // rate of change of network received bytes per second
-    float sent_bytes_rate =
-        0.0f; // rate of change of network sent bytes per second
-    float recv_packets_rate =
-        0.0f; // rate of change of network received packets per second
-    float sent_packets_rate =
-        0.0f; // rate of change of network sent packets per second
+    uint64_t err_in = 0;                             // number of input errors per second
+    uint64_t err_out = 0;                            // number of output errors per second
+    uint64_t drop_in = 0;                            // number of input packets dropped per second
+    uint64_t drop_out = 0;                           // number of output packets dropped per second
+    float recv_bytes_rate = 0.0f;                    // rate of change of network received bytes per second
+    float sent_bytes_rate = 0.0f;                    // rate of change of network sent bytes per second
+    float recv_packets_rate = 0.0f;                  // rate of change of network received packets per second
+    float sent_packets_rate = 0.0f;                  // rate of change of network sent packets per second
 };
 
 /**
@@ -208,8 +198,7 @@ struct MemDetailRecord {
  */
 struct SoftIrqDetailRecord {
     std::string server_name;
-    std::string
-        cpu_name; // e.g., "all" for total, or "cpu0", "cpu1", etc. for per-CPU
+    std::string cpu_name; // e.g., "all" for total, or "cpu0", "cpu1", etc. for per-CPU
     std::chrono::system_clock::time_point timestamp;
     int64_t hi = 0;     // high priority softirqs per second
     int64_t timer = 0;  // timer softirqs per second
@@ -235,10 +224,8 @@ public:
      * @param         db database name
      * @return        true if initialization is successful, false otherwise
      */
-    bool init(const std::string &host, unsigned int port,
-              const std::string &user, const std::string &password,
-              const std::string &db, MysqlConnectionPool *queryPool = nullptr,
-              const ManagerConfig *config = nullptr,
+    bool init(const std::string &host, unsigned int port, const std::string &user, const std::string &password,
+              const std::string &db, MysqlConnectionPool *queryPool = nullptr, const ManagerConfig *config = nullptr,
               ManagerMetrics *metrics = nullptr);
 
     /**
@@ -273,9 +260,9 @@ public:
      * @param         totalCount pointer to store total count of records
      * @return        std::vector<PerformanceRecord>
      */
-    std::vector<PerformanceRecord> queryPerformanceRecords(
-        const std::string &serverName, const TimeRange &range, int page,
-        int pageSize, int *totalCount, std::string *error = nullptr);
+    std::vector<PerformanceRecord> queryPerformanceRecords(const std::string &serverName, const TimeRange &range,
+                                                           int page, int pageSize, int *totalCount,
+                                                           std::string *error = nullptr);
 
     /**
      * @brief         query trend data for a specific server over a given time
@@ -286,10 +273,8 @@ public:
      * @param         intervalSeconds
      * @return        trend data as a vector of PerformanceRecord
      */
-    std::vector<PerformanceRecord> queryTrend(const std::string &serverName,
-                                              const TimeRange &range,
-                                              int intervalSeconds,
-                                              std::string *error = nullptr);
+    std::vector<PerformanceRecord> queryTrend(const std::string &serverName, const TimeRange &range,
+                                              int intervalSeconds, std::string *error = nullptr);
 
     /**
      * @brief         query anomaly records for a specific server within a given
@@ -303,10 +288,9 @@ public:
      * @param         totalCount
      * @return
      */
-    std::vector<AnomalyRecord> queryAnomalyRecords(
-        const std::string &serverName, const TimeRange &range,
-        const AnomalyThreshold &threshold, int page, int pageSize,
-        int *totalCount, std::string *error = nullptr);
+    std::vector<AnomalyRecord> queryAnomalyRecords(const std::string &serverName, const TimeRange &range,
+                                                   const AnomalyThreshold &threshold, int page, int pageSize,
+                                                   int *totalCount, std::string *error = nullptr);
 
     /**
      * @brief         query server score summaries with pagination and sorting
@@ -317,9 +301,8 @@ public:
      * @param         totalCount
      * @return
      */
-    std::vector<ServerScoreSummary> queryServerScoreRank(
-        SortOrder order, int page, int pageSize, int *totalCount,
-        std::string *error = nullptr);
+    std::vector<ServerScoreSummary> queryServerScoreRank(SortOrder order, int page, int pageSize, int *totalCount,
+                                                         std::string *error = nullptr);
 
     /**
      * @brief         query latest server scores and cluster statistics
@@ -327,8 +310,7 @@ public:
      * @param         clusterStats
      * @return
      */
-    std::vector<ServerScoreSummary> queryLatestServerScores(
-        ClusterStats *clusterStats, std::string *error = nullptr);
+    std::vector<ServerScoreSummary> queryLatestServerScores(ClusterStats *clusterStats, std::string *error = nullptr);
 
     /**
      * @brief         query net statistics
@@ -340,9 +322,8 @@ public:
      * @param         totalCount
      * @return
      */
-    std::vector<NetDetailRecord> queryNetDetailRecords(
-        const std::string &serverName, const TimeRange &range, int page,
-        int pageSize, int *totalCount, std::string *error = nullptr);
+    std::vector<NetDetailRecord> queryNetDetailRecords(const std::string &serverName, const TimeRange &range, int page,
+                                                       int pageSize, int *totalCount, std::string *error = nullptr);
 
     /**
      * @brief         query disk statistics
@@ -354,9 +335,9 @@ public:
      * @param         totalCount
      * @return
      */
-    std::vector<DiskDetailRecord> queryDiskDetailRecords(
-        const std::string &serverName, const TimeRange &range, int page,
-        int pageSize, int *totalCount, std::string *error = nullptr);
+    std::vector<DiskDetailRecord> queryDiskDetailRecords(const std::string &serverName, const TimeRange &range,
+                                                         int page, int pageSize, int *totalCount,
+                                                         std::string *error = nullptr);
 
     /**
      * @brief         query memory statistics
@@ -368,9 +349,8 @@ public:
      * @param         totalCount
      * @return
      */
-    std::vector<MemDetailRecord> queryMemDetailRecords(
-        const std::string &serverName, const TimeRange &range, int page,
-        int pageSize, int *totalCount, std::string *error = nullptr);
+    std::vector<MemDetailRecord> queryMemDetailRecords(const std::string &serverName, const TimeRange &range, int page,
+                                                       int pageSize, int *totalCount, std::string *error = nullptr);
 
     /**
      * @brief         query soft IRQ statistics
@@ -382,16 +362,19 @@ public:
      * @param         totalCount
      * @return
      */
-    std::vector<SoftIrqDetailRecord> querySoftIrqDetailRecords(
-        const std::string &serverName, const TimeRange &range, int page,
-        int pageSize, int *totalCount, std::string *error = nullptr);
+    std::vector<SoftIrqDetailRecord> querySoftIrqDetailRecords(const std::string &serverName, const TimeRange &range,
+                                                               int page, int pageSize, int *totalCount,
+                                                               std::string *error = nullptr);
 
 private:
 #ifdef ENABLE_MYSQL
+    /**
+     * @brief      RAII wrapper for MySQL connection lease from the connection pool
+     *
+     */
     struct MysqlConnectionLease {
         MysqlConnectionPool::Guard guard;
         MYSQL *conn = nullptr;
-        std::unique_lock<std::mutex> fallback_lock;
     };
 
     MysqlConnectionLease acquireConnection(std::string *error);
@@ -403,8 +386,7 @@ private:
      * @param         tp
      * @return
      */
-    std::string formatTimePoint(
-        const std::chrono::system_clock::time_point &tp) const;
+    std::string formatTimePoint(const std::chrono::system_clock::time_point &tp) const;
 
     /**
      * @brief         parse a time string from SQL query results to a time_point
@@ -412,11 +394,9 @@ private:
      * @param         timeStr
      * @return
      */
-    std::chrono::system_clock::time_point parseTimeString(
-        const std::string &timeStr) const;
+    std::chrono::system_clock::time_point parseTimeString(const std::string &timeStr) const;
 
 #ifdef ENABLE_MYSQL
-    MYSQL *conn_ = nullptr; // MySQL connection handle
     MysqlConnectionPool *queryPool_ = nullptr;
 #endif
     ManagerConfig config_;
