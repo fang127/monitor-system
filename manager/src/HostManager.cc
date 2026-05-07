@@ -620,6 +620,8 @@ void HostManager::stop() {
 }
 
 void HostManager::onDataReceived(const monitor::proto::MonitorInfo &info) {
+    std::lock_guard<std::mutex> receiveLock(receiveMutex_);
+
     // create unique host ID, can be replaced by real hostname in production
     std::string hostID;
     if (info.has_host_info()) {

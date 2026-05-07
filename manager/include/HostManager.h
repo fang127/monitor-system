@@ -29,8 +29,8 @@ struct HostScore {
  *
  */
 struct HostMonitoringData {
-    const std::string &host_name;
-    const HostScore &host_score;
+    std::string host_name;
+    HostScore host_score;
     double net_in_rate;
     double net_out_rate;
     float cpu_percent_rate;
@@ -120,6 +120,7 @@ private:
 
     std::unordered_map<std::string, HostScore> hostScores_;
     std::mutex mutex_;
+    std::mutex receiveMutex_;
     std::atomic<bool> running_;
     std::unique_ptr<std::thread> thread_;
 };

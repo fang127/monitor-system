@@ -29,22 +29,53 @@ export function formatScore(value: number | null | undefined): string {
   return Math.max(0, Math.min(100, value)).toFixed(0);
 }
 
-export function formatBytesRate(value: number | null | undefined): string {
+export type BytesRateUnit = 'B/s' | 'KB/s' | 'MB/s' | 'GB/s';
+
+const bytesRateUnits: BytesRateUnit[] = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
+
+function bytesRateUnitIndex(unit: BytesRateUnit): number {
+  return bytesRateUnits.indexOf(unit);
+}
+
+export function pickBytesRateUnit(values: Array<number | null | undefined>): BytesRateUnit {
+  const maxValue = values.reduce<number>((max, value) => {
+    if (typeof value !== 'number' || Number.isNaN(value)) {
+      return max;
+    }
+
+    return Math.max(max, Math.abs(value));
+  }, 0);
+
+  let current = maxValue;
+  let index = 0;
+
+  while (current >= 1024 && index < bytesRateUnits.length - 1) {
+    current /= 1024;
+    index += 1;
+  }
+
+  return bytesRateUnits[index];
+}
+
+export function formatBytesRate(value: number | null | undefined, unit?: BytesRateUnit): string {
   if (typeof value !== 'number' || Number.isNaN(value)) {
     return '--';
   }
 
-  const units = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
   let current = Math.abs(value);
-  let index = 0;
+  let index = unit ? bytesRateUnitIndex(unit) : 0;
 
-  while (current >= 1024 && index < units.length - 1) {
+  if (unit) {
+    current /= 1024 ** index;
+  }
+
+  while (!unit && current >= 1024 && index < bytesRateUnits.length - 1) {
     current /= 1024;
     index += 1;
   }
 
   const signed = value < 0 ? -current : current;
-  return `${signed.toFixed(1)} ${units[index]}`;
+  return `${signed.toFixed(1)} ${bytesRateUnits[index]}`;
 }
 
 export function formatDateTime(value: string | null | undefined): string {

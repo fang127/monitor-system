@@ -7,7 +7,7 @@ import { PaginationControls } from '../components/PaginationControls';
 import { QueryControls } from '../components/QueryControls';
 import { ErrorState, LoadingState } from '../components/SectionState';
 import type { AsyncState, DetailKind, PagedQueryParams, TimeRangeParams } from '../types/api';
-import { formatBytesRate, formatDateTime, formatNumber, formatPercent } from '../utils/format';
+import { formatBytesRate, formatDateTime, formatNumber, formatPercent, pickBytesRateUnit } from '../utils/format';
 
 type MetricRow = Record<string, string | number | null | undefined> & { timestamp: string };
 
@@ -48,8 +48,22 @@ const configs: Record<DetailKind, DetailConfig> = {
     endpoint: 'net-detail',
     columns: [
       ...commonColumns('net_name', '网卡'),
-      { key: 'rcv_bytes_rate', title: '接收速率', render: (row) => formatBytesRate(Number(row.rcv_bytes_rate)) },
-      { key: 'snd_bytes_rate', title: '发送速率', render: (row) => formatBytesRate(Number(row.snd_bytes_rate)) },
+      {
+        key: 'rcv_bytes_rate',
+        title: '接收速率',
+        render: (row) => {
+          const unit = pickBytesRateUnit([Number(row.rcv_bytes_rate), Number(row.snd_bytes_rate)]);
+          return formatBytesRate(Number(row.rcv_bytes_rate), unit);
+        },
+      },
+      {
+        key: 'snd_bytes_rate',
+        title: '发送速率',
+        render: (row) => {
+          const unit = pickBytesRateUnit([Number(row.rcv_bytes_rate), Number(row.snd_bytes_rate)]);
+          return formatBytesRate(Number(row.snd_bytes_rate), unit);
+        },
+      },
       { key: 'rcv_packets_rate', title: '收包速率', render: (row) => formatNumber(Number(row.rcv_packets_rate), 1) },
       { key: 'snd_packets_rate', title: '发包速率', render: (row) => formatNumber(Number(row.snd_packets_rate), 1) },
       { key: 'err_in', title: '入错包' },

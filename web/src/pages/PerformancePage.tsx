@@ -7,7 +7,14 @@ import { PaginationControls } from '../components/PaginationControls';
 import { QueryControls } from '../components/QueryControls';
 import { ErrorState, LoadingState } from '../components/SectionState';
 import type { AsyncState, PerformanceRecord, QueryPerformanceResponse, TimeRangeParams } from '../types/api';
-import { formatBytesRate, formatDateTime, formatNumber, formatPercent, formatScore } from '../utils/format';
+import {
+  formatBytesRate,
+  formatDateTime,
+  formatNumber,
+  formatPercent,
+  formatScore,
+  pickBytesRateUnit,
+} from '../utils/format';
 
 function serverFromParams(value: string | undefined): string {
   return value ? decodeURIComponent(value) : '';
@@ -19,8 +26,22 @@ const columns: Column<PerformanceRecord>[] = [
   { key: 'mem_used_percent', title: '内存', render: (row) => formatPercent(row.mem_used_percent) },
   { key: 'disk_util_percent', title: '磁盘', render: (row) => formatPercent(row.disk_util_percent) },
   { key: 'load_avg_1', title: 'Load 1m', render: (row) => formatNumber(row.load_avg_1, 2) },
-  { key: 'send_rate', title: '发送速率', render: (row) => formatBytesRate(row.send_rate) },
-  { key: 'rcv_rate', title: '接收速率', render: (row) => formatBytesRate(row.rcv_rate) },
+  {
+    key: 'send_rate',
+    title: '发送速率',
+    render: (row) => {
+      const unit = pickBytesRateUnit([row.send_rate, row.rcv_rate]);
+      return formatBytesRate(row.send_rate, unit);
+    },
+  },
+  {
+    key: 'rcv_rate',
+    title: '接收速率',
+    render: (row) => {
+      const unit = pickBytesRateUnit([row.send_rate, row.rcv_rate]);
+      return formatBytesRate(row.rcv_rate, unit);
+    },
+  },
   { key: 'score', title: '评分', render: (row) => formatScore(row.score) },
 ];
 
