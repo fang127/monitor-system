@@ -76,8 +76,7 @@ SqlParam doubleParam(double value) {
  * @return
  * @return
  */
-bool bindParams(MYSQL_STMT *stmt, std::vector<MYSQL_BIND> &binds,
-                std::vector<SqlParam> &params) {
+bool bindParams(MYSQL_STMT *stmt, std::vector<MYSQL_BIND> &binds, std::vector<SqlParam> &params) {
     if (params.empty()) return true;
 
     binds.resize(params.size());
@@ -117,14 +116,11 @@ bool bindParams(MYSQL_STMT *stmt, std::vector<MYSQL_BIND> &binds,
  * @return
  * @return
  */
-bool executePreparedRows(MYSQL *conn, const std::string &sql,
-                         std::vector<SqlParam> params,
-                         std::vector<std::vector<std::string>> &rows,
-                         const char *context, std::string *error) {
+bool executePreparedRows(MYSQL *conn, const std::string &sql, std::vector<SqlParam> params,
+                         std::vector<std::vector<std::string>> &rows, const char *context, std::string *error) {
     MYSQL_STMT *stmt = mysql_stmt_init(conn);
     if (!stmt) {
-        std::string message = std::string("QueryManager: ") + context +
-                              " init statement failed: " + mysql_error(conn);
+        std::string message = std::string("QueryManager: ") + context + " init statement failed: " + mysql_error(conn);
         std::cerr << message << std::endl;
         setError(error, message);
         return false;
@@ -138,10 +134,8 @@ bool executePreparedRows(MYSQL *conn, const std::string &sql,
     };
 
     // 准备预处理语句
-    if (mysql_stmt_prepare(stmt, sql.c_str(),
-                           static_cast<unsigned long>(sql.size())) != 0) {
-        std::string message = std::string("QueryManager: ") + context +
-                              " prepare failed: " + mysql_stmt_error(stmt);
+    if (mysql_stmt_prepare(stmt, sql.c_str(), static_cast<unsigned long>(sql.size())) != 0) {
+        std::string message = std::string("QueryManager: ") + context + " prepare failed: " + mysql_stmt_error(stmt);
         std::cerr << message << std::endl;
         setError(error, message);
         closeStmt();
@@ -151,8 +145,8 @@ bool executePreparedRows(MYSQL *conn, const std::string &sql,
     // 绑定参数
     std::vector<MYSQL_BIND> paramBinds;
     if (!bindParams(stmt, paramBinds, params)) {
-        std::string message = std::string("QueryManager: ") + context +
-                              " bind params failed: " + mysql_stmt_error(stmt);
+        std::string message =
+            std::string("QueryManager: ") + context + " bind params failed: " + mysql_stmt_error(stmt);
         std::cerr << message << std::endl;
         setError(error, message);
         closeStmt();
@@ -161,8 +155,7 @@ bool executePreparedRows(MYSQL *conn, const std::string &sql,
 
     // 执行语句
     if (mysql_stmt_execute(stmt) != 0) {
-        std::string message = std::string("QueryManager: ") + context +
-                              " execute failed: " + mysql_stmt_error(stmt);
+        std::string message = std::string("QueryManager: ") + context + " execute failed: " + mysql_stmt_error(stmt);
         std::cerr << message << std::endl;
         setError(error, message);
         closeStmt();
@@ -177,10 +170,9 @@ bool executePreparedRows(MYSQL *conn, const std::string &sql,
     }
 
     // 为每个字段准备缓冲区和绑定结构
-    const unsigned int fieldCount = mysql_num_fields(metadata); // 字段数量
-    std::vector<MYSQL_BIND> resultBinds(fieldCount);            // 结果绑定结构
-    std::vector<std::vector<char>> buffers(
-        fieldCount, std::vector<char>(4096)); // 结果缓冲区
+    const unsigned int fieldCount = mysql_num_fields(metadata);                  // 字段数量
+    std::vector<MYSQL_BIND> resultBinds(fieldCount);                             // 结果绑定结构
+    std::vector<std::vector<char>> buffers(fieldCount, std::vector<char>(4096)); // 结果缓冲区
     struct BoolFlag {
         bool value = false;
     }; // 用于绑定is_null和error的布尔标志
@@ -193,18 +185,16 @@ bool executePreparedRows(MYSQL *conn, const std::string &sql,
     for (unsigned int i = 0; i < fieldCount; ++i) {
         resultBinds[i].buffer_type = MYSQL_TYPE_STRING;
         resultBinds[i].buffer = buffers[i].data();
-        resultBinds[i].buffer_length =
-            static_cast<unsigned long>(buffers[i].size());
+        resultBinds[i].buffer_length = static_cast<unsigned long>(buffers[i].size());
         resultBinds[i].length = &lengths[i];
         resultBinds[i].is_null = &isNull[i].value;
         resultBinds[i].error = &errors[i].value;
     }
 
     // 绑定结果并获取所有结果行
-    if (mysql_stmt_bind_result(stmt, resultBinds.data()) != 0 ||
-        mysql_stmt_store_result(stmt) != 0) {
-        std::string message = std::string("QueryManager: ") + context +
-                              " bind result failed: " + mysql_stmt_error(stmt);
+    if (mysql_stmt_bind_result(stmt, resultBinds.data()) != 0 || mysql_stmt_store_result(stmt) != 0) {
+        std::string message =
+            std::string("QueryManager: ") + context + " bind result failed: " + mysql_stmt_error(stmt);
         std::cerr << message << std::endl;
         setError(error, message);
         mysql_free_result(metadata);
@@ -217,8 +207,7 @@ bool executePreparedRows(MYSQL *conn, const std::string &sql,
         int status = mysql_stmt_fetch(stmt);
         if (status == MYSQL_NO_DATA) break;
         if (status == 1) {
-            std::string message = std::string("QueryManager: ") + context +
-                                  " fetch failed: " + mysql_stmt_error(stmt);
+            std::string message = std::string("QueryManager: ") + context + " fetch failed: " + mysql_stmt_error(stmt);
             std::cerr << message << std::endl;
             setError(error, message);
             mysql_free_result(metadata);
@@ -232,8 +221,7 @@ bool executePreparedRows(MYSQL *conn, const std::string &sql,
             if (isNull[i].value) {
                 row.emplace_back();
             } else {
-                unsigned long len =
-                    std::min<unsigned long>(lengths[i], buffers[i].size());
+                unsigned long len = std::min<unsigned long>(lengths[i], buffers[i].size());
                 row.emplace_back(buffers[i].data(), len);
             }
         }
@@ -254,47 +242,35 @@ bool executePreparedRows(MYSQL *conn, const std::string &sql,
  * @param         context
  * @return
  */
-bool executePreparedCount(MYSQL *conn, const std::string &sql,
-                          std::vector<SqlParam> params, const char *context,
+bool executePreparedCount(MYSQL *conn, const std::string &sql, std::vector<SqlParam> params, const char *context,
                           int *count, std::string *error) {
     if (count) *count = 0;
 
     std::vector<std::vector<std::string>> rows;
-    if (!executePreparedRows(conn, sql, std::move(params), rows, context,
-                             error)) {
+    if (!executePreparedRows(conn, sql, std::move(params), rows, context, error)) {
         return false;
     }
     // 如果查询结果不为空且第一行第一列有值，则将其转换为整数并返回
-    if (!rows.empty() && !rows[0].empty() && count)
-        *count = std::atoi(rows[0][0].c_str());
+    if (!rows.empty() && !rows[0].empty() && count) *count = std::atoi(rows[0][0].c_str());
     return true;
 }
 
 float toFloat(const std::vector<std::string> &row, std::size_t index) {
-    return index < row.size() && !row[index].empty()
-               ? static_cast<float>(std::atof(row[index].c_str()))
-               : 0.0f;
+    return index < row.size() && !row[index].empty() ? static_cast<float>(std::atof(row[index].c_str())) : 0.0f;
 }
 
 uint64_t toU64(const std::vector<std::string> &row, std::size_t index) {
-    return index < row.size() && !row[index].empty()
-               ? static_cast<uint64_t>(std::stoull(row[index]))
-               : 0;
+    return index < row.size() && !row[index].empty() ? static_cast<uint64_t>(std::stoull(row[index])) : 0;
 }
 
 int64_t toI64(const std::vector<std::string> &row, std::size_t index) {
-    return index < row.size() && !row[index].empty()
-               ? static_cast<int64_t>(std::stoll(row[index]))
-               : 0;
+    return index < row.size() && !row[index].empty() ? static_cast<int64_t>(std::stoll(row[index])) : 0;
 }
 
 } // namespace
 #endif
 
-bool QueryManager::init(const std::string &host, unsigned int port,
-                        const std::string &user, const std::string &password,
-                        const std::string &db, MysqlConnectionPool *queryPool,
-                        const ManagerConfig *config, ManagerMetrics *metrics) {
+bool QueryManager::init(MysqlConnectionPool *queryPool, const ManagerConfig *config, ManagerMetrics *metrics) {
 #ifdef ENABLE_MYSQL
     std::lock_guard<std::mutex> lock(mutex_);
     if (initialized_) return true;
@@ -303,8 +279,7 @@ bool QueryManager::init(const std::string &host, unsigned int port,
     queryPool_ = queryPool;
 
     if (!queryPool_) {
-        std::cerr << "QueryManager: MySQL query pool is required"
-                  << std::endl;
+        std::cerr << "QueryManager: MySQL query pool is required" << std::endl;
         return false;
     }
 
@@ -312,11 +287,6 @@ bool QueryManager::init(const std::string &host, unsigned int port,
     std::cout << "QueryManager: MySQL query pool initialized" << std::endl;
     return true;
 #else
-    (void)host;
-    (void)port;
-    (void)user;
-    (void)password;
-    (void)db;
     (void)queryPool;
     (void)config;
     (void)metrics;
@@ -341,30 +311,24 @@ bool QueryManager::isInitialized() const {
 #endif
 }
 
-std::string QueryManager::formatTimePoint(
-    const std::chrono::system_clock::time_point &tp) const {
+std::string QueryManager::formatTimePoint(const std::chrono::system_clock::time_point &tp) const {
     std::time_t time = std::chrono::system_clock::to_time_t(tp);
     char buffer[32];
-    std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S",
-                  std::localtime(&time));
+    std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", std::localtime(&time));
     return std::string(buffer);
 }
 
-std::chrono::system_clock::time_point QueryManager::parseTimeString(
-    const std::string &timeStr) const {
+std::chrono::system_clock::time_point QueryManager::parseTimeString(const std::string &timeStr) const {
     std::tm tm = {};
     std::istringstream ss(timeStr);
     ss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
     return std::chrono::system_clock::from_time_t(std::mktime(&tm));
 }
 
-bool QueryManager::validateTimeRange(const TimeRange &range) const {
-    return range.start_time <= range.end_time;
-}
+bool QueryManager::validateTimeRange(const TimeRange &range) const { return range.start_time <= range.end_time; }
 
 #ifdef ENABLE_MYSQL
-QueryManager::MysqlConnectionLease QueryManager::acquireConnection(
-    std::string *error) {
+QueryManager::MysqlConnectionLease QueryManager::acquireConnection(std::string *error) {
     MysqlConnectionLease lease;
     if (!initialized_) {
         setError(error, "QueryManager is not initialized");
@@ -387,9 +351,9 @@ QueryManager::MysqlConnectionLease QueryManager::acquireConnection(
 }
 #endif
 
-std::vector<PerformanceRecord> QueryManager::queryPerformanceRecords(
-    const std::string &serverName, const TimeRange &range, int page,
-    int pageSize, int *totalCount, std::string *error) {
+std::vector<PerformanceRecord> QueryManager::queryPerformanceRecords(const std::string &serverName,
+                                                                     const TimeRange &range, int page, int pageSize,
+                                                                     int *totalCount, std::string *error) {
     std::vector<PerformanceRecord> records;
     if (error) error->clear();
 #ifdef ENABLE_MYSQL
@@ -410,13 +374,11 @@ std::vector<PerformanceRecord> QueryManager::queryPerformanceRecords(
     std::string endTimeStr = formatTimePoint(range.end_time);
     if (totalCount) {
         // 获取满足条件的记录总数，方便前端分页显示
-        if (!executePreparedCount(
-                conn,
-                "SELECT COUNT(*) FROM server_performance "
-                "WHERE server_name=? AND timestamp BETWEEN ? AND ?",
-                {stringParam(serverName), stringParam(startTimeStr),
-                 stringParam(endTimeStr)},
-                "performance count", totalCount, error)) {
+        if (!executePreparedCount(conn,
+                                  "SELECT COUNT(*) FROM server_performance "
+                                  "WHERE server_name=? AND timestamp BETWEEN ? AND ?",
+                                  {stringParam(serverName), stringParam(startTimeStr), stringParam(endTimeStr)},
+                                  "performance count", totalCount, error)) {
             return records;
         }
     }
@@ -425,22 +387,21 @@ std::vector<PerformanceRecord> QueryManager::queryPerformanceRecords(
     // query performance records with pagination
     int offset = (page - 1) * pageSize; // 计算分页偏移量
     std::vector<std::vector<std::string>> rows;
-    if (!executePreparedRows(
-            conn,
-            "SELECT server_name, timestamp, cpu_percent, usr_percent, "
-            "system_percent, nice_percent, idle_percent, io_wait_percent, "
-            "irq_percent, soft_irq_percent, load_avg_1, load_avg_3, "
-            "load_avg_15, mem_used_percent, total, free, avail, "
-            "disk_util_percent, send_rate, rcv_rate, score, "
-            "cpu_percent_rate, mem_used_percent_rate, "
-            "disk_util_percent_rate, load_avg_1_rate, send_rate_rate, "
-            "rcv_rate_rate "
-            "FROM server_performance WHERE server_name=? "
-            "AND timestamp BETWEEN ? AND ? "
-            "ORDER BY timestamp DESC LIMIT ? OFFSET ?",
-            {stringParam(serverName), stringParam(startTimeStr),
-             stringParam(endTimeStr), intParam(pageSize), intParam(offset)},
-            rows, "performance query", error)) {
+    if (!executePreparedRows(conn,
+                             "SELECT server_name, timestamp, cpu_percent, usr_percent, "
+                             "system_percent, nice_percent, idle_percent, io_wait_percent, "
+                             "irq_percent, soft_irq_percent, load_avg_1, load_avg_3, "
+                             "load_avg_15, mem_used_percent, total, free, avail, "
+                             "disk_util_percent, send_rate, rcv_rate, score, "
+                             "cpu_percent_rate, mem_used_percent_rate, "
+                             "disk_util_percent_rate, load_avg_1_rate, send_rate_rate, "
+                             "rcv_rate_rate "
+                             "FROM server_performance WHERE server_name=? "
+                             "AND timestamp BETWEEN ? AND ? "
+                             "ORDER BY timestamp DESC LIMIT ? OFFSET ?",
+                             {stringParam(serverName), stringParam(startTimeStr), stringParam(endTimeStr),
+                              intParam(pageSize), intParam(offset)},
+                             rows, "performance query", error)) {
         return records;
     }
 
@@ -449,9 +410,8 @@ std::vector<PerformanceRecord> QueryManager::queryPerformanceRecords(
         int i = 0;
         rec.server_name = i < static_cast<int>(row.size()) ? row[i] : "";
         ++i;
-        rec.timestamp = i < static_cast<int>(row.size()) && !row[i].empty()
-                            ? parseTimeString(row[i])
-                            : std::chrono::system_clock::now();
+        rec.timestamp = i < static_cast<int>(row.size()) && !row[i].empty() ? parseTimeString(row[i])
+                                                                            : std::chrono::system_clock::now();
         ++i;
         rec.cpu_percent = toFloat(row, i);
         ++i;
@@ -515,9 +475,8 @@ std::vector<PerformanceRecord> QueryManager::queryPerformanceRecords(
     return records;
 }
 
-std::vector<PerformanceRecord> QueryManager::queryTrend(
-    const std::string &serverName, const TimeRange &range, int intervalSeconds,
-    std::string *error) {
+std::vector<PerformanceRecord> QueryManager::queryTrend(const std::string &serverName, const TimeRange &range,
+                                                        int intervalSeconds, std::string *error) {
     std::vector<PerformanceRecord> records;
     if (error) error->clear();
 #ifdef ENABLE_MYSQL
@@ -559,9 +518,8 @@ std::vector<PerformanceRecord> QueryManager::queryTrend(
             "FROM server_performance WHERE server_name=? "
             "AND timestamp BETWEEN ? AND ? "
             "GROUP BY server_name, time_bucket ORDER BY time_bucket";
-        params = {intParam(intervalSeconds), intParam(intervalSeconds),
-                  stringParam(serverName), stringParam(startTimeStr),
-                  stringParam(endTimeStr)};
+        params = {intParam(intervalSeconds), intParam(intervalSeconds), stringParam(serverName),
+                  stringParam(startTimeStr), stringParam(endTimeStr)};
     } else // no aggregation, just return raw data
     {
         query =
@@ -572,13 +530,11 @@ std::vector<PerformanceRecord> QueryManager::queryTrend(
             "disk_util_percent_rate, load_avg_1_rate "
             "FROM server_performance WHERE server_name=? "
             "AND timestamp BETWEEN ? AND ? ORDER BY timestamp";
-        params = {stringParam(serverName), stringParam(startTimeStr),
-                  stringParam(endTimeStr)};
+        params = {stringParam(serverName), stringParam(startTimeStr), stringParam(endTimeStr)};
     }
 
     std::vector<std::vector<std::string>> rows;
-    if (!executePreparedRows(conn, query, std::move(params), rows,
-                             "trend query", error)) {
+    if (!executePreparedRows(conn, query, std::move(params), rows, "trend query", error)) {
         return records;
     }
 
@@ -587,9 +543,8 @@ std::vector<PerformanceRecord> QueryManager::queryTrend(
         int i = 0;
         rec.server_name = i < static_cast<int>(row.size()) ? row[i] : "";
         ++i;
-        rec.timestamp = i < static_cast<int>(row.size()) && !row[i].empty()
-                            ? parseTimeString(row[i])
-                            : std::chrono::system_clock::now();
+        rec.timestamp = i < static_cast<int>(row.size()) && !row[i].empty() ? parseTimeString(row[i])
+                                                                            : std::chrono::system_clock::now();
         i++;
         rec.cpu_percent = toFloat(row, i);
         i++;
@@ -633,10 +588,9 @@ std::vector<PerformanceRecord> QueryManager::queryTrend(
     return records;
 }
 
-std::vector<AnomalyRecord> QueryManager::queryAnomalyRecords(
-    const std::string &serverName, const TimeRange &range,
-    const AnomalyThreshold &threshold, int page, int pageSize, int *totalCount,
-    std::string *error) {
+std::vector<AnomalyRecord> QueryManager::queryAnomalyRecords(const std::string &serverName, const TimeRange &range,
+                                                             const AnomalyThreshold &threshold, int page, int pageSize,
+                                                             int *totalCount, std::string *error) {
     std::vector<AnomalyRecord> records;
     if (error) error->clear();
 #ifdef ENABLE_MYSQL
@@ -656,8 +610,7 @@ std::vector<AnomalyRecord> QueryManager::queryAnomalyRecords(
     std::string startTimeStr = formatTimePoint(range.start_time);
     std::string endTimeStr = formatTimePoint(range.end_time);
     std::string whereClause = "timestamp BETWEEN ? AND ?";
-    std::vector<SqlParam> whereParams = {stringParam(startTimeStr),
-                                         stringParam(endTimeStr)};
+    std::vector<SqlParam> whereParams = {stringParam(startTimeStr), stringParam(endTimeStr)};
     if (!serverName.empty()) {
         whereClause += " AND server_name=?";
         whereParams.push_back(stringParam(serverName));
@@ -674,21 +627,18 @@ std::vector<AnomalyRecord> QueryManager::queryAnomalyRecords(
 
     std::vector<std::vector<std::string>> rows;
     // 查询满足异常条件的记录，注意这里没有直接在SQL中计算异常类型和严重程度，而是在应用层进行判断和分类，以便更灵活地定义异常规则和级别
-    if (!executePreparedRows(
-            conn,
-            "SELECT server_name, timestamp, cpu_percent, mem_used_percent, "
-            "disk_util_percent, cpu_percent_rate, mem_used_percent_rate "
-            "FROM server_performance WHERE " +
-                whereClause + " ORDER BY timestamp DESC",
-            std::move(whereParams), rows, "anomaly query", error)) {
+    if (!executePreparedRows(conn,
+                             "SELECT server_name, timestamp, cpu_percent, mem_used_percent, "
+                             "disk_util_percent, cpu_percent_rate, mem_used_percent_rate "
+                             "FROM server_performance WHERE " +
+                                 whereClause + " ORDER BY timestamp DESC",
+                             std::move(whereParams), rows, "anomaly query", error)) {
         return records;
     }
 
     for (const auto &row : rows) {
         std::string name = !row.empty() ? row[0] : "";
-        auto ts = row.size() > 1 && !row[1].empty()
-                      ? parseTimeString(row[1])
-                      : std::chrono::system_clock::now();
+        auto ts = row.size() > 1 && !row[1].empty() ? parseTimeString(row[1]) : std::chrono::system_clock::now();
         float cpu = toFloat(row, 2);
         float mem = toFloat(row, 3);
         float disk = toFloat(row, 4);
@@ -696,9 +646,7 @@ std::vector<AnomalyRecord> QueryManager::queryAnomalyRecords(
         float mem_rate = toFloat(row, 6);
 
         // Check each metric against thresholds and add anomalies
-        auto add_anomaly = [&](const std::string &type,
-                               const std::string &metric, float value,
-                               float threshold) {
+        auto add_anomaly = [&](const std::string &type, const std::string &metric, float value, float threshold) {
             AnomalyRecord rec;
             rec.server_name = name;
             rec.timestamp = ts;
@@ -722,24 +670,19 @@ std::vector<AnomalyRecord> QueryManager::queryAnomalyRecords(
 
         // 根据阈值判断是否异常，并记录异常类型、涉及的指标、实际值和阈值等信息，方便前端展示和分析
         if (cpu > threshold.cpu_threshold) {
-            add_anomaly("CPU_HIGH", "cpu_percent", cpu,
-                        threshold.cpu_threshold);
+            add_anomaly("CPU_HIGH", "cpu_percent", cpu, threshold.cpu_threshold);
         }
         if (mem > threshold.memory_threshold) {
-            add_anomaly("MEM_HIGH", "mem_used_percent", mem,
-                        threshold.memory_threshold);
+            add_anomaly("MEM_HIGH", "mem_used_percent", mem, threshold.memory_threshold);
         }
         if (disk > threshold.disk_threshold) {
-            add_anomaly("DISK_HIGH", "disk_util_percent", disk,
-                        threshold.disk_threshold);
+            add_anomaly("DISK_HIGH", "disk_util_percent", disk, threshold.disk_threshold);
         }
         if (std::abs(cpu_rate) > threshold.change_rate_threshold) {
-            add_anomaly("RATE_SPIKE", "cpu_percent_rate", cpu_rate,
-                        threshold.change_rate_threshold);
+            add_anomaly("RATE_SPIKE", "cpu_percent_rate", cpu_rate, threshold.change_rate_threshold);
         }
         if (std::abs(mem_rate) > threshold.change_rate_threshold) {
-            add_anomaly("RATE_SPIKE", "mem_used_percent_rate", mem_rate,
-                        threshold.change_rate_threshold);
+            add_anomaly("RATE_SPIKE", "mem_used_percent_rate", mem_rate, threshold.change_rate_threshold);
         }
     }
 
@@ -749,8 +692,7 @@ std::vector<AnomalyRecord> QueryManager::queryAnomalyRecords(
         records.clear();
     } else {
         auto begin = records.begin() + offset;
-        auto end =
-            records.begin() + std::min<int>(offset + pageSize, records.size());
+        auto end = records.begin() + std::min<int>(offset + pageSize, records.size());
         records = std::vector<AnomalyRecord>(begin, end);
     }
 #else
@@ -765,9 +707,8 @@ std::vector<AnomalyRecord> QueryManager::queryAnomalyRecords(
     return records;
 }
 
-std::vector<ServerScoreSummary> QueryManager::queryServerScoreRank(
-    SortOrder order, int page, int pageSize, int *totalCount,
-    std::string *error) {
+std::vector<ServerScoreSummary> QueryManager::queryServerScoreRank(SortOrder order, int page, int pageSize,
+                                                                   int *totalCount, std::string *error) {
     std::vector<ServerScoreSummary> records;
     if (error) error->clear();
 #ifdef ENABLE_MYSQL
@@ -779,10 +720,8 @@ std::vector<ServerScoreSummary> QueryManager::queryServerScoreRank(
     if (pageSize < 1) pageSize = 100;
 
     if (totalCount) {
-        if (!executePreparedCount(
-                conn,
-                "SELECT COUNT(DISTINCT server_name) FROM server_performance",
-                {}, "score rank count", totalCount, error)) {
+        if (!executePreparedCount(conn, "SELECT COUNT(DISTINCT server_name) FROM server_performance", {},
+                                  "score rank count", totalCount, error)) {
             return records;
         }
     }
@@ -802,9 +741,7 @@ std::vector<ServerScoreSummary> QueryManager::queryServerScoreRank(
         "ORDER BY p1.score " +
         orderBy + " LIMIT ? OFFSET ?";
     std::vector<std::vector<std::string>> rows;
-    if (!executePreparedRows(conn, query,
-                             {intParam(pageSize), intParam(offset)}, rows,
-                             "score rank query", error)) {
+    if (!executePreparedRows(conn, query, {intParam(pageSize), intParam(offset)}, rows, "score rank query", error)) {
         return records;
     }
 
@@ -813,8 +750,7 @@ std::vector<ServerScoreSummary> QueryManager::queryServerScoreRank(
         ServerScoreSummary rec;
         rec.server_name = !row.empty() ? row[0] : "";
         rec.score = toFloat(row, 1);
-        rec.last_updated =
-            row.size() > 2 && !row[2].empty() ? parseTimeString(row[2]) : now;
+        rec.last_updated = row.size() > 2 && !row[2].empty() ? parseTimeString(row[2]) : now;
         rec.cpu_percent = toFloat(row, 3);
         rec.mem_used_percent = toFloat(row, 4);
         rec.disk_util_percent = toFloat(row, 5);
@@ -822,9 +758,7 @@ std::vector<ServerScoreSummary> QueryManager::queryServerScoreRank(
 
         // Determine server status based on last update time (e.g., if no update
         // for more than 60 seconds, consider it offline)
-        auto age = std::chrono::duration_cast<std::chrono::seconds>(
-                       now - rec.last_updated)
-                       .count();
+        auto age = std::chrono::duration_cast<std::chrono::seconds>(now - rec.last_updated).count();
         rec.status = (age > 60) ? ServerStatus::OFFLINE : ServerStatus::ONLINE;
 
         records.push_back(rec);
@@ -839,8 +773,7 @@ std::vector<ServerScoreSummary> QueryManager::queryServerScoreRank(
     return records;
 }
 
-std::vector<ServerScoreSummary> QueryManager::queryLatestServerScores(
-    ClusterStats *clusterStats, std::string *error) {
+std::vector<ServerScoreSummary> QueryManager::queryLatestServerScores(ClusterStats *clusterStats, std::string *error) {
     std::vector<ServerScoreSummary> records;
     if (error) error->clear();
 #ifdef ENABLE_MYSQL
@@ -858,9 +791,7 @@ std::vector<ServerScoreSummary> QueryManager::queryLatestServerScores(
         ") p2 ON p1.server_name = p2.server_name AND p1.timestamp = p2.max_ts "
         "ORDER BY p1.score DESC";
     std::vector<std::vector<std::string>> rows;
-    if (!executePreparedRows(conn, query, {}, rows, "latest score query",
-                             error))
-        return records;
+    if (!executePreparedRows(conn, query, {}, rows, "latest score query", error)) return records;
 
     auto now = std::chrono::system_clock::now();
     float totalScore = 0;
@@ -873,8 +804,7 @@ std::vector<ServerScoreSummary> QueryManager::queryLatestServerScores(
         ServerScoreSummary rec;
         rec.server_name = !row.empty() ? row[0] : "";
         rec.score = toFloat(row, 1);
-        rec.last_updated =
-            row.size() > 2 && !row[2].empty() ? parseTimeString(row[2]) : now;
+        rec.last_updated = row.size() > 2 && !row[2].empty() ? parseTimeString(row[2]) : now;
         rec.cpu_percent = toFloat(row, 3);
         rec.mem_used_percent = toFloat(row, 4);
         rec.disk_util_percent = toFloat(row, 5);
@@ -882,9 +812,7 @@ std::vector<ServerScoreSummary> QueryManager::queryLatestServerScores(
 
         // Determine server status based on last update time (e.g., if no update
         // for more than 60 seconds, consider it offline)
-        auto age = std::chrono::duration_cast<std::chrono::seconds>(
-                       now - rec.last_updated)
-                       .count();
+        auto age = std::chrono::duration_cast<std::chrono::seconds>(now - rec.last_updated).count();
         rec.status = (age > 60) ? ServerStatus::OFFLINE : ServerStatus::ONLINE;
 
         if (rec.status == ServerStatus::ONLINE)
@@ -911,8 +839,7 @@ std::vector<ServerScoreSummary> QueryManager::queryLatestServerScores(
         clusterStats->total_servers = static_cast<int>(records.size());
         clusterStats->online_servers = onlineCount;
         clusterStats->offline_servers = offlineCount;
-        clusterStats->avg_score =
-            records.empty() ? 0 : totalScore / records.size();
+        clusterStats->avg_score = records.empty() ? 0 : totalScore / records.size();
         clusterStats->max_score = maxScore > 0 ? maxScore : 0;
         clusterStats->min_score = minScore < MAX_SCORE ? minScore : 0;
         clusterStats->best_server = bestServer;
@@ -925,9 +852,9 @@ std::vector<ServerScoreSummary> QueryManager::queryLatestServerScores(
     return records;
 }
 
-std::vector<NetDetailRecord> QueryManager::queryNetDetailRecords(
-    const std::string &serverName, const TimeRange &range, int page,
-    int pageSize, int *totalCount, std::string *error) {
+std::vector<NetDetailRecord> QueryManager::queryNetDetailRecords(const std::string &serverName, const TimeRange &range,
+                                                                 int page, int pageSize, int *totalCount,
+                                                                 std::string *error) {
     std::vector<NetDetailRecord> records;
     if (error) error->clear();
 
@@ -947,13 +874,11 @@ std::vector<NetDetailRecord> QueryManager::queryNetDetailRecords(
     std::string endTime = formatTimePoint(range.end_time);
 
     if (totalCount) {
-        if (!executePreparedCount(
-                conn,
-                "SELECT COUNT(*) FROM server_net_detail "
-                "WHERE server_name=? AND timestamp BETWEEN ? AND ?",
-                {stringParam(serverName), stringParam(startTime),
-                 stringParam(endTime)},
-                "net detail count", totalCount, error)) {
+        if (!executePreparedCount(conn,
+                                  "SELECT COUNT(*) FROM server_net_detail "
+                                  "WHERE server_name=? AND timestamp BETWEEN ? AND ?",
+                                  {stringParam(serverName), stringParam(startTime), stringParam(endTime)},
+                                  "net detail count", totalCount, error)) {
             return records;
         }
     }
@@ -961,17 +886,16 @@ std::vector<NetDetailRecord> QueryManager::queryNetDetailRecords(
     // query net detail records with pagination
     int offset = (page - 1) * pageSize;
     std::vector<std::vector<std::string>> rows;
-    if (!executePreparedRows(
-            conn,
-            "SELECT server_name, net_name, timestamp, err_in, err_out, "
-            "drop_in, drop_out, rcv_bytes_rate, snd_bytes_rate, "
-            "rcv_packets_rate, snd_packets_rate "
-            "FROM server_net_detail WHERE server_name=? "
-            "AND timestamp BETWEEN ? AND ? "
-            "ORDER BY timestamp DESC LIMIT ? OFFSET ?",
-            {stringParam(serverName), stringParam(startTime),
-             stringParam(endTime), intParam(pageSize), intParam(offset)},
-            rows, "net detail query", error)) {
+    if (!executePreparedRows(conn,
+                             "SELECT server_name, net_name, timestamp, err_in, err_out, "
+                             "drop_in, drop_out, rcv_bytes_rate, snd_bytes_rate, "
+                             "rcv_packets_rate, snd_packets_rate "
+                             "FROM server_net_detail WHERE server_name=? "
+                             "AND timestamp BETWEEN ? AND ? "
+                             "ORDER BY timestamp DESC LIMIT ? OFFSET ?",
+                             {stringParam(serverName), stringParam(startTime), stringParam(endTime), intParam(pageSize),
+                              intParam(offset)},
+                             rows, "net detail query", error)) {
         return records;
     }
 
@@ -982,9 +906,8 @@ std::vector<NetDetailRecord> QueryManager::queryNetDetailRecords(
         ++i;
         rec.net_name = i < static_cast<int>(row.size()) ? row[i] : "";
         ++i;
-        rec.timestamp = i < static_cast<int>(row.size()) && !row[i].empty()
-                            ? parseTimeString(row[i])
-                            : std::chrono::system_clock::now();
+        rec.timestamp = i < static_cast<int>(row.size()) && !row[i].empty() ? parseTimeString(row[i])
+                                                                            : std::chrono::system_clock::now();
         i++;
         rec.err_in = toU64(row, i);
         i++;
@@ -1015,9 +938,9 @@ std::vector<NetDetailRecord> QueryManager::queryNetDetailRecords(
     return records;
 }
 
-std::vector<DiskDetailRecord> QueryManager::queryDiskDetailRecords(
-    const std::string &serverName, const TimeRange &range, int page,
-    int pageSize, int *totalCount, std::string *error) {
+std::vector<DiskDetailRecord> QueryManager::queryDiskDetailRecords(const std::string &serverName,
+                                                                   const TimeRange &range, int page, int pageSize,
+                                                                   int *totalCount, std::string *error) {
     std::vector<DiskDetailRecord> records;
     if (error) error->clear();
 
@@ -1037,30 +960,27 @@ std::vector<DiskDetailRecord> QueryManager::queryDiskDetailRecords(
     std::string endTime = formatTimePoint(range.end_time);
 
     if (totalCount) {
-        if (!executePreparedCount(
-                conn,
-                "SELECT COUNT(*) FROM server_disk_detail "
-                "WHERE server_name=? AND timestamp BETWEEN ? AND ?",
-                {stringParam(serverName), stringParam(startTime),
-                 stringParam(endTime)},
-                "disk detail count", totalCount, error)) {
+        if (!executePreparedCount(conn,
+                                  "SELECT COUNT(*) FROM server_disk_detail "
+                                  "WHERE server_name=? AND timestamp BETWEEN ? AND ?",
+                                  {stringParam(serverName), stringParam(startTime), stringParam(endTime)},
+                                  "disk detail count", totalCount, error)) {
             return records;
         }
     }
 
     int offset = (page - 1) * pageSize;
     std::vector<std::vector<std::string>> rows;
-    if (!executePreparedRows(
-            conn,
-            "SELECT server_name, disk_name, timestamp, read_bytes_per_sec, "
-            "write_bytes_per_sec, read_iops, write_iops, avg_read_latency_ms, "
-            "avg_write_latency_ms, util_percent "
-            "FROM server_disk_detail WHERE server_name=? "
-            "AND timestamp BETWEEN ? AND ? "
-            "ORDER BY timestamp DESC LIMIT ? OFFSET ?",
-            {stringParam(serverName), stringParam(startTime),
-             stringParam(endTime), intParam(pageSize), intParam(offset)},
-            rows, "disk detail query", error)) {
+    if (!executePreparedRows(conn,
+                             "SELECT server_name, disk_name, timestamp, read_bytes_per_sec, "
+                             "write_bytes_per_sec, read_iops, write_iops, avg_read_latency_ms, "
+                             "avg_write_latency_ms, util_percent "
+                             "FROM server_disk_detail WHERE server_name=? "
+                             "AND timestamp BETWEEN ? AND ? "
+                             "ORDER BY timestamp DESC LIMIT ? OFFSET ?",
+                             {stringParam(serverName), stringParam(startTime), stringParam(endTime), intParam(pageSize),
+                              intParam(offset)},
+                             rows, "disk detail query", error)) {
         return records;
     }
 
@@ -1071,9 +991,8 @@ std::vector<DiskDetailRecord> QueryManager::queryDiskDetailRecords(
         ++i;
         rec.disk_name = i < static_cast<int>(row.size()) ? row[i] : "";
         ++i;
-        rec.timestamp = i < static_cast<int>(row.size()) && !row[i].empty()
-                            ? parseTimeString(row[i])
-                            : std::chrono::system_clock::now();
+        rec.timestamp = i < static_cast<int>(row.size()) && !row[i].empty() ? parseTimeString(row[i])
+                                                                            : std::chrono::system_clock::now();
         ++i;
         rec.read_bytes_per_sec = toFloat(row, i);
         ++i;
@@ -1102,9 +1021,9 @@ std::vector<DiskDetailRecord> QueryManager::queryDiskDetailRecords(
     return records;
 }
 
-std::vector<MemDetailRecord> QueryManager::queryMemDetailRecords(
-    const std::string &serverName, const TimeRange &range, int page,
-    int pageSize, int *totalCount, std::string *error) {
+std::vector<MemDetailRecord> QueryManager::queryMemDetailRecords(const std::string &serverName, const TimeRange &range,
+                                                                 int page, int pageSize, int *totalCount,
+                                                                 std::string *error) {
     std::vector<MemDetailRecord> records;
     if (error) error->clear();
 
@@ -1124,29 +1043,26 @@ std::vector<MemDetailRecord> QueryManager::queryMemDetailRecords(
     std::string endTime = formatTimePoint(range.end_time);
 
     if (totalCount) {
-        if (!executePreparedCount(
-                conn,
-                "SELECT COUNT(*) FROM server_mem_detail "
-                "WHERE server_name=? AND timestamp BETWEEN ? AND ?",
-                {stringParam(serverName), stringParam(startTime),
-                 stringParam(endTime)},
-                "mem detail count", totalCount, error)) {
+        if (!executePreparedCount(conn,
+                                  "SELECT COUNT(*) FROM server_mem_detail "
+                                  "WHERE server_name=? AND timestamp BETWEEN ? AND ?",
+                                  {stringParam(serverName), stringParam(startTime), stringParam(endTime)},
+                                  "mem detail count", totalCount, error)) {
             return records;
         }
     }
 
     int offset = (page - 1) * pageSize;
     std::vector<std::vector<std::string>> rows;
-    if (!executePreparedRows(
-            conn,
-            "SELECT server_name, timestamp, total, free, avail, buffers, "
-            "cached, active, inactive, dirty "
-            "FROM server_mem_detail WHERE server_name=? "
-            "AND timestamp BETWEEN ? AND ? "
-            "ORDER BY timestamp DESC LIMIT ? OFFSET ?",
-            {stringParam(serverName), stringParam(startTime),
-             stringParam(endTime), intParam(pageSize), intParam(offset)},
-            rows, "mem detail query", error)) {
+    if (!executePreparedRows(conn,
+                             "SELECT server_name, timestamp, total, free, avail, buffers, "
+                             "cached, active, inactive, dirty "
+                             "FROM server_mem_detail WHERE server_name=? "
+                             "AND timestamp BETWEEN ? AND ? "
+                             "ORDER BY timestamp DESC LIMIT ? OFFSET ?",
+                             {stringParam(serverName), stringParam(startTime), stringParam(endTime), intParam(pageSize),
+                              intParam(offset)},
+                             rows, "mem detail query", error)) {
         return records;
     }
 
@@ -1155,9 +1071,8 @@ std::vector<MemDetailRecord> QueryManager::queryMemDetailRecords(
         int i = 0;
         rec.server_name = i < static_cast<int>(row.size()) ? row[i] : "";
         ++i;
-        rec.timestamp = i < static_cast<int>(row.size()) && !row[i].empty()
-                            ? parseTimeString(row[i])
-                            : std::chrono::system_clock::now();
+        rec.timestamp = i < static_cast<int>(row.size()) && !row[i].empty() ? parseTimeString(row[i])
+                                                                            : std::chrono::system_clock::now();
         ++i;
         rec.mem_total = toFloat(row, i);
         ++i;
@@ -1188,9 +1103,9 @@ std::vector<MemDetailRecord> QueryManager::queryMemDetailRecords(
     return records;
 }
 
-std::vector<SoftIrqDetailRecord> QueryManager::querySoftIrqDetailRecords(
-    const std::string &serverName, const TimeRange &range, int page,
-    int pageSize, int *totalCount, std::string *error) {
+std::vector<SoftIrqDetailRecord> QueryManager::querySoftIrqDetailRecords(const std::string &serverName,
+                                                                         const TimeRange &range, int page, int pageSize,
+                                                                         int *totalCount, std::string *error) {
     std::vector<SoftIrqDetailRecord> records;
     if (error) error->clear();
 
@@ -1210,29 +1125,26 @@ std::vector<SoftIrqDetailRecord> QueryManager::querySoftIrqDetailRecords(
     std::string endTime = formatTimePoint(range.end_time);
 
     if (totalCount) {
-        if (!executePreparedCount(
-                conn,
-                "SELECT COUNT(*) FROM server_softirq_detail "
-                "WHERE server_name=? AND timestamp BETWEEN ? AND ?",
-                {stringParam(serverName), stringParam(startTime),
-                 stringParam(endTime)},
-                "softirq detail count", totalCount, error)) {
+        if (!executePreparedCount(conn,
+                                  "SELECT COUNT(*) FROM server_softirq_detail "
+                                  "WHERE server_name=? AND timestamp BETWEEN ? AND ?",
+                                  {stringParam(serverName), stringParam(startTime), stringParam(endTime)},
+                                  "softirq detail count", totalCount, error)) {
             return records;
         }
     }
 
     int offset = (page - 1) * pageSize;
     std::vector<std::vector<std::string>> rows;
-    if (!executePreparedRows(
-            conn,
-            "SELECT server_name, cpu_name, timestamp, hi, timer, net_tx, "
-            "net_rx, block, sched "
-            "FROM server_softirq_detail WHERE server_name=? "
-            "AND timestamp BETWEEN ? AND ? "
-            "ORDER BY timestamp DESC LIMIT ? OFFSET ?",
-            {stringParam(serverName), stringParam(startTime),
-             stringParam(endTime), intParam(pageSize), intParam(offset)},
-            rows, "softirq detail query", error)) {
+    if (!executePreparedRows(conn,
+                             "SELECT server_name, cpu_name, timestamp, hi, timer, net_tx, "
+                             "net_rx, block, sched "
+                             "FROM server_softirq_detail WHERE server_name=? "
+                             "AND timestamp BETWEEN ? AND ? "
+                             "ORDER BY timestamp DESC LIMIT ? OFFSET ?",
+                             {stringParam(serverName), stringParam(startTime), stringParam(endTime), intParam(pageSize),
+                              intParam(offset)},
+                             rows, "softirq detail query", error)) {
         return records;
     }
 
@@ -1243,9 +1155,8 @@ std::vector<SoftIrqDetailRecord> QueryManager::querySoftIrqDetailRecords(
         ++i;
         rec.cpu_name = i < static_cast<int>(row.size()) ? row[i] : "";
         ++i;
-        rec.timestamp = i < static_cast<int>(row.size()) && !row[i].empty()
-                            ? parseTimeString(row[i])
-                            : std::chrono::system_clock::now();
+        rec.timestamp = i < static_cast<int>(row.size()) && !row[i].empty() ? parseTimeString(row[i])
+                                                                            : std::chrono::system_clock::now();
         ++i;
         rec.hi = toI64(row, i);
         ++i;

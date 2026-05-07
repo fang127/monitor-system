@@ -214,18 +214,15 @@ public:
     ~QueryManager() { close(); }
 
     /**
-     * @brief         initialize the QueryManager with database connection
-     * parameters
+     * @brief         initialize the QueryManager with a MySQL connection pool, configuration, and metrics
      *
-     * @param         host database host address
-     * @param         port database port
-     * @param         user database username
-     * @param         password database password
-     * @param         db database name
-     * @return        true if initialization is successful, false otherwise
+     * @param         queryPool
+     * @param         config
+     * @param         metrics
+     * @return
+     * @return
      */
-    bool init(const std::string &host, unsigned int port, const std::string &user, const std::string &password,
-              const std::string &db, MysqlConnectionPool *queryPool = nullptr, const ManagerConfig *config = nullptr,
+    bool init(MysqlConnectionPool *queryPool = nullptr, const ManagerConfig *config = nullptr,
               ManagerMetrics *metrics = nullptr);
 
     /**
@@ -397,12 +394,12 @@ private:
     std::chrono::system_clock::time_point parseTimeString(const std::string &timeStr) const;
 
 #ifdef ENABLE_MYSQL
-    MysqlConnectionPool *queryPool_ = nullptr;
+    MysqlConnectionPool *queryPool_ = nullptr; // MySQL connection pool for executing queries
 #endif
-    ManagerConfig config_;
-    ManagerMetrics *metrics_ = nullptr;
-    std::mutex mutex_;
-    bool initialized_ = false;
+    ManagerConfig config_;              // configuration parameters for the QueryManager
+    ManagerMetrics *metrics_ = nullptr; // pointer to ManagerMetrics for recording query performance metrics
+    std::mutex mutex_;                  // mutex for synchronizing access to shared resources
+    bool initialized_ = false;          // flag indicating whether the QueryManager has been initialized
 };
 
 } // namespace monitor

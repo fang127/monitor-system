@@ -86,8 +86,7 @@ int main(int argc, char *argv[]) {
 #ifdef ENABLE_MYSQL
     std::cout << "MySQL config: " << mysqlConfig.host << ":" << mysqlConfig.port << "/" << mysqlConfig.database
               << std::endl;
-    if (queryManager.init(mysqlConfig.host, mysqlConfig.port, mysqlConfig.user, mysqlConfig.password,
-                          mysqlConfig.database, &mysqlQueryPool, &managerConfig, &metrics)) {
+    if (queryManager.init(&mysqlQueryPool, &managerConfig, &metrics)) {
         std::cout << "QueryManager initialized successfully" << std::endl;
     } else {
         std::cerr << "Warning: QueryManager initialization failed, "

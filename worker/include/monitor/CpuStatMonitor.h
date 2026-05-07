@@ -5,6 +5,7 @@
  */
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <unordered_map>
 
@@ -15,16 +16,16 @@ namespace monitor {
 class CpuStatMonitor : public MonitorInter {
     struct CpuStat {
         std::string cpu_name;
-        float user;
-        float system;
-        float idle;
-        float nice;
-        float io_wait;
-        float irq;
-        float soft_irq;
-        float steal;
-        float guest;
-        float guest_nice;
+        uint64_t user;
+        uint64_t system;
+        uint64_t idle;
+        uint64_t nice;
+        uint64_t io_wait;
+        uint64_t irq;
+        uint64_t soft_irq;
+        uint64_t steal;
+        uint64_t guest;
+        uint64_t guest_nice;
     };
 
 public:
