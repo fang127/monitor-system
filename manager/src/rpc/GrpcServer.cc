@@ -2,8 +2,25 @@
 #include <grpcpp/support/status.h>
 #include <chrono>
 #include <mutex>
+#include <utility>
 
 namespace monitor {
+namespace {
+
+std::string resolveHostID(const monitor::proto::MonitorInfo &info) {
+    if (info.has_host_info()) {
+        const auto &hostInfo = info.host_info();
+        const std::string &hostName = hostInfo.hostname();
+        const std::string &ip = hostInfo.ip_address();
+        if (!hostName.empty() && !ip.empty()) return hostName + "_" + ip;
+        if (!ip.empty()) return ip;
+        if (!hostName.empty()) return hostName;
+    }
+    return info.name();
+}
+
+} // namespace
+
 ::grpc::Status GrpcServerImpl::SetMonitorInfo(
     ::grpc::ServerContext *context,
     const ::monitor::proto::MonitorInfo *request,
@@ -13,9 +30,7 @@ namespace monitor {
                               "Empty request");
     }
 
-    std::string hostname = request->name();
-    if (hostname.empty() && request->has_host_info())
-        hostname = request->host_info().hostname();
+    std::string hostname = resolveHostID(*request);
 
     if (hostname.empty()) {
         return ::grpc::Status(::grpc::StatusCode::INVALID_ARGUMENT,
@@ -29,10 +44,20 @@ namespace monitor {
         hostDatas_[hostname] = {*request, std::chrono::system_clock::now()};
     }
 
-    std::cout << "Received monitor data from host: " << hostname << std::endl;
-
-    // callback
-    if (callback_) callback_(*request);
+    if (dispatcher_ && callback_) {
+        monitor::proto::MonitorInfo requestCopy = *request;
+        DataReceivedCallback callback = callback_;
+        if (!dispatcher_->submitMonitorTask(
+                hostname,
+                [callback = std::move(callback),
+                 requestCopy = std::move(requestCopy)]() {
+                    callback(requestCopy);
+                })) {
+            return ::grpc::Status::OK;
+        }
+    } else if (callback_) {
+        callback_(*request);
+    }
 
     return ::grpc::Status::OK;
 }

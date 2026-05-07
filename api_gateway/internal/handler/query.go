@@ -284,6 +284,7 @@ func writeGRPCResult(c *gin.Context, data json.RawMessage, err error) {
 // - NotFound -> 404 Not Found
 // - DeadlineExceeded -> 504 Gateway Timeout
 // - Unavailable -> 502 Bad Gateway
+// - ResourceExhausted -> 429 Too Many Requests
 // 对于其他未明确映射的错误，默认返回500 Internal Server Error。
 func grpcHTTPStatus(err error) int {
 	switch status.Code(err) {
@@ -295,6 +296,8 @@ func grpcHTTPStatus(err error) int {
 		return http.StatusGatewayTimeout
 	case codes.Unavailable:
 		return http.StatusBadGateway
+	case codes.ResourceExhausted:
+		return http.StatusTooManyRequests
 	default:
 		return http.StatusInternalServerError
 	}

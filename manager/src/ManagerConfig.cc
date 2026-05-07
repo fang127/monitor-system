@@ -95,6 +95,24 @@ ManagerConfig loadManagerConfigFromEnv() {
     cfg.task_timeout =
         std::chrono::milliseconds(envInt("MANAGER_TASK_TIMEOUT_MS", static_cast<int>(cfg.task_timeout.count()), 1));
 
+    cfg.ingest_shard_count = envSize("MANAGER_INGEST_SHARD_COUNT", cfg.ingest_shard_count, 1);
+    cfg.ingest_queue_capacity_per_shard =
+        envSize("MANAGER_INGEST_QUEUE_CAPACITY_PER_SHARD", cfg.ingest_queue_capacity_per_shard, 1);
+    cfg.query_queue_capacity = envSize("MANAGER_QUERY_QUEUE_CAPACITY", cfg.query_queue_capacity, 1);
+    cfg.query_queue_high_watermark =
+        envSize("MANAGER_QUERY_QUEUE_HIGH_WATERMARK", cfg.query_queue_capacity * 8 / 10, 1);
+    cfg.query_queue_low_watermark =
+        envSize("MANAGER_QUERY_QUEUE_LOW_WATERMARK", cfg.query_queue_capacity * 3 / 10, 0);
+    if (cfg.query_queue_high_watermark > cfg.query_queue_capacity)
+        cfg.query_queue_high_watermark = cfg.query_queue_capacity;
+    if (cfg.query_queue_low_watermark > cfg.query_queue_high_watermark)
+        cfg.query_queue_low_watermark = cfg.query_queue_high_watermark / 2;
+    cfg.query_threads_min = envInt("MANAGER_QUERY_THREADS_MIN", std::max(4, cpu), 1);
+    cfg.query_threads_max =
+        envInt("MANAGER_QUERY_THREADS_MAX", std::max(cfg.query_threads_min, cpu * 2), cfg.query_threads_min);
+    cfg.query_idle_shrink =
+        std::chrono::seconds(envInt("MANAGER_QUERY_IDLE_SHRINK_SECONDS", static_cast<int>(cfg.query_idle_shrink.count()), 1));
+
     cfg.business_threads_min = envInt("MANAGER_BUSINESS_THREADS_MIN", std::max(4, cpu), 1);
     cfg.business_threads_max =
         envInt("MANAGER_BUSINESS_THREADS_MAX", std::max(cfg.business_threads_min, cpu * 2), cfg.business_threads_min);

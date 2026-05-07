@@ -3,6 +3,8 @@
 #include "query_api.grpc.pb.h"
 #include "query_api.pb.h"
 #include "QueryManager.h"
+#include "ManagerDispatcher.h"
+#include "RedisConnectionPool.h"
 
 namespace monitor {
 /**
@@ -14,7 +16,9 @@ namespace monitor {
  */
 class QueryServiceImpl final : public monitor::proto::QueryService::Service {
 public:
-    explicit QueryServiceImpl(QueryManager *query_manager);
+    explicit QueryServiceImpl(QueryManager *query_manager,
+                              ManagerDispatcher *dispatcher = nullptr,
+                              RedisCache *redis_cache = nullptr);
     virtual ~QueryServiceImpl() = default;
 
     /**
@@ -208,6 +212,8 @@ private:
                       const std::chrono::system_clock::time_point &tp);
 
     QueryManager *queryManager_;
+    ManagerDispatcher *dispatcher_;
+    RedisCache *redisCache_;
 };
 
 } // namespace monitor

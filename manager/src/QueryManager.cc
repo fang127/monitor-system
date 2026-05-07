@@ -293,10 +293,20 @@ int64_t toI64(const std::vector<std::string> &row, std::size_t index) {
 
 bool QueryManager::init(const std::string &host, unsigned int port,
                         const std::string &user, const std::string &password,
-                        const std::string &db) {
+                        const std::string &db, MysqlConnectionPool *queryPool,
+                        const ManagerConfig *config, ManagerMetrics *metrics) {
 #ifdef ENABLE_MYSQL
     std::lock_guard<std::mutex> lock(mutex_);
     if (initialized_) return true;
+    if (config) config_ = *config;
+    metrics_ = metrics;
+    queryPool_ = queryPool;
+
+    if (queryPool_) {
+        initialized_ = true;
+        std::cout << "QueryManager: MySQL query pool initialized" << std::endl;
+        return true;
+    }
 
     // 初始化MySQL连接
     // 使用mysql_init创建连接对象，传入nullptr表示使用默认选项
@@ -312,6 +322,7 @@ bool QueryManager::init(const std::string &host, unsigned int port,
                             db.c_str(), port, nullptr, 0)) {
         std::cerr << "QueryManager mysql_real_connect failed: "
                   << mysql_error(conn_) << std::endl;
+        if (metrics_) metrics_->mysql_errors.fetch_add(1);
         mysql_close(conn_);
         conn_ = nullptr;
         return false;
@@ -329,6 +340,9 @@ bool QueryManager::init(const std::string &host, unsigned int port,
     (void)user;
     (void)password;
     (void)db;
+    (void)queryPool;
+    (void)config;
+    (void)metrics;
     std::cerr << "QueryManager: MySQL support is not enabled." << std::endl;
     return false;
 #endif
@@ -337,7 +351,10 @@ bool QueryManager::init(const std::string &host, unsigned int port,
 void QueryManager::close() {
 #ifdef ENABLE_MYSQL
     std::lock_guard<std::mutex> lock(mutex_);
-    if (conn_) {
+    if (queryPool_) {
+        initialized_ = false;
+        queryPool_ = nullptr;
+    } else if (conn_) {
         mysql_close(conn_);
         conn_ = nullptr;
         initialized_ = false;
@@ -347,7 +364,7 @@ void QueryManager::close() {
 
 bool QueryManager::isInitialized() const {
 #ifdef ENABLE_MYSQL
-    return initialized_ && conn_ != nullptr;
+    return initialized_ && (queryPool_ != nullptr || conn_ != nullptr);
 #else
     return false;
 #endif
@@ -374,18 +391,45 @@ bool QueryManager::validateTimeRange(const TimeRange &range) const {
     return range.start_time <= range.end_time;
 }
 
+#ifdef ENABLE_MYSQL
+QueryManager::MysqlConnectionLease QueryManager::acquireConnection(
+    std::string *error) {
+    MysqlConnectionLease lease;
+    if (!initialized_) {
+        setError(error, "QueryManager is not initialized");
+        return lease;
+    }
+
+    if (queryPool_) {
+        lease.guard = queryPool_->acquire(config_.mysql_read_timeout);
+        if (!lease.guard) {
+            setError(error, "QueryManager query connection acquire timed out");
+            if (metrics_) metrics_->pool_timeouts.fetch_add(1);
+            return lease;
+        }
+        lease.conn = lease.guard.get();
+        return lease;
+    }
+
+    lease.fallback_lock = std::unique_lock<std::mutex>(mutex_);
+    if (!conn_) {
+        setError(error, "QueryManager is not initialized");
+        return lease;
+    }
+    lease.conn = conn_;
+    return lease;
+}
+#endif
+
 std::vector<PerformanceRecord> QueryManager::queryPerformanceRecords(
     const std::string &serverName, const TimeRange &range, int page,
     int pageSize, int *totalCount, std::string *error) {
     std::vector<PerformanceRecord> records;
     if (error) error->clear();
 #ifdef ENABLE_MYSQL
-    std::lock_guard<std::mutex> lock(mutex_);
-    // Validate connection and initialization
-    if (!initialized_ || !conn_) {
-        setError(error, "QueryManager is not initialized");
-        return records;
-    }
+    auto lease = acquireConnection(error);
+    MYSQL *conn = lease.conn;
+    if (!conn) return records;
     // Validate time range
     if (!validateTimeRange(range)) {
         setError(error, "Invalid time range: start_time > end_time");
@@ -401,7 +445,7 @@ std::vector<PerformanceRecord> QueryManager::queryPerformanceRecords(
     if (totalCount) {
         // 获取满足条件的记录总数，方便前端分页显示
         if (!executePreparedCount(
-                conn_,
+                conn,
                 "SELECT COUNT(*) FROM server_performance "
                 "WHERE server_name=? AND timestamp BETWEEN ? AND ?",
                 {stringParam(serverName), stringParam(startTimeStr),
@@ -416,7 +460,7 @@ std::vector<PerformanceRecord> QueryManager::queryPerformanceRecords(
     int offset = (page - 1) * pageSize; // 计算分页偏移量
     std::vector<std::vector<std::string>> rows;
     if (!executePreparedRows(
-            conn_,
+            conn,
             "SELECT server_name, timestamp, cpu_percent, usr_percent, "
             "system_percent, nice_percent, idle_percent, io_wait_percent, "
             "irq_percent, soft_irq_percent, load_avg_1, load_avg_3, "
@@ -511,12 +555,9 @@ std::vector<PerformanceRecord> QueryManager::queryTrend(
     std::vector<PerformanceRecord> records;
     if (error) error->clear();
 #ifdef ENABLE_MYSQL
-    std::lock_guard<std::mutex> lock(mutex_);
-    // Validate connection and initialization
-    if (!initialized_ || !conn_) {
-        setError(error, "QueryManager is not initialized");
-        return records;
-    }
+    auto lease = acquireConnection(error);
+    MYSQL *conn = lease.conn;
+    if (!conn) return records;
     // Validate time range
     if (!validateTimeRange(range)) {
         setError(error, "Invalid time range: start_time > end_time");
@@ -570,7 +611,7 @@ std::vector<PerformanceRecord> QueryManager::queryTrend(
     }
 
     std::vector<std::vector<std::string>> rows;
-    if (!executePreparedRows(conn_, query, std::move(params), rows,
+    if (!executePreparedRows(conn, query, std::move(params), rows,
                              "trend query", error)) {
         return records;
     }
@@ -633,12 +674,9 @@ std::vector<AnomalyRecord> QueryManager::queryAnomalyRecords(
     std::vector<AnomalyRecord> records;
     if (error) error->clear();
 #ifdef ENABLE_MYSQL
-    std::lock_guard<std::mutex> lock(mutex_);
-    // Validate connection and initialization
-    if (!initialized_ || !conn_) {
-        setError(error, "QueryManager is not initialized");
-        return records;
-    }
+    auto lease = acquireConnection(error);
+    MYSQL *conn = lease.conn;
+    if (!conn) return records;
     // Validate time range
     if (!validateTimeRange(range)) {
         setError(error, "Invalid time range: start_time > end_time");
@@ -671,7 +709,7 @@ std::vector<AnomalyRecord> QueryManager::queryAnomalyRecords(
     std::vector<std::vector<std::string>> rows;
     // 查询满足异常条件的记录，注意这里没有直接在SQL中计算异常类型和严重程度，而是在应用层进行判断和分类，以便更灵活地定义异常规则和级别
     if (!executePreparedRows(
-            conn_,
+            conn,
             "SELECT server_name, timestamp, cpu_percent, mem_used_percent, "
             "disk_util_percent, cpu_percent_rate, mem_used_percent_rate "
             "FROM server_performance WHERE " +
@@ -767,19 +805,16 @@ std::vector<ServerScoreSummary> QueryManager::queryServerScoreRank(
     std::vector<ServerScoreSummary> records;
     if (error) error->clear();
 #ifdef ENABLE_MYSQL
-    std::lock_guard<std::mutex> lock(mutex_);
-    // Validate connection and initialization
-    if (!initialized_ || !conn_) {
-        setError(error, "QueryManager is not initialized");
-        return records;
-    }
+    auto lease = acquireConnection(error);
+    MYSQL *conn = lease.conn;
+    if (!conn) return records;
     // Validate pagination parameters
     if (page < 1) page = 1;
     if (pageSize < 1) pageSize = 100;
 
     if (totalCount) {
         if (!executePreparedCount(
-                conn_,
+                conn,
                 "SELECT COUNT(DISTINCT server_name) FROM server_performance",
                 {}, "score rank count", totalCount, error)) {
             return records;
@@ -801,7 +836,7 @@ std::vector<ServerScoreSummary> QueryManager::queryServerScoreRank(
         "ORDER BY p1.score " +
         orderBy + " LIMIT ? OFFSET ?";
     std::vector<std::vector<std::string>> rows;
-    if (!executePreparedRows(conn_, query,
+    if (!executePreparedRows(conn, query,
                              {intParam(pageSize), intParam(offset)}, rows,
                              "score rank query", error)) {
         return records;
@@ -843,12 +878,9 @@ std::vector<ServerScoreSummary> QueryManager::queryLatestServerScores(
     std::vector<ServerScoreSummary> records;
     if (error) error->clear();
 #ifdef ENABLE_MYSQL
-    std::lock_guard<std::mutex> lock(mutex_);
-    // Validate connection and initialization
-    if (!initialized_ || !conn_) {
-        setError(error, "QueryManager is not initialized");
-        return records;
-    }
+    auto lease = acquireConnection(error);
+    MYSQL *conn = lease.conn;
+    if (!conn) return records;
     // query latest score for each server
     std::string query =
         "SELECT p1.server_name, p1.score, p1.timestamp, p1.cpu_percent, "
@@ -860,7 +892,7 @@ std::vector<ServerScoreSummary> QueryManager::queryLatestServerScores(
         ") p2 ON p1.server_name = p2.server_name AND p1.timestamp = p2.max_ts "
         "ORDER BY p1.score DESC";
     std::vector<std::vector<std::string>> rows;
-    if (!executePreparedRows(conn_, query, {}, rows, "latest score query",
+    if (!executePreparedRows(conn, query, {}, rows, "latest score query",
                              error))
         return records;
 
@@ -934,11 +966,9 @@ std::vector<NetDetailRecord> QueryManager::queryNetDetailRecords(
     if (error) error->clear();
 
 #ifdef ENABLE_MYSQL
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (!initialized_ || !conn_) {
-        setError(error, "QueryManager is not initialized");
-        return records;
-    }
+    auto lease = acquireConnection(error);
+    MYSQL *conn = lease.conn;
+    if (!conn) return records;
 
     if (!validateTimeRange(range)) {
         setError(error, "Invalid time range: start_time > end_time");
@@ -952,7 +982,7 @@ std::vector<NetDetailRecord> QueryManager::queryNetDetailRecords(
 
     if (totalCount) {
         if (!executePreparedCount(
-                conn_,
+                conn,
                 "SELECT COUNT(*) FROM server_net_detail "
                 "WHERE server_name=? AND timestamp BETWEEN ? AND ?",
                 {stringParam(serverName), stringParam(startTime),
@@ -966,7 +996,7 @@ std::vector<NetDetailRecord> QueryManager::queryNetDetailRecords(
     int offset = (page - 1) * pageSize;
     std::vector<std::vector<std::string>> rows;
     if (!executePreparedRows(
-            conn_,
+            conn,
             "SELECT server_name, net_name, timestamp, err_in, err_out, "
             "drop_in, drop_out, rcv_bytes_rate, snd_bytes_rate, "
             "rcv_packets_rate, snd_packets_rate "
@@ -1026,11 +1056,9 @@ std::vector<DiskDetailRecord> QueryManager::queryDiskDetailRecords(
     if (error) error->clear();
 
 #ifdef ENABLE_MYSQL
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (!initialized_ || !conn_) {
-        setError(error, "QueryManager is not initialized");
-        return records;
-    }
+    auto lease = acquireConnection(error);
+    MYSQL *conn = lease.conn;
+    if (!conn) return records;
 
     if (!validateTimeRange(range)) {
         setError(error, "Invalid time range: start_time > end_time");
@@ -1044,7 +1072,7 @@ std::vector<DiskDetailRecord> QueryManager::queryDiskDetailRecords(
 
     if (totalCount) {
         if (!executePreparedCount(
-                conn_,
+                conn,
                 "SELECT COUNT(*) FROM server_disk_detail "
                 "WHERE server_name=? AND timestamp BETWEEN ? AND ?",
                 {stringParam(serverName), stringParam(startTime),
@@ -1057,7 +1085,7 @@ std::vector<DiskDetailRecord> QueryManager::queryDiskDetailRecords(
     int offset = (page - 1) * pageSize;
     std::vector<std::vector<std::string>> rows;
     if (!executePreparedRows(
-            conn_,
+            conn,
             "SELECT server_name, disk_name, timestamp, read_bytes_per_sec, "
             "write_bytes_per_sec, read_iops, write_iops, avg_read_latency_ms, "
             "avg_write_latency_ms, util_percent "
@@ -1115,11 +1143,9 @@ std::vector<MemDetailRecord> QueryManager::queryMemDetailRecords(
     if (error) error->clear();
 
 #ifdef ENABLE_MYSQL
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (!initialized_ || !conn_) {
-        setError(error, "QueryManager is not initialized");
-        return records;
-    }
+    auto lease = acquireConnection(error);
+    MYSQL *conn = lease.conn;
+    if (!conn) return records;
 
     if (!validateTimeRange(range)) {
         setError(error, "Invalid time range: start_time > end_time");
@@ -1133,7 +1159,7 @@ std::vector<MemDetailRecord> QueryManager::queryMemDetailRecords(
 
     if (totalCount) {
         if (!executePreparedCount(
-                conn_,
+                conn,
                 "SELECT COUNT(*) FROM server_mem_detail "
                 "WHERE server_name=? AND timestamp BETWEEN ? AND ?",
                 {stringParam(serverName), stringParam(startTime),
@@ -1146,7 +1172,7 @@ std::vector<MemDetailRecord> QueryManager::queryMemDetailRecords(
     int offset = (page - 1) * pageSize;
     std::vector<std::vector<std::string>> rows;
     if (!executePreparedRows(
-            conn_,
+            conn,
             "SELECT server_name, timestamp, total, free, avail, buffers, "
             "cached, active, inactive, dirty "
             "FROM server_mem_detail WHERE server_name=? "
@@ -1203,11 +1229,9 @@ std::vector<SoftIrqDetailRecord> QueryManager::querySoftIrqDetailRecords(
     if (error) error->clear();
 
 #ifdef ENABLE_MYSQL
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (!initialized_ || !conn_) {
-        setError(error, "QueryManager is not initialized");
-        return records;
-    }
+    auto lease = acquireConnection(error);
+    MYSQL *conn = lease.conn;
+    if (!conn) return records;
 
     if (!validateTimeRange(range)) {
         setError(error, "Invalid time range: start_time > end_time");
@@ -1221,7 +1245,7 @@ std::vector<SoftIrqDetailRecord> QueryManager::querySoftIrqDetailRecords(
 
     if (totalCount) {
         if (!executePreparedCount(
-                conn_,
+                conn,
                 "SELECT COUNT(*) FROM server_softirq_detail "
                 "WHERE server_name=? AND timestamp BETWEEN ? AND ?",
                 {stringParam(serverName), stringParam(startTime),
@@ -1234,7 +1258,7 @@ std::vector<SoftIrqDetailRecord> QueryManager::querySoftIrqDetailRecords(
     int offset = (page - 1) * pageSize;
     std::vector<std::vector<std::string>> rows;
     if (!executePreparedRows(
-            conn_,
+            conn,
             "SELECT server_name, cpu_name, timestamp, hi, timer, net_tx, "
             "net_rx, block, sched "
             "FROM server_softirq_detail WHERE server_name=? "

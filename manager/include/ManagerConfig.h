@@ -21,6 +21,16 @@ struct ManagerConfig {
     std::size_t task_queue_high_watermark = 8000; // 任务队列的高水位线，当队列长度超过该值时，可能会触发流控或报警
     std::size_t task_queue_low_watermark = 3000;  // 任务队列的低水位线，当队列长度降到该值以下时，流控或报警将被解除
     std::chrono::milliseconds task_timeout{3000}; // 任务的超时时间，超过该时间未完成的任务将被取消或重试
+    std::size_t ingest_shard_count = 8;           // 数据写入的分片数量，建议设置为CPU核心数的倍数，以提高并发写入性能
+    std::size_t ingest_queue_capacity_per_shard = 2048; // 每个分片的写入队列容量，超过该值后新写入任务将被拒绝
+
+    std::size_t query_queue_capacity = 10000;      // 查询队列的最大容量，超过该值后新查询任务将被拒绝
+    std::size_t query_queue_high_watermark = 8000; // 查询队列的高水位线，当队列长度超过该值时，可能会触发流控或报警
+    std::size_t query_queue_low_watermark = 3000;  // 查询队列的低水位线，当队列长度降到该值以下时，流控或报警将被解除
+    int query_threads_min = 4;  // 查询线程池的最小线程数，建议设置为CPU核心数的2倍，以提高查询处理性能
+    int query_threads_max = 16; // 查询线程池的最大线程数，建议设置为CPU核心数的8倍，以提高查询处理性能
+    std::chrono::seconds query_idle_shrink{
+        30}; // 查询线程池的空闲线程回收时间，当线程空闲超过该时间时将被回收，以节省资源
 
     // 业务线程池相关配置，控制业务线程的数量和空闲线程的回收
     int business_threads_min = 4;                  // 业务线程池的最小线程数，建议设置为CPU核心数的2倍

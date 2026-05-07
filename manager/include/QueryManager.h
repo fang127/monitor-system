@@ -2,6 +2,10 @@
 
 #include <string>
 
+#include "ManagerConfig.h"
+#include "ManagerMetrics.h"
+#include "MysqlConnectionPool.h"
+
 #include <mysql.h>
 #include <chrono>
 #include <string>
@@ -233,7 +237,9 @@ public:
      */
     bool init(const std::string &host, unsigned int port,
               const std::string &user, const std::string &password,
-              const std::string &db);
+              const std::string &db, MysqlConnectionPool *queryPool = nullptr,
+              const ManagerConfig *config = nullptr,
+              ManagerMetrics *metrics = nullptr);
 
     /**
      * @brief         close the database connection and clean up resources
@@ -381,6 +387,16 @@ public:
         int pageSize, int *totalCount, std::string *error = nullptr);
 
 private:
+#ifdef ENABLE_MYSQL
+    struct MysqlConnectionLease {
+        MysqlConnectionPool::Guard guard;
+        MYSQL *conn = nullptr;
+        std::unique_lock<std::mutex> fallback_lock;
+    };
+
+    MysqlConnectionLease acquireConnection(std::string *error);
+#endif
+
     /**
      * @brief         format a time_point to a string suitable for SQL queries
      *
@@ -401,7 +417,10 @@ private:
 
 #ifdef ENABLE_MYSQL
     MYSQL *conn_ = nullptr; // MySQL connection handle
+    MysqlConnectionPool *queryPool_ = nullptr;
 #endif
+    ManagerConfig config_;
+    ManagerMetrics *metrics_ = nullptr;
     std::mutex mutex_;
     bool initialized_ = false;
 };

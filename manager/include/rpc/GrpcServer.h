@@ -3,6 +3,7 @@
 #include <chrono>
 #include <string>
 #include <unordered_map>
+#include "ManagerDispatcher.h"
 #include "monitor_info.grpc.pb.h"
 #include "monitor_info.pb.h"
 
@@ -70,6 +71,10 @@ public:
         callback_ = std::move(callback);
     }
 
+    void setDispatcher(ManagerDispatcher *dispatcher) {
+        dispatcher_ = dispatcher;
+    }
+
     /**
      * @brief         Get the All Host Datas object
      *
@@ -91,5 +96,6 @@ private:
     std::mutex mutex_;
     std::unordered_map<std::string, HostData> hostDatas_;
     DataReceivedCallback callback_;
+    ManagerDispatcher *dispatcher_ = nullptr;
 };
 } // namespace monitor

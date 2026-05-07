@@ -1,12 +1,19 @@
 #pragma once
+#include "ManagerConfig.h"
+#include "ManagerMetrics.h"
+#include "MysqlConnectionPool.h"
+#include "RedisConnectionPool.h"
 #include "monitor_info.pb.h"
 
+#include <condition_variable>
+#include <deque>
 #include <chrono>
 #include <memory>
 #include <unordered_map>
 #include <mutex>
 #include <atomic>
 #include <thread>
+#include <vector>
 
 namespace monitor {
 /**
@@ -61,6 +68,9 @@ class HostManager {
 public:
     HostManager();
     ~HostManager();
+
+    void configure(const ManagerConfig &config, ManagerMetrics *metrics,
+                   MysqlConnectionPool *mysqlWritePool, RedisCache *redisCache);
 
     /**
      * @brief         start HostManager thread
@@ -118,11 +128,23 @@ private:
      */
     void writeToMysql(HostMonitoringData &data);
 
+    void enqueueMysqlWrite(HostMonitoringData data);
+    void mysqlWriteLoop();
+
     std::unordered_map<std::string, HostScore> hostScores_;
     std::mutex mutex_;
-    std::mutex receiveMutex_;
     std::atomic<bool> running_;
     std::unique_ptr<std::thread> thread_;
+    ManagerConfig config_;
+    ManagerMetrics *metrics_ = nullptr;
+    MysqlConnectionPool *mysqlWritePool_ = nullptr;
+    RedisCache *redisCache_ = nullptr;
+
+    std::deque<HostMonitoringData> mysqlWriteQueue_;
+    std::mutex mysqlWriteQueueMutex_;
+    std::condition_variable mysqlWriteQueueCv_;
+    std::vector<std::thread> mysqlWriteThreads_;
+    std::mutex mysqlWriteMutex_;
 };
 
 }; // namespace monitor

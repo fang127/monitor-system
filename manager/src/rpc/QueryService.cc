@@ -1,10 +1,33 @@
 #include "QueryService.h"
 
 #include <iostream>
+#include <utility>
 
 namespace monitor {
 
 namespace {
+
+thread_local bool g_inside_dispatcher = false;
+
+class DispatcherScope {
+public:
+    DispatcherScope() { g_inside_dispatcher = true; }
+    ~DispatcherScope() { g_inside_dispatcher = false; }
+};
+
+template <typename Request, typename Response, typename Method>
+grpc::Status dispatchQuery(ManagerDispatcher *dispatcher,
+                           const Request *request, Response *response,
+                           Method method) {
+    if (!dispatcher || g_inside_dispatcher) return grpc::Status::OK;
+    Request requestCopy = request ? *request : Request();
+    return dispatcher->submitQueryTask<Response>(
+        [requestCopy = std::move(requestCopy), method](Response *out) mutable {
+            DispatcherScope scope;
+            return method(&requestCopy, out);
+        },
+        response);
+}
 
 /**
  * @brief         将查询错误转换为 gRPC 状态码，区分未初始化和其他内部错误
@@ -22,8 +45,12 @@ grpc::Status queryErrorStatus(const std::string &error) {
 
 } // namespace
 
-QueryServiceImpl::QueryServiceImpl(QueryManager *queryManager)
-    : queryManager_(queryManager) {}
+QueryServiceImpl::QueryServiceImpl(QueryManager *queryManager,
+                                   ManagerDispatcher *dispatcher,
+                                   RedisCache *redisCache)
+    : queryManager_(queryManager),
+      dispatcher_(dispatcher),
+      redisCache_(redisCache) {}
 
 TimeRange QueryServiceImpl::convertTimeRange(
     const ::monitor::proto::TimeRange &range) {
@@ -50,6 +77,13 @@ void QueryServiceImpl::setTimestamp(
     const ::monitor::proto::QueryPerformanceRequest *request,
     ::monitor::proto::QueryPerformanceResponse *response) {
     (void)context;
+
+    if (dispatcher_ && !g_inside_dispatcher) {
+        return dispatchQuery(dispatcher_, request, response,
+                             [this](const auto *req, auto *resp) {
+                                 return QueryPerformance(nullptr, req, resp);
+                             });
+    }
 
     if (!queryManager_ || !queryManager_->isInitialized()) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE,
@@ -116,6 +150,13 @@ void QueryServiceImpl::setTimestamp(
     ::monitor::proto::QueryTrendResponse *response) {
     (void)context;
 
+    if (dispatcher_ && !g_inside_dispatcher) {
+        return dispatchQuery(dispatcher_, request, response,
+                             [this](const auto *req, auto *resp) {
+                                 return QueryTrend(nullptr, req, resp);
+                             });
+    }
+
     if (!queryManager_ || !queryManager_->isInitialized()) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                             "Query manager not initialized");
@@ -164,6 +205,13 @@ void QueryServiceImpl::setTimestamp(
     const ::monitor::proto::QueryAnomalyRequest *request,
     ::monitor::proto::QueryAnomalyResponse *response) {
     (void)context;
+
+    if (dispatcher_ && !g_inside_dispatcher) {
+        return dispatchQuery(dispatcher_, request, response,
+                             [this](const auto *req, auto *resp) {
+                                 return QueryAnomaly(nullptr, req, resp);
+                             });
+    }
 
     if (!queryManager_ || !queryManager_->isInitialized()) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE,
@@ -223,6 +271,13 @@ void QueryServiceImpl::setTimestamp(
     ::monitor::proto::QueryScoreRankResponse *response) {
     (void)context;
 
+    if (dispatcher_ && !g_inside_dispatcher) {
+        return dispatchQuery(dispatcher_, request, response,
+                             [this](const auto *req, auto *resp) {
+                                 return QueryScoreRank(nullptr, req, resp);
+                             });
+    }
+
     if (!queryManager_ || !queryManager_->isInitialized()) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                             "Query manager not initialized");
@@ -271,6 +326,19 @@ void QueryServiceImpl::setTimestamp(
     (void)context;
     (void)request;
 
+    if (dispatcher_ && !g_inside_dispatcher) {
+        return dispatchQuery(dispatcher_, request, response,
+                             [this](const auto *req, auto *resp) {
+                                 return QueryLatestScore(nullptr, req, resp);
+                             });
+    }
+
+    if (redisCache_) {
+        auto cached = redisCache_->get("manager:query:latest_score");
+        if (cached && response->ParseFromString(*cached))
+            return grpc::Status::OK;
+    }
+
     if (!queryManager_ || !queryManager_->isInitialized()) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                             "Query manager not initialized");
@@ -305,6 +373,12 @@ void QueryServiceImpl::setTimestamp(
     proto_stats->set_best_server(stats.best_server);
     proto_stats->set_worst_server(stats.worst_server);
 
+    if (redisCache_) {
+        std::string serialized;
+        if (response->SerializeToString(&serialized))
+            redisCache_->set("manager:query:latest_score", serialized);
+    }
+
     return grpc::Status::OK;
 }
 
@@ -313,6 +387,13 @@ void QueryServiceImpl::setTimestamp(
     const ::monitor::proto::QueryDetailRequest *request,
     ::monitor::proto::QueryNetDetailResponse *response) {
     (void)context;
+
+    if (dispatcher_ && !g_inside_dispatcher) {
+        return dispatchQuery(dispatcher_, request, response,
+                             [this](const auto *req, auto *resp) {
+                                 return QueryNetDetail(nullptr, req, resp);
+                             });
+    }
 
     if (!queryManager_ || !queryManager_->isInitialized()) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE,
@@ -365,6 +446,13 @@ void QueryServiceImpl::setTimestamp(
     ::monitor::proto::QueryDiskDetailResponse *response) {
     (void)context;
 
+    if (dispatcher_ && !g_inside_dispatcher) {
+        return dispatchQuery(dispatcher_, request, response,
+                             [this](const auto *req, auto *resp) {
+                                 return QueryDiskDetail(nullptr, req, resp);
+                             });
+    }
+
     if (!queryManager_ || !queryManager_->isInitialized()) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                             "Query manager not initialized");
@@ -415,6 +503,13 @@ void QueryServiceImpl::setTimestamp(
     ::monitor::proto::QueryMemDetailResponse *response) {
     (void)context;
 
+    if (dispatcher_ && !g_inside_dispatcher) {
+        return dispatchQuery(dispatcher_, request, response,
+                             [this](const auto *req, auto *resp) {
+                                 return QueryMemDetail(nullptr, req, resp);
+                             });
+    }
+
     if (!queryManager_ || !queryManager_->isInitialized()) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                             "Query manager not initialized");
@@ -464,6 +559,13 @@ void QueryServiceImpl::setTimestamp(
     const ::monitor::proto::QueryDetailRequest *request,
     ::monitor::proto::QuerySoftIrqDetailResponse *response) {
     (void)context;
+
+    if (dispatcher_ && !g_inside_dispatcher) {
+        return dispatchQuery(dispatcher_, request, response,
+                             [this](const auto *req, auto *resp) {
+                                 return QuerySoftIrqDetail(nullptr, req, resp);
+                             });
+    }
 
     if (!queryManager_ || !queryManager_->isInitialized()) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE,
