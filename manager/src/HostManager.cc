@@ -1,14 +1,11 @@
 #include "HostManager.h"
 
-#include "MysqlConfig.h"
 #include "mysql.h"
 #include <sys/types.h>
 #include <algorithm>
 #include <cctype>
 #include <chrono>
 #include <mutex>
-#include <random>
-#include <stdexcept>
 #include <thread>
 #include <sstream>
 
@@ -98,8 +95,14 @@ std::string quoteSqlString(MYSQL *conn, const std::string &value) {
 #endif
 
 namespace {
-const monitor::proto::CpuStat *
-selectAggregateCpuStat(const monitor::proto::MonitorInfo &info) {
+/**
+ * @brief
+ * 选择用于计算分数的CPU统计数据，优先选择名为"all"的统计数据，如果没有则选择名为"cpu"的统计数据，如果仍然没有，则选择第一个CPU统计数据。
+ *
+ * @param         info
+ * @return
+ */
+const monitor::proto::CpuStat *selectAggregateCpuStat(const monitor::proto::MonitorInfo &info) {
     const monitor::proto::CpuStat *legacyCpu = nullptr;
     for (int i = 0; i < info.cpu_stat_size(); ++i) {
         const auto &cpu = info.cpu_stat(i);
@@ -110,12 +113,25 @@ selectAggregateCpuStat(const monitor::proto::MonitorInfo &info) {
     return info.cpu_stat_size() > 0 ? &info.cpu_stat(0) : nullptr;
 }
 
+/**
+ * @brief         判断CPU统计数据的名称是否符合每核统计的命名规则，即以"cpu"开头，后面跟数字，例如"cpu0"、"cpu1"等。
+ *
+ * @param         name
+ * @return
+ * @return
+ */
 bool isPerCoreCpuName(const std::string &name) {
     if (name.size() <= 3 || name.compare(0, 3, "cpu") != 0) return false;
-    return std::all_of(name.begin() + 3, name.end(),
-                       [](unsigned char ch) { return std::isdigit(ch); });
+    return std::all_of(name.begin() + 3, name.end(), [](unsigned char ch) { return std::isdigit(ch); });
 }
 
+/**
+ * @brief
+ * 计算CPU核心数量的方法是遍历所有的CPU统计数据，检查每个统计数据的名称是否符合每核统计的命名规则，如果符合则计数器加1。最后返回计数器的值，如果没有找到任何符合条件的统计数据，则默认返回1，表示至少有一个CPU核心。
+ *
+ * @param         info
+ * @return
+ */
 int countCpuCores(const monitor::proto::MonitorInfo &info) {
     int cores = 0;
     for (int i = 0; i < info.cpu_stat_size(); ++i) {
