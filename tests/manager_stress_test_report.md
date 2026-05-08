@@ -709,3 +709,396 @@ manager: queue_rejected=0, dropped_monitor_samples=0, task_timeouts=0, mysql_err
 ```
 
 因此，当前 mixed 场景建议按 `896 workers + 1792 query threads` 作为可发布的无损容量结论。`928+1856` 虽然客户端成功率和延迟仍达标，但 manager 已有样本丢弃，不能作为无损容量。
+
+## Worker-only 测试记录 1：1024 台主机
+
+### 测试配置
+
+| 项目 | 值 |
+|---|---:|
+| worker 并发 | `1024` |
+| query 并发 | `0` |
+| duration | `120s` |
+| warmup | `5s` |
+| worker 间隔 | `10000ms` |
+| query 间隔 | `0ms` |
+| success rate 阈值 | `1.0` |
+| p95 阈值 | `2000ms` |
+
+### 执行命令
+
+```bash
+./build/Debug/tests/manager_stress_test \
+  --manager localhost:50051 \
+  --mode worker \
+  --worker-concurrency 1024 \
+  --worker-interval-ms 10000 \
+  --duration-seconds 120 \
+  --warmup-seconds 5 \
+  --min-success-rate 1.0 \
+  --max-p95-ms 2000
+```
+
+### 压测客户端输出
+
+```text
+Manager stress test
+  manager=localhost:50051
+  mode=worker
+  query_kind=latest
+  duration=120s warmup=5s timeout=3000ms
+  intervals: worker=10000ms query=0ms
+  pass: success_rate>=1 p95<=2000.000000ms
+
+[run] workers=1024 queries=0 duration=120s worker_interval_ms=10000 query_interval_ms=0 query_kind=latest
+  verdict=PASS elapsed=120.03s
+  worker: total=12288 success=12288 failure=0 success_rate=1.0000 rps=102.4 p50_ms=206.47 p95_ms=251.26 p99_ms=262.79
+```
+
+### manager metrics
+
+```text
+[manager.metrics] worker_requests=13312 query_requests=0 queue_size=0 business_threads=12 mysql_write_available=1 mysql_query_available=2 redis_available=8 queue_rejected=0 dropped_monitor_samples=86 task_timeouts=0 task_errors=0 mysql_errors=0 redis_errors=0 pool_timeouts=0 pool_reconnects=12
+[manager.metrics] worker_requests=13312 query_requests=0 queue_size=0 business_threads=12 mysql_write_available=1 mysql_query_available=2 redis_available=8 queue_rejected=0 dropped_monitor_samples=86 task_timeouts=0 task_errors=0 mysql_errors=0 redis_errors=0 pool_timeouts=0 pool_reconnects=12
+[manager.metrics] worker_requests=13312 query_requests=0 queue_size=0 business_threads=12 mysql_write_available=1 mysql_query_available=2 redis_available=8 queue_rejected=0 dropped_monitor_samples=86 task_timeouts=0 task_errors=0 mysql_errors=0 redis_errors=0 pool_timeouts=0 pool_reconnects=12
+[manager.metrics] worker_requests=13312 query_requests=0 queue_size=0 business_threads=12 mysql_write_available=1 mysql_query_available=2 redis_available=8 queue_rejected=0 dropped_monitor_samples=86 task_timeouts=0 task_errors=0 mysql_errors=0 redis_errors=0 pool_timeouts=0 pool_reconnects=12
+[manager.metrics] worker_requests=13312 query_requests=0 queue_size=0 business_threads=12 mysql_write_available=1 mysql_query_available=2 redis_available=2 queue_rejected=0 dropped_monitor_samples=86 task_timeouts=0 task_errors=0 mysql_errors=0 redis_errors=0 pool_timeouts=0 pool_reconnects=12
+```
+
+### 统一分析
+
+| 项目 | 结果 |
+|---|---|
+| 客户端 RPC | `success_rate=1.0000`，无失败 |
+| worker 吞吐 | `102.4 RPS`，约等于 `1024 workers / 10s` |
+| worker 延迟 | p50 `206.47ms`，p95 `251.26ms`，p99 `262.79ms` |
+| manager 队列 | `queue_size=0`，`queue_rejected=0`，无积压和拒绝 |
+| query | 无 query 压力，`task_timeouts=0` |
+| 持久化 | `dropped_monitor_samples=86`，出现样本丢弃 |
+| MySQL | `mysql_errors=0`，无 MySQL 错误 |
+
+### 结论
+
+本轮客户端视角 PASS，但 worker-only 无损判定 FAIL。虽然 `1024` 台主机每 `10s` 上报一次时 RPC 全部成功，且 p95 仅 `251.26ms`，manager 侧仍出现 `dropped_monitor_samples=86`，说明持久化链路在 `102.4 worker push/s` 压力下已经无法完全无损。
+
+`worker_requests=13312` 比客户端统计的 `12288` 多 `1024`，符合 warmup 额外一轮 worker 上报的预期。
+
+## Worker-only 测试记录 2：512 台主机
+
+### 测试配置
+
+| 项目 | 值 |
+|---|---:|
+| worker 并发 | `512` |
+| query 并发 | `0` |
+| duration | `120s` |
+| warmup | `5s` |
+| worker 间隔 | `10000ms` |
+| query 间隔 | `0ms` |
+| success rate 阈值 | `1.0` |
+| p95 阈值 | `2000ms` |
+
+### 执行命令
+
+```bash
+./build/Debug/tests/manager_stress_test \
+  --manager localhost:50051 \
+  --mode worker \
+  --worker-concurrency 512 \
+  --worker-interval-ms 10000 \
+  --duration-seconds 120 \
+  --warmup-seconds 5 \
+  --min-success-rate 1.0 \
+  --max-p95-ms 2000
+```
+
+### 压测客户端输出
+
+```text
+Manager stress test
+  manager=localhost:50051
+  mode=worker
+  query_kind=latest
+  duration=120s warmup=5s timeout=3000ms
+  intervals: worker=10000ms query=0ms
+  pass: success_rate>=1 p95<=2000.000000ms
+
+[run] workers=512 queries=0 duration=120s worker_interval_ms=10000 query_interval_ms=0 query_kind=latest
+  verdict=PASS elapsed=120.01s
+  worker: total=6144 success=6144 failure=0 success_rate=1.0000 rps=51.2 p50_ms=90.12 p95_ms=111.90 p99_ms=115.68
+```
+
+### manager metrics
+
+```text
+[manager.metrics] worker_requests=6656 query_requests=0 queue_size=0 business_threads=12 mysql_write_available=1 mysql_query_available=2 redis_available=8 queue_rejected=0 dropped_monitor_samples=0 task_timeouts=0 task_errors=0 mysql_errors=0 redis_errors=0 pool_timeouts=0 pool_reconnects=20
+[manager.metrics] worker_requests=6656 query_requests=0 queue_size=0 business_threads=12 mysql_write_available=1 mysql_query_available=2 redis_available=8 queue_rejected=0 dropped_monitor_samples=0 task_timeouts=0 task_errors=0 mysql_errors=0 redis_errors=0 pool_timeouts=0 pool_reconnects=20
+```
+
+### 统一分析
+
+| 项目 | 结果 |
+|---|---|
+| 客户端 RPC | `success_rate=1.0000`，无失败 |
+| worker 吞吐 | `51.2 RPS`，约等于 `512 workers / 10s` |
+| worker 延迟 | p50 `90.12ms`，p95 `111.90ms`，p99 `115.68ms` |
+| manager 队列 | `queue_size=0`，`queue_rejected=0`，无积压和拒绝 |
+| query | 无 query 压力，`task_timeouts=0` |
+| 持久化 | `dropped_monitor_samples=0`，无样本丢弃 |
+| MySQL | `mysql_errors=0`，无 MySQL 错误 |
+
+### 结论
+
+本轮是明确的 worker-only 无损 PASS。manager 在 `512` 台 worker 每 `10s` 上报一次，即约 `51.2 worker push/s` 时，保持无队列拒绝、无任务超时、无样本丢弃、无 MySQL 错误。
+
+`worker_requests=6656` 比客户端统计的 `6144` 多 `512`，符合 warmup 额外一轮 worker 上报的预期。
+
+## Worker-only 测试记录 3：768 台主机
+
+### 测试配置
+
+| 项目 | 值 |
+|---|---:|
+| worker 并发 | `768` |
+| query 并发 | `0` |
+| duration | `120s` |
+| warmup | `5s` |
+| worker 间隔 | `10000ms` |
+| query 间隔 | `0ms` |
+| success rate 阈值 | `1.0` |
+| p95 阈值 | `2000ms` |
+
+### 执行命令
+
+```bash
+./build/Debug/tests/manager_stress_test \
+  --manager localhost:50051 \
+  --mode worker \
+  --worker-concurrency 768 \
+  --worker-interval-ms 10000 \
+  --duration-seconds 120 \
+  --warmup-seconds 5 \
+  --min-success-rate 1.0 \
+  --max-p95-ms 2000
+```
+
+### 压测客户端输出
+
+```text
+Manager stress test
+  manager=localhost:50051
+  mode=worker
+  query_kind=latest
+  duration=120s warmup=5s timeout=3000ms
+  intervals: worker=10000ms query=0ms
+  pass: success_rate>=1 p95<=2000.000000ms
+
+[run] workers=768 queries=0 duration=120s worker_interval_ms=10000 query_interval_ms=0 query_kind=latest
+  verdict=PASS elapsed=120.02s
+  worker: total=9216 success=9216 failure=0 success_rate=1.0000 rps=76.8 p50_ms=139.93 p95_ms=188.81 p99_ms=194.63
+```
+
+### manager metrics
+
+```text
+[manager.metrics] worker_requests=9984 query_requests=0 queue_size=0 business_threads=12 mysql_write_available=1 mysql_query_available=2 redis_available=8 queue_rejected=0 dropped_monitor_samples=0 task_timeouts=0 task_errors=0 mysql_errors=0 redis_errors=0 pool_timeouts=0 pool_reconnects=28
+[manager.metrics] worker_requests=9984 query_requests=0 queue_size=0 business_threads=12 mysql_write_available=1 mysql_query_available=2 redis_available=8 queue_rejected=0 dropped_monitor_samples=0 task_timeouts=0 task_errors=0 mysql_errors=0 redis_errors=0 pool_timeouts=0 pool_reconnects=28
+[manager.metrics] worker_requests=9984 query_requests=0 queue_size=0 business_threads=12 mysql_write_available=1 mysql_query_available=2 redis_available=8 queue_rejected=0 dropped_monitor_samples=0 task_timeouts=0 task_errors=0 mysql_errors=0 redis_errors=0 pool_timeouts=0 pool_reconnects=28
+```
+
+### 统一分析
+
+| 项目 | 结果 |
+|---|---|
+| 客户端 RPC | `success_rate=1.0000`，无失败 |
+| worker 吞吐 | `76.8 RPS`，约等于 `768 workers / 10s` |
+| worker 延迟 | p50 `139.93ms`，p95 `188.81ms`，p99 `194.63ms` |
+| manager 队列 | `queue_size=0`，`queue_rejected=0`，无积压和拒绝 |
+| query | 无 query 压力，`task_timeouts=0` |
+| 持久化 | `dropped_monitor_samples=0`，无样本丢弃 |
+| MySQL | `mysql_errors=0`，无 MySQL 错误 |
+
+### 结论
+
+本轮是明确的 worker-only 无损 PASS。manager 在 `768` 台 worker 每 `10s` 上报一次，即约 `76.8 worker push/s` 时，保持无队列拒绝、无任务超时、无样本丢弃、无 MySQL 错误。
+
+`worker_requests=9984` 比客户端统计的 `9216` 多 `768`，符合 warmup 额外一轮 worker 上报的预期。
+
+## Worker-only 测试记录 4：896 台主机
+
+### 测试配置
+
+| 项目 | 值 |
+|---|---:|
+| worker 并发 | `896` |
+| query 并发 | `0` |
+| duration | `120s` |
+| warmup | `5s` |
+| worker 间隔 | `10000ms` |
+| query 间隔 | `0ms` |
+| success rate 阈值 | `1.0` |
+| p95 阈值 | `2000ms` |
+
+### 执行命令
+
+```bash
+./build/Debug/tests/manager_stress_test \
+  --manager localhost:50051 \
+  --mode worker \
+  --worker-concurrency 896 \
+  --worker-interval-ms 10000 \
+  --duration-seconds 120 \
+  --warmup-seconds 5 \
+  --min-success-rate 1.0 \
+  --max-p95-ms 2000
+```
+
+### 压测客户端输出
+
+```text
+Manager stress test
+  manager=localhost:50051
+  mode=worker
+  query_kind=latest
+  duration=120s warmup=5s timeout=3000ms
+  intervals: worker=10000ms query=0ms
+  pass: success_rate>=1 p95<=2000.000000ms
+
+[run] workers=896 queries=0 duration=120s worker_interval_ms=10000 query_interval_ms=0 query_kind=latest
+  verdict=PASS elapsed=120.03s
+  worker: total=10752 success=10752 failure=0 success_rate=1.0000 rps=89.6 p50_ms=174.67 p95_ms=207.24 p99_ms=215.88
+```
+
+### manager metrics
+
+```text
+[manager.metrics] worker_requests=11648 query_requests=0 queue_size=0 business_threads=12 mysql_write_available=1 mysql_query_available=2 redis_available=2 queue_rejected=0 dropped_monitor_samples=0 task_timeouts=0 task_errors=0 mysql_errors=0 redis_errors=0 pool_timeouts=0 pool_reconnects=12
+[manager.metrics] worker_requests=11648 query_requests=0 queue_size=0 business_threads=12 mysql_write_available=1 mysql_query_available=2 redis_available=6 queue_rejected=0 dropped_monitor_samples=0 task_timeouts=0 task_errors=0 mysql_errors=0 redis_errors=0 pool_timeouts=0 pool_reconnects=18
+[manager.metrics] worker_requests=11648 query_requests=0 queue_size=0 business_threads=12 mysql_write_available=1 mysql_query_available=2 redis_available=8 queue_rejected=0 dropped_monitor_samples=0 task_timeouts=0 task_errors=0 mysql_errors=0 redis_errors=0 pool_timeouts=0 pool_reconnects=20
+[manager.metrics] worker_requests=11648 query_requests=0 queue_size=0 business_threads=12 mysql_write_available=1 mysql_query_available=2 redis_available=8 queue_rejected=0 dropped_monitor_samples=0 task_timeouts=0 task_errors=0 mysql_errors=0 redis_errors=0 pool_timeouts=0 pool_reconnects=20
+```
+
+### 统一分析
+
+| 项目 | 结果 |
+|---|---|
+| 客户端 RPC | `success_rate=1.0000`，无失败 |
+| worker 吞吐 | `89.6 RPS`，约等于 `896 workers / 10s` |
+| worker 延迟 | p50 `174.67ms`，p95 `207.24ms`，p99 `215.88ms` |
+| manager 队列 | `queue_size=0`，`queue_rejected=0`，无积压和拒绝 |
+| query | 无 query 压力，`task_timeouts=0` |
+| 持久化 | `dropped_monitor_samples=0`，无样本丢弃 |
+| MySQL | `mysql_errors=0`，无 MySQL 错误 |
+
+### 结论
+
+本轮是明确的 worker-only 无损 PASS。manager 在 `896` 台 worker 每 `10s` 上报一次，即约 `89.6 worker push/s` 时，保持无队列拒绝、无任务超时、无样本丢弃、无 MySQL 错误。
+
+`worker_requests=11648` 比客户端统计的 `10752` 多 `896`，符合 warmup 额外一轮 worker 上报的预期。
+
+## Worker-only 测试记录 5：960 台主机
+
+### 测试配置
+
+| 项目 | 值 |
+|---|---:|
+| worker 并发 | `960` |
+| query 并发 | `0` |
+| duration | `120s` |
+| warmup | `5s` |
+| worker 间隔 | `10000ms` |
+| query 间隔 | `0ms` |
+| success rate 阈值 | `1.0` |
+| p95 阈值 | `2000ms` |
+
+### 执行命令
+
+```bash
+./build/Debug/tests/manager_stress_test \
+  --manager localhost:50051 \
+  --mode worker \
+  --worker-concurrency 960 \
+  --worker-interval-ms 10000 \
+  --duration-seconds 120 \
+  --warmup-seconds 5 \
+  --min-success-rate 1.0 \
+  --max-p95-ms 2000
+```
+
+### 压测客户端输出
+
+```text
+Manager stress test
+  manager=localhost:50051
+  mode=worker
+  query_kind=latest
+  duration=120s warmup=5s timeout=3000ms
+  intervals: worker=10000ms query=0ms
+  pass: success_rate>=1 p95<=2000.000000ms
+
+[run] workers=960 queries=0 duration=120s worker_interval_ms=10000 query_interval_ms=0 query_kind=latest
+  verdict=PASS elapsed=120.03s
+  worker: total=11520 success=11520 failure=0 success_rate=1.0000 rps=96.0 p50_ms=189.98 p95_ms=216.55 p99_ms=230.98
+```
+
+### manager metrics
+
+```text
+[manager.metrics] worker_requests=12480 query_requests=0 queue_size=0 business_threads=12 mysql_write_available=1 mysql_query_available=2 redis_available=2 queue_rejected=0 dropped_monitor_samples=0 task_timeouts=0 task_errors=0 mysql_errors=0 redis_errors=0 pool_timeouts=0 pool_reconnects=12
+[manager.metrics] worker_requests=12480 query_requests=0 queue_size=0 business_threads=12 mysql_write_available=1 mysql_query_available=2 redis_available=6 queue_rejected=0 dropped_monitor_samples=0 task_timeouts=0 task_errors=0 mysql_errors=0 redis_errors=0 pool_timeouts=0 pool_reconnects=18
+[manager.metrics] worker_requests=12480 query_requests=0 queue_size=0 business_threads=12 mysql_write_available=1 mysql_query_available=2 redis_available=8 queue_rejected=0 dropped_monitor_samples=0 task_timeouts=0 task_errors=0 mysql_errors=0 redis_errors=0 pool_timeouts=0 pool_reconnects=20
+[manager.metrics] worker_requests=12480 query_requests=0 queue_size=0 business_threads=12 mysql_write_available=1 mysql_query_available=2 redis_available=8 queue_rejected=0 dropped_monitor_samples=0 task_timeouts=0 task_errors=0 mysql_errors=0 redis_errors=0 pool_timeouts=0 pool_reconnects=20
+```
+
+### 统一分析
+
+| 项目 | 结果 |
+|---|---|
+| 客户端 RPC | `success_rate=1.0000`，无失败 |
+| worker 吞吐 | `96.0 RPS`，约等于 `960 workers / 10s` |
+| worker 延迟 | p50 `189.98ms`，p95 `216.55ms`，p99 `230.98ms` |
+| manager 队列 | `queue_size=0`，`queue_rejected=0`，无积压和拒绝 |
+| query | 无 query 压力，`task_timeouts=0` |
+| 持久化 | `dropped_monitor_samples=0`，无样本丢弃 |
+| MySQL | `mysql_errors=0`，无 MySQL 错误 |
+
+### 结论
+
+本轮是明确的 worker-only 无损 PASS。manager 在 `960` 台 worker 每 `10s` 上报一次，即约 `96.0 worker push/s` 时，保持无队列拒绝、无任务超时、无样本丢弃、无 MySQL 错误。
+
+`worker_requests=12480` 比客户端统计的 `11520` 多 `960`，符合 warmup 额外一轮 worker 上报的预期。
+
+## Worker-only 最终结论
+
+当前 worker-only 已知结果：
+
+| 档位 | 客户端结果 | manager 结果 | 结论 |
+|---|---|---|---|
+| `256 workers` | PASS，p95 `57.89ms` | `dropped_monitor_samples=0`，`mysql_errors=0` | 已确认无损 |
+| `512 workers` | PASS，p95 `111.90ms` | `dropped_monitor_samples=0`，`mysql_errors=0` | 已确认无损 |
+| `768 workers` | PASS，p95 `188.81ms` | `dropped_monitor_samples=0`，`mysql_errors=0` | 已确认无损 |
+| `896 workers` | PASS，p95 `207.24ms` | `dropped_monitor_samples=0`，`mysql_errors=0` | 已确认无损 |
+| `960 workers` | PASS，p95 `216.55ms` | `dropped_monitor_samples=0`，`mysql_errors=0` | 已确认无损 |
+| `1024 workers` | PASS，p95 `251.26ms` | `dropped_monitor_samples=86`，`mysql_errors=0` | 客户端通过，但无损失败 |
+
+在本轮测试条件下：
+
+| 项目 | 最终结论 |
+|---|---|
+| worker 上报间隔 | `10000ms` |
+| query 压力 | 无 |
+| 压测时长 | `120s`，warmup `5s` |
+| 客户端通过条件 | `success_rate=1.0`，p95 `< 2000ms` |
+| 无损通过条件 | `dropped_monitor_samples_delta=0`，`mysql_errors_delta=0`，`queue_rejected_delta=0`，`task_timeouts_delta=0` |
+| 最后确认无损档位 | `960 workers` |
+| 最近失败档位 | `1024 workers` |
+| 确认边界区间 | `(960, 1024]` |
+
+最后确认的 worker-only 无损档位性能：
+
+```text
+worker: 96.0 RPS, p95=216.55ms, p99=230.98ms
+manager: queue_rejected=0, dropped_monitor_samples=0, task_timeouts=0, mysql_errors=0
+```
+
+因此，当前 worker-only 场景建议按 `960 workers` 作为可发布的无损最大监控主机数结论。`1024 workers` 虽然客户端成功率和延迟仍达标，但 manager 已有样本丢弃，不能作为无损容量。
