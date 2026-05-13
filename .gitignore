@@ -21,6 +21,7 @@ build
 # kmod
 *.ko
 *.mod
+!agent_service/go.mod
 *.o
 *.cmd
 *.symvers
