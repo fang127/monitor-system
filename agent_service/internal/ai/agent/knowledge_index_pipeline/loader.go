@@ -7,7 +7,7 @@ import (
 	"github.com/cloudwego/eino/components/document"
 )
 
-// newLoader component initialization function of node 'FileLoader' in graph 'KnowledgeIndexing'
+// newLoader创建一个新的文档加载器实例。根据需要，可以在此函数中修改组件的配置。
 func newLoader(ctx context.Context) (ldr document.Loader, err error) {
 	// TODO Modify component configuration here.
 	config := &file.FileLoaderConfig{}

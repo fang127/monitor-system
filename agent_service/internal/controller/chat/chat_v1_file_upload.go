@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"monitor-system/agent_service/api/chat/v1"
+	v1 "monitor-system/agent_service/api/chat/v1"
 	"monitor-system/agent_service/internal/ai/agent/knowledge_index_pipeline"
 	loader2 "monitor-system/agent_service/internal/ai/loader"
 	"monitor-system/agent_service/utility/client"
@@ -20,11 +20,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// 处理文档上传，并把文档写入 Milvus 知识库
+
+// FileUpload 文档上传接口
 func (c *ControllerV1) FileUpload(gctx *gin.Context) {
 	res, err := c.runFileUpload(gctx.Request.Context(), gctx)
 	middleware.Respond(gctx, res, err)
 }
 
+// runFileUpload 处理文件上传的核心逻辑
 func (c *ControllerV1) runFileUpload(ctx context.Context, gctx *gin.Context) (res *v1.FileUploadRes, err error) {
 	// 从请求中获取上传的文件
 	uploadFile, err := gctx.FormFile("file")
@@ -64,6 +68,7 @@ func (c *ControllerV1) runFileUpload(ctx context.Context, gctx *gin.Context) (re
 	return res, nil
 }
 
+// buildIntoIndex 将上传的文件构建到 Milvus 知识库中
 func buildIntoIndex(ctx context.Context, path string) error {
 	r, err := knowledge_index_pipeline.BuildKnowledgeIndexing(ctx)
 	if err != nil {
@@ -92,6 +97,7 @@ func buildIntoIndex(ctx context.Context, path string) error {
 		var idsToDelete []string
 		for _, column := range queryResult {
 			if column.Name() == "id" {
+				// 假设id是字符串类型，如果不是，需要根据实际类型进行转换
 				for i := 0; i < column.Len(); i++ {
 					id, err := column.GetAsString(i)
 					if err == nil {

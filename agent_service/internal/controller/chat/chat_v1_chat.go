@@ -15,6 +15,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// 普通对话接口实现
+
+// Chat 接口处理用户的对话请求，解析请求参数，调用 runChat 方法执行对话逻辑，并返回结果给客户端
 func (c *ControllerV1) Chat(gctx *gin.Context) {
 	var req v1.ChatReq
 	if err := gctx.ShouldBindJSON(&req); err != nil {

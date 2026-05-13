@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"monitor-system/agent_service/api/chat/v1"
+	v1 "monitor-system/agent_service/api/chat/v1"
 	"monitor-system/agent_service/internal/ai/agent/chat_pipeline"
 	"monitor-system/agent_service/utility/log_call_back"
 	"monitor-system/agent_service/utility/mem"
@@ -17,6 +17,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// 流式对话接口实现。
+
+// Chat 处理用户的聊天请求，调用 AI 模型生成回复，并返回给用户。
 func (c *ControllerV1) ChatStream(gctx *gin.Context) {
 	var req v1.ChatStreamReq
 	if err := gctx.ShouldBindJSON(&req); err != nil {

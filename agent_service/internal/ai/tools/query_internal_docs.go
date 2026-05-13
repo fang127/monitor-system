@@ -16,6 +16,7 @@ type QueryInternalDocsInput struct {
 	Query string `json:"query" jsonschema:"description=The query string to search in internal documentation for relevant information and processing steps"`
 }
 
+// 普通 ChatAgent 已经会在提示词里自动注入一次 RAG 文档；这个工具则允许 ReAct Agent 在推理过程中主动再次检索内部文档。
 func NewQueryInternalDocsTool() tool.InvokableTool {
 	t, err := utils.InferOptionableTool(
 		"query_internal_docs",
