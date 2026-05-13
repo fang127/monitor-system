@@ -22,6 +22,7 @@ build
 *.ko
 *.mod
 !agent_service/go.mod
+!api_gateway/go.mod
 *.o
 *.cmd
 *.symvers
