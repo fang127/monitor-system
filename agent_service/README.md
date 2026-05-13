@@ -82,13 +82,13 @@ http://127.0.0.1:6872/api/agent
 
 ## Docker 部署
 
-从项目根目录启动完整依赖和 `agent_service`：
+从项目根目录通过统一配置启动容器化模块：
 
 ```bash
-docker compose -f deploy/docker-compose.yml up -d agent_service
+docker compose --env-file configs/app.env -f deploy/docker-compose.yml up -d
 ```
 
-完整 compose 会包含 MySQL、Redis、Milvus、Attu 和 `agent_service`。容器内 `agent_service` 默认通过 `MILVUS_ADDR=milvus:19530` 访问 Milvus，通过 `API_GATEWAY_BASE_URL` 访问宿主机上的 `api_gateway`。
+完整 compose 会包含 MySQL、Redis、Milvus、Attu、`agent_service`、`api_gateway` 和 `web`。容器内 `agent_service` 默认通过 `MILVUS_ADDR=milvus:19530` 访问 Milvus，通过 `API_GATEWAY_BASE_URL=http://api_gateway:8080` 访问容器内的 `api_gateway`。
 
 也可以只在 `agent_service/manifest/docker` 下使用单独的 Milvus compose 文件准备向量库环境。
 

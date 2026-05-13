@@ -243,14 +243,14 @@ manager 运行配置来自 `ManagerConfig`：
 示例配置文件：
 
 ```text
-configs/manager.env
+configs/app.env
 ```
 
 加载方式：
 
 ```bash
 set -a
-source configs/manager.env
+source configs/app.env
 set +a
 ```
 
@@ -285,16 +285,16 @@ cmake -S . -B build/Debug \
 
 ```bash
 set -a
-source configs/manager.env
+source configs/app.env
 set +a
-docker compose -f deploy/docker-compose.yml up -d
+docker compose --env-file configs/app.env -f deploy/docker-compose.yml up -d
 ```
 
 启动 manager：
 
 ```bash
 set -a
-source configs/manager.env
+source configs/app.env
 set +a
 ./build/Debug/manager/manager 0.0.0.0:50051
 ```
@@ -358,7 +358,7 @@ export MANAGER_VERBOSE_LOG=true
 通常是 MySQL 初始化失败。检查：
 
 - `MYSQL_HOST`、`MYSQL_PORT`、`MYSQL_USER`、`MYSQL_PASSWORD`、`MYSQL_DATABASE` 是否正确。
-- `docker compose -f deploy/docker-compose.yml ps` 中 MySQL 是否 healthy。
+- `docker compose --env-file configs/app.env -f deploy/docker-compose.yml ps` 中 MySQL 是否 healthy。
 - `manager/sql table/init_server_performance.sql` 是否已执行。
 
 ### worker 推送成功但查不到数据

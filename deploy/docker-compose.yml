@@ -107,8 +107,8 @@ services:
     restart: unless-stopped
     environment:
       AGENT_SERVICE_PORT: ${AGENT_SERVICE_PORT:-6872}
-      API_GATEWAY_BASE_URL: ${API_GATEWAY_BASE_URL:-http://host.docker.internal:8080}
-      MILVUS_ADDR: milvus:19530
+      API_GATEWAY_BASE_URL: ${DOCKER_API_GATEWAY_BASE_URL:-http://api_gateway:8080}
+      MILVUS_ADDR: ${DOCKER_MILVUS_ADDR:-milvus:19530}
       AGENT_DOCS_DIR: /app/docs
       AGENT_THINK_API_KEY: ${AGENT_THINK_API_KEY:-}
       AGENT_THINK_BASE_URL: ${AGENT_THINK_BASE_URL:-}
@@ -124,6 +124,33 @@ services:
       - "host.docker.internal:host-gateway"
     depends_on:
       - milvus
+
+  api_gateway:
+    build:
+      context: ../api_gateway
+    container_name: monitor_system_api_gateway
+    restart: unless-stopped
+    environment:
+      API_GATEWAY_PORT: ${API_GATEWAY_PORT:-8080}
+      API_GATEWAY_VERSION: ${API_GATEWAY_VERSION:-v0.1.0}
+      GIN_MODE: ${GIN_MODE:-debug}
+      MANAGER_GRPC_ADDR: ${DOCKER_MANAGER_GRPC_ADDR:-host.docker.internal:50051}
+      MANAGER_GRPC_TIMEOUT: ${MANAGER_GRPC_TIMEOUT:-5s}
+    ports:
+      - "${API_GATEWAY_PORT:-8080}:${API_GATEWAY_PORT:-8080}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  web:
+    build:
+      context: ../web
+    container_name: monitor_system_web
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-3000}:80"
+    depends_on:
+      - api_gateway
+      - agent_service
 
 volumes:
   mysql_data:

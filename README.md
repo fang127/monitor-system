@@ -1,12 +1,3 @@
-<!--
- * @Author: harry
- * @Date: 2026-02-04 21:23:05
- * @Version: 1.0
- * @LastEditors: harry
- * @LastEditTime: 2026-02-05 01:20:03
- * @Description: 
- * @FilePath: /monitor-system/README.md
--->
 # monitor-system
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -151,9 +142,11 @@ HTTP Client
 ```
 monitor_system/
 ├── configs/                   # 运行时配置
+│   ├── app.env                # 统一运行配置入口
+│   ├── README.md              # 配置说明
 │   └── manager.env            # Manager/MySQL 环境变量
 ├── deploy/                    # 部署配置
-│   └── docker-compose.yml     # MySQL、Redis 基础服务
+│   └── docker-compose.yml     # 除 manager/worker 外的一键启动服务
 ├── api_gateway/               # Go HTTP API 网关
 │   ├── cmd/server             # Gin HTTP Server 入口
 │   ├── internal/config        # 配置加载
@@ -333,21 +326,22 @@ Score = CPU_Score × 35% + Mem_Score × 30% + Load_Score × 15%
 
 ## 🚀 快速开始
 
-### 1. 启动基础服务
+### 1. 启动容器化模块
 
 ```bash
-docker compose --env-file configs/manager.env -f deploy/docker-compose.yml up -d
+docker compose --env-file configs/app.env -f deploy/docker-compose.yml up -d
 ```
 
-Compose 会启动 MySQL 和 Redis ，并把初始化脚本
+Compose 会启动 MySQL、Redis、Milvus、Attu、agent_service、api_gateway 和 web。
+`manager` 与 `worker` 仍作为宿主机进程启动。Compose 会把初始化脚本
 `manager/sql table/init_server_performance.sql` 挂载到
 `/docker-entrypoint-initdb.d/`，首次创建 MySQL 数据目录时自动建库建表。
 
-### 2. 配置 Manager 环境变量
+### 2. 加载统一配置
 
 ```bash
 set -a
-source configs/manager.env
+source configs/app.env
 set +a
 ```
 
@@ -463,8 +457,8 @@ sudo rmmod CpuStatCollector
 # 验证卸载
 lsmod | grep -E "CpuStat|Softirq"
 
-# 停止基础服务
-docker compose --env-file configs/manager.env -f deploy/docker-compose.yml down
+# 停止容器化模块
+docker compose --env-file configs/app.env -f deploy/docker-compose.yml down
 ```
 
 ## MySQL 字段注意事项
