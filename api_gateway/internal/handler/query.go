@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -20,17 +21,18 @@ import (
 const defaultQueryWindow = time.Hour
 
 type QueryHandler struct {
-	client *grpcclient.Client // gRPC客户端，用于调用后端服务
+	client      *grpcclient.Client // gRPC客户端，用于调用后端服务
+	managerAddr string             // Manager gRPC地址，用于生成可诊断的错误信息
 }
 
-func NewQueryHandler(client *grpcclient.Client) *QueryHandler {
-	return &QueryHandler{client: client}
+func NewQueryHandler(client *grpcclient.Client, managerAddr string) *QueryHandler {
+	return &QueryHandler{client: client, managerAddr: managerAddr}
 }
 
 // Latest 处理查询最新监控数据的请求
 func (h *QueryHandler) Latest(c *gin.Context) {
 	data, err := h.client.Latest(c.Request.Context())
-	writeGRPCResult(c, data, err)
+	h.writeGRPCResult(c, data, err)
 }
 
 // Performance 处理查询历史性能数据的请求
@@ -49,7 +51,7 @@ func (h *QueryHandler) Performance(c *gin.Context) {
 		Page:      page,
 		PageSize:  pageSize,
 	})
-	writeGRPCResult(c, data, err)
+	h.writeGRPCResult(c, data, err)
 }
 
 // Trend 处理查询监控数据趋势的请求，支持可选的时间范围和时间间隔参数
@@ -68,7 +70,7 @@ func (h *QueryHandler) Trend(c *gin.Context) {
 		TimeRange:       timeRange,
 		IntervalSeconds: intervalSeconds,
 	})
-	writeGRPCResult(c, data, err)
+	h.writeGRPCResult(c, data, err)
 }
 
 // Anomalies 处理查询监控数据异常的请求，支持可选的时间范围、分页参数和阈值参数
@@ -112,7 +114,7 @@ func (h *QueryHandler) Anomalies(c *gin.Context) {
 		Page:                page,
 		PageSize:            pageSize,
 	})
-	writeGRPCResult(c, data, err)
+	h.writeGRPCResult(c, data, err)
 }
 
 // ScoreRank 处理服务器评分排序查询请求
@@ -131,7 +133,7 @@ func (h *QueryHandler) ScoreRank(c *gin.Context) {
 		Page:     page,
 		PageSize: pageSize,
 	})
-	writeGRPCResult(c, data, err)
+	h.writeGRPCResult(c, data, err)
 }
 
 // NetDetail 处理网络详细指标查询请求
@@ -170,7 +172,7 @@ func (h *QueryHandler) detail(c *gin.Context, call func(ctx context.Context, ser
 		Page:      page,
 		PageSize:  pageSize,
 	})
-	writeGRPCResult(c, data, err)
+	h.writeGRPCResult(c, data, err)
 }
 
 // parseTimeRange 从查询参数中解析时间范围，支持两种格式：
@@ -271,12 +273,23 @@ func parseOptionalFloat32(c *gin.Context, key string, fallback float32) (float32
 }
 
 // writeGRPCResult 将gRPC调用的结果写入HTTP响应，如果gRPC调用返回错误，则根据错误类型返回相应的HTTP状态码和错误消息。
-func writeGRPCResult(c *gin.Context, data json.RawMessage, err error) {
+func (h *QueryHandler) writeGRPCResult(c *gin.Context, data json.RawMessage, err error) {
 	if err != nil {
-		response.Error(c, grpcHTTPStatus(err), err.Error())
+		response.Error(c, grpcHTTPStatus(err), h.grpcErrorMessage(err))
 		return
 	}
 	response.OK(c, http.StatusOK, data)
+}
+
+func (h *QueryHandler) grpcErrorMessage(err error) string {
+	if status.Code(err) != codes.Unavailable {
+		return err.Error()
+	}
+	return fmt.Sprintf(
+		"manager gRPC unavailable at %s; please start manager and verify MANAGER_GRPC_ADDR/DOCKER_MANAGER_GRPC_ADDR. detail: %v",
+		h.managerAddr,
+		err,
+	)
 }
 
 // grpcHTTPStatus 根据gRPC错误的状态码映射到相应的HTTP状态码，常见的映射包括：

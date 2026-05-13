@@ -37,6 +37,7 @@ func BuildPlanAgent(ctx context.Context, query string) (string, []string, error)
 	iter := r.Query(ctx, query)
 	var lastMessage adk.Message
 	var detail []string
+	var runErr error
 	for {
 		event, ok := iter.Next()
 		if !ok {
@@ -44,12 +45,25 @@ func BuildPlanAgent(ctx context.Context, query string) (string, []string, error)
 		}
 		fmt.Println("------------- Event -------------")
 		prints.Event(event)
+		if event.Err != nil {
+			runErr = event.Err
+			detail = append(detail, event.Err.Error())
+			continue
+		}
 		if event.Output != nil {
 			lastMessage, _, err = adk.GetMessage(event)
+			if err != nil {
+				runErr = err
+				detail = append(detail, err.Error())
+				continue
+			}
 			detail = append(detail, lastMessage.String())
 		}
 	}
 	if lastMessage == nil {
+		if runErr != nil {
+			return "", detail, runErr
+		}
 		return "", []string{}, fmt.Errorf("get lastMessage Error")
 	}
 	return lastMessage.Content, detail, nil

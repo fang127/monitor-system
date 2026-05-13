@@ -15,7 +15,7 @@ func NewRouter(cfg config.Config, queryClient *grpcclient.Client) *gin.Engine {
 
 	healthHandler := NewHealthHandler()
 	versionHandler := NewVersionHandler(cfg.Version)
-	queryHandler := NewQueryHandler(queryClient)
+	queryHandler := NewQueryHandler(queryClient, cfg.ManagerAddr)
 
 	router.GET("/health", healthHandler.Get)
 	router.GET("/api/version", versionHandler.Get)

@@ -364,7 +364,7 @@ python3 ./build_debug.py
 ### 4. 启动 Manager 服务器
 
 ```bash
-./build/manager/manager
+./build/manager/manager 0.0.0.0:50051
 ```
 
 输出：

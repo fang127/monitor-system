@@ -1,9 +1,16 @@
 name: monitor_system
+
+# 定义一个共享的 extra_hosts 配置，方便在多个服务中使用
+x-manager-hosts: &manager-hosts
+  - "manager-host:${MANAGER_HOST_GATEWAY:-host-gateway}" # 将 manager-host 映射到 host.docker.internal 或 host-gateway，确保容器内可以通过 manager-host 访问宿主机上的服务
+  - "host.docker.internal:${MANAGER_HOST_GATEWAY:-host-gateway}" # 兼容不同平台，确保在 Windows 和 macOS 上也能通过 host.docker.internal 访问宿主机
+
 services:
   mysql:
     image: mysql:latest
     container_name: monitor_system_mysql
     restart: unless-stopped # 容器重启策略：除非手动停止，否则总是重启
+    extra_hosts: *manager-hosts
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-monitor-system}
@@ -23,6 +30,7 @@ services:
     image: redis:latest
     container_name: monitor_system_redis
     restart: unless-stopped
+    extra_hosts: *manager-hosts
     ports:
       - "6379:6379"
 
@@ -30,6 +38,7 @@ services:
     image: quay.io/coreos/etcd:v3.5.18
     container_name: monitor_system_milvus_etcd
     restart: unless-stopped
+    extra_hosts: *manager-hosts
     environment:
       ETCD_AUTO_COMPACTION_MODE: revision
       ETCD_AUTO_COMPACTION_RETENTION: "1000"
@@ -48,6 +57,7 @@ services:
     image: minio/minio:RELEASE.2023-03-20T20-16-18Z
     container_name: monitor_system_milvus_minio
     restart: unless-stopped
+    extra_hosts: *manager-hosts
     environment:
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
@@ -67,6 +77,7 @@ services:
     image: milvusdb/milvus:v2.5.10
     container_name: monitor_system_milvus
     restart: unless-stopped
+    extra_hosts: *manager-hosts
     command: [ "milvus", "run", "standalone" ]
     security_opt:
       - seccomp:unconfined
@@ -92,6 +103,7 @@ services:
     image: zilliz/attu:v2.6
     container_name: monitor_system_milvus_attu
     restart: unless-stopped
+    extra_hosts: *manager-hosts
     environment:
       MILVUS_URL: milvus:19530
     ports:
@@ -120,8 +132,7 @@ services:
       AGENT_EMBEDDING_MODEL: ${AGENT_EMBEDDING_MODEL:-text-embedding-v4}
     ports:
       - "${AGENT_SERVICE_PORT:-6872}:${AGENT_SERVICE_PORT:-6872}"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    extra_hosts: *manager-hosts
     depends_on:
       - milvus
 
@@ -134,18 +145,18 @@ services:
       API_GATEWAY_PORT: ${API_GATEWAY_PORT:-8080}
       API_GATEWAY_VERSION: ${API_GATEWAY_VERSION:-v0.1.0}
       GIN_MODE: ${GIN_MODE:-debug}
-      MANAGER_GRPC_ADDR: ${DOCKER_MANAGER_GRPC_ADDR:-host.docker.internal:50051}
+      MANAGER_GRPC_ADDR: ${DOCKER_MANAGER_GRPC_ADDR:-manager-host:50051}
       MANAGER_GRPC_TIMEOUT: ${MANAGER_GRPC_TIMEOUT:-5s}
     ports:
       - "${API_GATEWAY_PORT:-8080}:${API_GATEWAY_PORT:-8080}"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    extra_hosts: *manager-hosts
 
   web:
     build:
       context: ../web
     container_name: monitor_system_web
     restart: unless-stopped
+    extra_hosts: *manager-hosts
     ports:
       - "${WEB_PORT:-3000}:80"
     depends_on:
@@ -157,3 +168,8 @@ volumes:
   milvus_etcd_data:
   milvus_minio_data:
   milvus_data:
+
+networks:
+  default:
+    name: monitor_system_net
+    driver: bridge # 使用桥接网络模式，容器之间可以通过服务名称互相访问

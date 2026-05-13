@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"monitor-system/agent_service/utility/common"
+	"time"
 
 	cli "github.com/milvus-io/milvus-sdk-go/v2/client"
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
@@ -22,6 +23,8 @@ func NewMilvusClient(ctx context.Context) (cli.Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to default database: %w", err)
 	}
+	defer defaultClient.Close()
+
 	// 2. 检查agent数据库是否存在，不存在则创建
 	databases, err := defaultClient.ListDatabases(ctx)
 	if err != nil {
@@ -49,6 +52,13 @@ func NewMilvusClient(ctx context.Context) (cli.Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to agent database: %w", err)
 	}
+	agentClientReady := false
+	defer func() {
+		if !agentClientReady {
+			agentClient.Close()
+		}
+	}()
+
 	// 4. 检查biz collection是否存在，不存在则创建
 	collections, err := agentClient.ListCollections(ctx)
 	if err != nil {
@@ -107,10 +117,54 @@ func NewMilvusClient(ctx context.Context) (cli.Client, error) {
 		}
 	}
 
-	// 关闭default数据库连接
-	defaultClient.Close()
+	if err := ensureCollectionLoaded(ctx, agentClient); err != nil {
+		return nil, err
+	}
 
+	agentClientReady = true
 	return agentClient, nil
+}
+
+func ensureCollectionLoaded(ctx context.Context, agentClient cli.Client) error {
+	state, err := agentClient.GetLoadState(ctx, common.MilvusCollectionName, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get biz collection load state: %w", err)
+	}
+
+	switch state {
+	case entity.LoadStateLoaded:
+		return nil
+	case entity.LoadStateLoading:
+		return waitCollectionLoaded(ctx, agentClient)
+	default:
+		if err := agentClient.LoadCollection(ctx, common.MilvusCollectionName, false); err != nil {
+			return fmt.Errorf("failed to load biz collection: %w", err)
+		}
+		return nil
+	}
+}
+
+func waitCollectionLoaded(ctx context.Context, agentClient cli.Client) error {
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			state, err := agentClient.GetLoadState(ctx, common.MilvusCollectionName, nil)
+			if err != nil {
+				return fmt.Errorf("failed to get biz collection load state: %w", err)
+			}
+			if state == entity.LoadStateLoaded {
+				return nil
+			}
+			if state != entity.LoadStateLoading {
+				return fmt.Errorf("biz collection load stopped with state %d", state)
+			}
+		}
+	}
 }
 
 var fields = []*entity.Field{
