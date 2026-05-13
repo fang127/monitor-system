@@ -1,31 +1,34 @@
 package middleware
 
-import "github.com/gogf/gf/v2/net/ghttp"
+import (
+	"net/http"
 
-// CORSMiddleware 处理CORS跨域请求
-func CORSMiddleware(r *ghttp.Request) {
-	r.Response.CORSDefault()
-	r.Middleware.Next()
+	"github.com/gin-gonic/gin"
+)
+
+// CORSMiddleware 处理CORS跨域请求。
+func CORSMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Origin,Content-Type,Accept,Authorization")
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "false")
+		if c.Request.Method == http.MethodOptions {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+		c.Next()
+	}
 }
 
-func ResponseMiddleware(r *ghttp.Request) {
-	r.Middleware.Next()
-
-	var (
-		msg string
-		res = r.GetHandlerResponse()
-		err = r.GetError()
-	)
-	if err != nil {
-		msg = err.Error()
-	} else {
-		msg = "OK"
-	}
+func Respond(c *gin.Context, res interface{}, err error) {
+	msg := "OK"
 	code := 0
 	if err != nil {
+		msg = err.Error()
 		code = 1
 	}
-	r.Response.WriteJson(Response{
+	c.JSON(http.StatusOK, Response{
 		Code:    code,
 		Message: msg,
 		Data:    res,
@@ -33,7 +36,7 @@ func ResponseMiddleware(r *ghttp.Request) {
 }
 
 type Response struct {
-	Code    int         `json:"code"    dc:"状态码，0表示成功"`
-	Message string      `json:"message" dc:"消息提示"`
-	Data    interface{} `json:"data"    dc:"执行结果"`
+	Code    int         `json:"code"`
+	Message string      `json:"message"`
+	Data    interface{} `json:"data"`
 }

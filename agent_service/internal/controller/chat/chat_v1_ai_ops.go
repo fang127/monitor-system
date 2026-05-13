@@ -5,9 +5,18 @@ import (
 	"errors"
 	"monitor-system/agent_service/api/chat/v1"
 	"monitor-system/agent_service/internal/ai/agent/plan_execute_replan"
+	"monitor-system/agent_service/utility/middleware"
+
+	"github.com/gin-gonic/gin"
 )
 
-func (c *ControllerV1) AIOps(ctx context.Context, req *v1.AIOpsReq) (res *v1.AIOpsRes, err error) {
+func (c *ControllerV1) AIOps(gctx *gin.Context) {
+	res, err := c.runAIOps(gctx.Request.Context(), &v1.AIOpsReq{})
+	middleware.Respond(gctx, res, err)
+}
+
+func (c *ControllerV1) runAIOps(ctx context.Context, req *v1.AIOpsReq) (res *v1.AIOpsRes, err error) {
+	_ = req
 	query := `
 "1. 你是 monitor_system 的 AI 运维分析助手，必须优先使用工具查询当前监控事实。"
 "2. 首先调用 query_monitor_cluster_overview 获取集群概览、服务器在线状态、评分和关键指标快照。"

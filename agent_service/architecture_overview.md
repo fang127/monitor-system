@@ -2,7 +2,7 @@
 
 ## 1. 服务定位
 
-`agent_service` 是 `monitor_system` 中独立运行的 GoFrame AI 运维服务，负责把监控数据、内部知识库和大模型编排能力连接起来。
+`agent_service` 是 `monitor_system` 中独立运行的 Gin AI 运维服务，负责把监控数据、内部知识库和大模型编排能力连接起来。
 
 - 知识增强对话：`POST /api/agent/chat`
 - 流式知识增强对话：`POST /api/agent/chat_stream`
@@ -27,7 +27,7 @@
 1. `main.go` 读取 `docs_dir` / `AGENT_DOCS_DIR`，并写入 `common.FileDir`。
 2. 读取 `agent_service_port` / `AGENT_SERVICE_PORT`，默认监听端口为 `6872`。
 3. 注册 `/api/agent` 路由组，并挂载 CORS 中间件与统一响应中间件。
-4. 绑定 `chat.NewV1()` 控制器后启动 GoFrame HTTP 服务。
+4. 绑定 `chat.NewV1()` 控制器后启动 Gin HTTP 服务。
 
 ## 4. 核心流程
 

@@ -1,17 +1,17 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"monitor-system/agent_service/internal/controller/chat"
 	"monitor-system/agent_service/utility/common"
 	"monitor-system/agent_service/utility/middleware"
 
-	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/net/ghttp"
-	"github.com/gogf/gf/v2/os/gctx"
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
-	ctx := gctx.New()
+	ctx := context.Background()
 	fileDir, err := common.ConfigString(ctx, "docs_dir", "AGENT_DOCS_DIR", "./docs")
 	if err != nil {
 		panic(err)
@@ -21,12 +21,11 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	s := g.Server()
-	s.Group("/api/agent", func(group *ghttp.RouterGroup) {
-		group.Middleware(middleware.CORSMiddleware)
-		group.Middleware(middleware.ResponseMiddleware)
-		group.Bind(chat.NewV1())
-	})
-	s.SetPort(port)
-	s.Run()
+	router := gin.New()
+	router.Use(gin.Logger(), gin.Recovery(), middleware.CORSMiddleware())
+	controller := chat.NewV1()
+	controller.RegisterRoutes(router.Group("/api/agent"))
+	if err := router.Run(fmt.Sprintf(":%d", port)); err != nil {
+		panic(err)
+	}
 }

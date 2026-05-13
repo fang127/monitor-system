@@ -3,26 +3,40 @@ package chat
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"monitor-system/agent_service/api/chat/v1"
 	"monitor-system/agent_service/internal/ai/agent/chat_pipeline"
 	"monitor-system/agent_service/utility/log_call_back"
 	"monitor-system/agent_service/utility/mem"
+	"monitor-system/agent_service/utility/middleware"
 	"strings"
 
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
-	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gin-gonic/gin"
 )
 
-func (c *ControllerV1) ChatStream(ctx context.Context, req *v1.ChatStreamReq) (res *v1.ChatStreamRes, err error) {
+func (c *ControllerV1) ChatStream(gctx *gin.Context) {
+	var req v1.ChatStreamReq
+	if err := gctx.ShouldBindJSON(&req); err != nil {
+		middleware.Respond(gctx, nil, fmt.Errorf("解析请求失败: %w", err))
+		return
+	}
+	if err := c.runChatStream(gctx.Request.Context(), gctx, &req); err != nil {
+		return
+	}
+}
+
+func (c *ControllerV1) runChatStream(ctx context.Context, gctx *gin.Context, req *v1.ChatStreamReq) error {
 	id := req.Id
 	msg := req.Question
 
 	ctx = context.WithValue(ctx, "client_id", req.Id)
-	client, err := c.service.Create(ctx, g.RequestFromCtx(ctx))
+	client, err := c.service.Create(ctx, gctx.Writer, req.Id)
 	if err != nil {
-		return nil, err
+		middleware.Respond(gctx, nil, err)
+		return err
 	}
 
 	userMessage := &chat_pipeline.UserMessage{
@@ -32,10 +46,14 @@ func (c *ControllerV1) ChatStream(ctx context.Context, req *v1.ChatStreamReq) (r
 	}
 
 	runner, err := chat_pipeline.BuildChatAgent(ctx)
+	if err != nil {
+		client.SendToClient("error", err.Error())
+		return err
+	}
 	sr, err := runner.Stream(ctx, userMessage, compose.WithCallbacks(log_call_back.LogCallback(nil)))
 	if err != nil {
 		client.SendToClient("error", err.Error())
-		return nil, err
+		return err
 	}
 	defer sr.Close()
 
@@ -53,11 +71,11 @@ func (c *ControllerV1) ChatStream(ctx context.Context, req *v1.ChatStreamReq) (r
 		chunk, err := sr.Recv()
 		if errors.Is(err, io.EOF) {
 			client.SendToClient("done", "Stream completed")
-			return &v1.ChatStreamRes{}, nil
+			return nil
 		}
 		if err != nil {
 			client.SendToClient("error", err.Error())
-			return &v1.ChatStreamRes{}, nil
+			return err
 		}
 		fullResponse.WriteString(chunk.Content)
 		client.SendToClient("message", chunk.Content)

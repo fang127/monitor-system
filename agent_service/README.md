@@ -13,7 +13,7 @@
 
 ```text
 agent_service/
-├── api/                         # GoFrame API 请求/响应定义
+├── api/                         # Gin HTTP 请求/响应定义
 ├── internal/controller/chat/     # HTTP 控制器
 ├── internal/ai/agent/            # 对话、知识索引、AI Ops 编排流程
 ├── internal/ai/tools/            # 监控查询、知识库查询、时间工具
@@ -99,7 +99,7 @@ docker compose --env-file configs/app.env -f deploy/docker-compose.yml up -d
 ```bash
 curl -X POST http://127.0.0.1:6872/api/agent/chat \
   -H "Content-Type: application/json" \
-  -d '{"id":"demo-user","question":"当前集群健康情况怎么样？"}'
+  -d '{"Id":"demo-user","Question":"当前集群健康情况怎么样？"}'
 ```
 
 上传文档：

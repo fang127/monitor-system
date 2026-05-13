@@ -2,6 +2,7 @@ package chat
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"monitor-system/agent_service/api/chat/v1"
 	"monitor-system/agent_service/internal/ai/agent/knowledge_index_pipeline"
@@ -9,49 +10,46 @@ import (
 	"monitor-system/agent_service/utility/client"
 	"monitor-system/agent_service/utility/common"
 	"monitor-system/agent_service/utility/log_call_back"
+	"monitor-system/agent_service/utility/middleware"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/cloudwego/eino/components/document"
 	"github.com/cloudwego/eino/compose"
-	"github.com/gogf/gf/v2/errors/gerror"
-	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/os/gfile"
+	"github.com/gin-gonic/gin"
 )
 
-func (c *ControllerV1) FileUpload(ctx context.Context, req *v1.FileUploadReq) (res *v1.FileUploadRes, err error) {
+func (c *ControllerV1) FileUpload(gctx *gin.Context) {
+	res, err := c.runFileUpload(gctx.Request.Context(), gctx)
+	middleware.Respond(gctx, res, err)
+}
+
+func (c *ControllerV1) runFileUpload(ctx context.Context, gctx *gin.Context) (res *v1.FileUploadRes, err error) {
 	// 从请求中获取上传的文件
-	r := g.RequestFromCtx(ctx)
-	uploadFile := r.GetUploadFile("file")
-	if uploadFile == nil {
-		return nil, gerror.New("请上传文件")
+	uploadFile, err := gctx.FormFile("file")
+	if err != nil {
+		return nil, errors.New("请上传文件")
 	}
 
 	// 确保保存目录存在
-	if !gfile.Exists(common.FileDir) {
-		if err := gfile.Mkdir(common.FileDir); err != nil {
-			return nil, gerror.Wrapf(err, "创建目录失败: %s", common.FileDir)
-		}
+	if err := os.MkdirAll(common.FileDir, 0755); err != nil {
+		return nil, fmt.Errorf("创建目录失败: %s: %w", common.FileDir, err)
 	}
 
 	// 获取原始文件名
-	newFileName := uploadFile.Filename
+	newFileName := filepath.Base(uploadFile.Filename)
 
 	// 保存文件
-	savedFileName, err := uploadFile.Save(common.FileDir, false)
-	if err != nil {
-		return nil, gerror.Wrapf(err, "保存文件失败")
-	}
-	if savedFileName != "" {
-		newFileName = savedFileName
-	}
 	savePath := filepath.Join(common.FileDir, newFileName)
+	if err := gctx.SaveUploadedFile(uploadFile, savePath); err != nil {
+		return nil, fmt.Errorf("保存文件失败: %w", err)
+	}
 
 	// 获取文件信息
 	fileInfo, err := os.Stat(savePath)
 	if err != nil {
-		return nil, gerror.Wrapf(err, "获取文件信息失败")
+		return nil, fmt.Errorf("获取文件信息失败: %w", err)
 	}
 
 	res = &v1.FileUploadRes{
@@ -61,13 +59,16 @@ func (c *ControllerV1) FileUpload(ctx context.Context, req *v1.FileUploadReq) (r
 	}
 	err = buildIntoIndex(ctx, savePath)
 	if err != nil {
-		return nil, gerror.Wrapf(err, "构建知识库失败")
+		return nil, fmt.Errorf("构建知识库失败: %w", err)
 	}
 	return res, nil
 }
 
 func buildIntoIndex(ctx context.Context, path string) error {
 	r, err := knowledge_index_pipeline.BuildKnowledgeIndexing(ctx)
+	if err != nil {
+		return err
+	}
 	// 删除biz数据metadata中_source一样的数据
 	loader, err := loader2.NewFileLoader(ctx)
 	if err != nil {
