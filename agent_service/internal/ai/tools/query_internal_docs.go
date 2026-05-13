@@ -9,6 +9,9 @@ import (
 	"github.com/cloudwego/eino/components/tool/utils"
 )
 
+// 把 Milvus 知识库检索封装成工具
+
+// QueryInternalDocsInput 定义了查询内部文档工具的输入结构体
 type QueryInternalDocsInput struct {
 	Query string `json:"query" jsonschema:"description=The query string to search in internal documentation for relevant information and processing steps"`
 }

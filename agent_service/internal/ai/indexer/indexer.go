@@ -10,12 +10,15 @@ import (
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
 )
 
+// NewMilvusIndexer 创建一个新的 Milvus 索引器实例
 func NewMilvusIndexer(ctx context.Context) (*milvus.Indexer, error) {
+	// 创建 Milvus 客户端
 	cli, err := client.NewMilvusClient(ctx)
 	if err != nil {
 		return nil, err
 	}
-	eb, err := embedder2.DoubaoEmbedding(ctx)
+	// 创建嵌入向量生成器
+	eb, err := embedder2.CrearteEmbedding(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -25,6 +28,7 @@ func NewMilvusIndexer(ctx context.Context) (*milvus.Indexer, error) {
 		Fields:     fields,
 		Embedding:  eb,
 	}
+	// 创建 Milvus 索引器实例
 	indexer, err := milvus.NewIndexer(ctx, config)
 	if err != nil {
 		return nil, err
@@ -32,6 +36,7 @@ func NewMilvusIndexer(ctx context.Context) (*milvus.Indexer, error) {
 	return indexer, nil
 }
 
+// 定义 Milvus 索引器使用的字段
 var fields = []*entity.Field{
 	{
 		Name:     "id",

@@ -12,12 +12,15 @@ import (
 	"github.com/cloudwego/eino/schema"
 )
 
+// NewMilvusRetriever创建一个基于Milvus的Retriever实例，从而实现向量数据库的检索功能。
 func NewMilvusRetriever(ctx context.Context) (rtr einoRetriever.Retriever, err error) {
+	// 创建Milvus客户端
 	cli, err := client.NewMilvusClient(ctx)
 	if err != nil {
 		return nil, err
 	}
-	eb, err := embedder.DoubaoEmbedding(ctx)
+	// 获取DoubaoEmbedding实例
+	eb, err := embedder.CrearteEmbedding(ctx)
 	if err != nil {
 		return nil, err
 	}

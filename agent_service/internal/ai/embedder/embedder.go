@@ -9,7 +9,8 @@ import (
 	"github.com/cloudwego/eino/components/embedding"
 )
 
-func DoubaoEmbedding(ctx context.Context) (eb embedding.Embedder, err error) {
+// CrearteEmbedding 创建一个新的 Embedder 实例，使用配置中的模型名称和 API 密钥。
+func CrearteEmbedding(ctx context.Context) (eb embedding.Embedder, err error) {
 	modelName, err := common.ConfigString(ctx, "doubao_embedding_model.model", "AGENT_EMBEDDING_MODEL", "text-embedding-v4")
 	if err != nil {
 		return nil, err
