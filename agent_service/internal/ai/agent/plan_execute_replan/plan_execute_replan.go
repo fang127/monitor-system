@@ -9,7 +9,9 @@ import (
 	"github.com/cloudwego/eino/adk/prebuilt/planexecute"
 )
 
+// BuildPlanAgent 构建一个包含计划、执行和重新计划能力的智能体，并执行给定的查询。返回最终的响应内容、详细的事件日志以及可能发生的错误。
 func BuildPlanAgent(ctx context.Context, query string) (string, []string, error) {
+	// 构建计划智能体、执行智能体和重新计划智能体，并将它们组合成一个计划执行智能体。
 	planAgent, err := NewPlanner(ctx)
 	if err != nil {
 		return "", []string{}, err

@@ -8,8 +8,9 @@ import (
 	"github.com/cloudwego/eino/adk/prebuilt/planexecute"
 )
 
+// NewPlanner 创建一个新的 Planner 实例，使用 OpenAI 模型进行工具调用。
 func NewPlanner(ctx context.Context) (adk.Agent, error) {
-	planModel, err := models.OpenAIForDeepSeekV31Think(ctx)
+	planModel, err := models.OpenAIForThink(ctx)
 	if err != nil {
 		return nil, err
 	}

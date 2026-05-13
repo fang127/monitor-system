@@ -11,9 +11,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// 该文件包含了配置加载和环境变量读取的公共函数，以及一些常量定义，供整个项目使用。
+
+// Milvus 数据库的名称和集合名称
 const (
-	MilvusDBName         = "monitor_system_agent"
-	MilvusCollectionName = "ops_docs"
+	MilvusDBName         = "monitor_system_agent" // MilvusCollectionName 是 Milvus 中存储文档的集合名称
+	MilvusCollectionName = "ops_docs"             // MilvusIndexName 是 Milvus 中用于加速查询的索引名称
 )
 
 var FileDir = "./docs/"
@@ -24,6 +27,7 @@ var (
 	configErr  error
 )
 
+// ConfigString 从环境变量或配置文件中获取字符串类型的配置值，优先级为：环境变量 > 配置文件 > 默认值
 func ConfigString(ctx context.Context, key string, envName string, fallback string) (string, error) {
 	if value := os.Getenv(envName); value != "" {
 		return value, nil
@@ -38,6 +42,7 @@ func ConfigString(ctx context.Context, key string, envName string, fallback stri
 	return "", err
 }
 
+// ConfigInt 从环境变量或配置文件中获取整数类型的配置值，优先级为：环境变量 > 配置文件 > 默认值
 func ConfigInt(ctx context.Context, key string, envName string, fallback int) (int, error) {
 	if value := os.Getenv(envName); value != "" {
 		parsed, err := strconv.Atoi(value)
@@ -67,6 +72,7 @@ func ConfigInt(ctx context.Context, key string, envName string, fallback int) (i
 	return fallback, err
 }
 
+// ConfigBool 从环境变量或配置文件中获取布尔类型的配置值，优先级为：环境变量 > 配置文件 > 默认值
 func configValue(ctx context.Context, key string) (interface{}, error) {
 	_ = ctx
 	configOnce.Do(loadConfig)
@@ -77,6 +83,8 @@ func configValue(ctx context.Context, key string) (interface{}, error) {
 		return nil, fmt.Errorf("config file not found")
 	}
 	current := interface{}(configData)
+	// 从根节点开始遍历配置数据
+	// 通过点分隔的键路径逐层访问配置数据，例如 "database.host" 会依次访问 configData["database"]["host"]
 	for _, part := range strings.Split(key, ".") {
 		switch node := current.(type) {
 		case map[string]interface{}:
@@ -92,6 +100,7 @@ func configValue(ctx context.Context, key string) (interface{}, error) {
 	return current, nil
 }
 
+// loadConfig 加载配置文件，优先级为：环境变量指定路径 > 默认路径1 > 默认路径2
 func loadConfig() {
 	configData = map[string]interface{}{}
 	for _, path := range configPaths() {
@@ -109,6 +118,7 @@ func loadConfig() {
 	}
 }
 
+// configPaths 返回一个包含可能的配置文件路径的切片，优先级为：环境变量指定路径 > 默认路径1 > 默认路径2
 func configPaths() []string {
 	if path := os.Getenv("AGENT_CONFIG_PATH"); path != "" {
 		return []string{path, "manifest/config/config.yaml", "agent_service/manifest/config/config.yaml"}

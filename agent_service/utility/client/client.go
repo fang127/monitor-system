@@ -10,6 +10,8 @@ import (
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
 )
 
+// 创建 Milvus 客户端，并确保数据库、collection 和索引存在。
+
 func NewMilvusClient(ctx context.Context) (cli.Client, error) {
 	address, err := common.ConfigString(ctx, "milvus_addr", "MILVUS_ADDR", "127.0.0.1:19530")
 	if err != nil {
@@ -125,6 +127,7 @@ func NewMilvusClient(ctx context.Context) (cli.Client, error) {
 	return agentClient, nil
 }
 
+// 确保collection处于加载状态，如果正在加载则等待加载完成，如果未加载则触发加载
 func ensureCollectionLoaded(ctx context.Context, agentClient cli.Client) error {
 	state, err := agentClient.GetLoadState(ctx, common.MilvusCollectionName, nil)
 	if err != nil {
@@ -144,6 +147,7 @@ func ensureCollectionLoaded(ctx context.Context, agentClient cli.Client) error {
 	}
 }
 
+// 轮询检查collection是否加载完成，直到加载完成或上下文超时
 func waitCollectionLoaded(ctx context.Context, agentClient cli.Client) error {
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
@@ -167,30 +171,31 @@ func waitCollectionLoaded(ctx context.Context, agentClient cli.Client) error {
 	}
 }
 
+// 定义collection schema的字段
 var fields = []*entity.Field{
 	{
-		Name:     "id",
+		Name:     "id", // 字符串主键
 		DataType: entity.FieldTypeVarChar,
 		TypeParams: map[string]string{
-			"max_length": "256",
+			"max_length": "256", // 根据实际需求调整主键长度
 		},
 		PrimaryKey: true,
 	},
 	{
-		Name:     "vector", // 确保字段名匹配
+		Name:     "vector", // 二进制向量，维度 65536
 		DataType: entity.FieldTypeBinaryVector,
 		TypeParams: map[string]string{
 			"dim": "65536",
 		},
 	},
 	{
-		Name:     "content",
+		Name:     "content", // 文本内容，最大长度 8192
 		DataType: entity.FieldTypeVarChar,
 		TypeParams: map[string]string{
 			"max_length": "8192",
 		},
 	},
-	{
+	{ // 额外的metadata字段，存储JSON格式的元信息
 		Name:     "metadata",
 		DataType: entity.FieldTypeJSON,
 	},

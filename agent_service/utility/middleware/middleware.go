@@ -9,10 +9,11 @@ import (
 // CORSMiddleware 处理CORS跨域请求。
 func CORSMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Origin,Content-Type,Accept,Authorization")
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "false")
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")                                         // 允许所有来源
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")        // 允许的HTTP方法
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Origin,Content-Type,Accept,Authorization") // 允许的请求头
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "false")                                // 是否允许携带凭证
+		// 处理预检请求，直接返回204 No Content
 		if c.Request.Method == http.MethodOptions {
 			c.AbortWithStatus(http.StatusNoContent)
 			return
@@ -21,6 +22,7 @@ func CORSMiddleware() gin.HandlerFunc {
 	}
 }
 
+// Respond 统一API响应格式。
 func Respond(c *gin.Context, res interface{}, err error) {
 	msg := "OK"
 	code := 0

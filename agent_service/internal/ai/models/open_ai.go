@@ -8,7 +8,8 @@ import (
 	"github.com/cloudwego/eino/components/model"
 )
 
-func OpenAIForDeepSeekV31Think(ctx context.Context) (cm model.ToolCallingChatModel, err error) {
+// 创建ai model以供agent调用，模型配置从环境变量读取
+func OpenAIForThink(ctx context.Context) (cm model.ToolCallingChatModel, err error) {
 	modelName, err := common.ConfigString(ctx, "ds_think_chat_model.model", "AGENT_THINK_MODEL", "")
 	if err != nil {
 		return nil, err
@@ -33,7 +34,8 @@ func OpenAIForDeepSeekV31Think(ctx context.Context) (cm model.ToolCallingChatMod
 	return cm, nil
 }
 
-func OpenAIForDeepSeekV3Quick(ctx context.Context) (cm model.ToolCallingChatModel, err error) {
+// 创建ai model以供agent调用，模型配置从环境变量读取
+func OpenAIForQuick(ctx context.Context) (cm model.ToolCallingChatModel, err error) {
 	modelName, err := common.ConfigString(ctx, "ds_quick_chat_model.model", "AGENT_QUICK_MODEL", "")
 	if err != nil {
 		return nil, err

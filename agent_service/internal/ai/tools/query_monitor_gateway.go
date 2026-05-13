@@ -16,12 +16,16 @@ import (
 	"github.com/cloudwego/eino/components/tool/utils"
 )
 
+// 该文件定义了一组工具函数，用于从监控系统的 API 网关查询集群概览、异常记录、性能数据、趋势数据和详细数据。这些工具函数使用 HTTP GET 请求与 API 网关通信，并将响应格式化为统一的输出结构。工具函数支持可选的查询参数，如时间范围、分页和阈值过滤，以满足不同的查询需求。
+
+// gatewayEnvelope 定义了 API 网关响应的通用结构，包含状态码、消息和数据字段。
 type gatewayEnvelope struct {
 	Code    int             `json:"code"`
 	Message string          `json:"message"`
 	Data    json.RawMessage `json:"data"`
 }
 
+// gatewayToolOutput 定义了工具函数输出的统一结构，包含成功标志、数据来源、返回数据、消息和错误信息。
 type gatewayToolOutput struct {
 	Success bool        `json:"success"`
 	Source  string      `json:"source"`
@@ -30,8 +34,10 @@ type gatewayToolOutput struct {
 	Error   string      `json:"error,omitempty"`
 }
 
+// ClusterOverviewInput 定义了查询集群概览工具的输入结构，目前没有参数。
 type ClusterOverviewInput struct{}
 
+// MonitorAnomaliesInput 定义了查询异常记录工具的输入结构，包含服务器名称、时间范围、分页参数和阈值过滤参数。
 type MonitorAnomaliesInput struct {
 	ServerName          string  `json:"server_name" jsonschema:"description=Server name to query. Leave empty to query every server returned by query_monitor_cluster_overview"`
 	StartTime           string  `json:"start_time" jsonschema:"description=Optional start time, RFC3339 or Unix seconds"`
@@ -44,6 +50,7 @@ type MonitorAnomaliesInput struct {
 	ChangeRateThreshold float64 `json:"change_rate_threshold" jsonschema:"description=Optional metric change-rate threshold"`
 }
 
+// MonitorSeriesInput 定义了查询性能数据和趋势数据工具的输入结构，包含服务器名称、时间范围、分页参数和趋势聚合间隔参数。
 type MonitorSeriesInput struct {
 	ServerName      string `json:"server_name" jsonschema:"description=Server name to query"`
 	StartTime       string `json:"start_time" jsonschema:"description=Optional start time, RFC3339 or Unix seconds"`
@@ -53,6 +60,7 @@ type MonitorSeriesInput struct {
 	IntervalSeconds int    `json:"interval_seconds" jsonschema:"description=Optional trend aggregation interval in seconds. Used by trend queries"`
 }
 
+// MonitorDetailInput 定义了查询详细数据工具的输入结构，包含服务器名称、详细数据类型、时间范围和分页参数。
 type MonitorDetailInput struct {
 	ServerName string `json:"server_name" jsonschema:"description=Server name to query"`
 	Kind       string `json:"kind" jsonschema:"description=Detail kind: net, disk, mem, or softirq"`
@@ -62,6 +70,7 @@ type MonitorDetailInput struct {
 	PageSize   int    `json:"page_size" jsonschema:"description=Optional page size, defaults to 100"`
 }
 
+// NewMonitorClusterOverviewTool 创建了一个工具函数，用于查询监控系统的集群概览。该工具函数发送 GET 请求到 API 网关的 /api/servers/latest 端点，并返回最新的服务器评分、在线/离线状态和集群统计信息。
 func NewMonitorClusterOverviewTool() tool.InvokableTool {
 	t, err := utils.InferOptionableTool(
 		"query_monitor_cluster_overview",
