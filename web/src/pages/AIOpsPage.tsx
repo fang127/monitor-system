@@ -1,17 +1,26 @@
-import { useMemo, useState } from 'react';
-import { runAIOpsReport, sendAgentChat, uploadAgentKnowledge, type AgentUploadResponse } from '../api/agent';
-import { EmptyState, ErrorState, LoadingState } from '../components/SectionState';
+import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  runAIOpsReport,
+  sendAgentChat,
+  sendAgentChatStream,
+  uploadAgentKnowledge,
+  type AgentUploadResponse,
+} from '../api/agent';
 
 type ChatMessage = {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  label?: string;
+  detail?: string[];
 };
 
 type AsyncTextState = {
   loading: boolean;
   error: string | null;
 };
+
+type ResponseMode = 'stream' | 'normal';
 
 function createSessionId() {
   return `web-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -38,171 +47,304 @@ function formatFileSize(bytes: number) {
   return `${(bytes / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
 }
 
+function AttachmentIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="M10.7 17.8 17.9 10.6a3.3 3.3 0 0 0-4.7-4.7l-8 8a4.7 4.7 0 0 0 6.6 6.6l8.1-8.1" />
+      <path d="m8.9 15.6 7-7" />
+    </svg>
+  );
+}
+
+function SendIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="M12 19V5" />
+      <path d="m5 12 7-7 7 7" />
+    </svg>
+  );
+}
+
 export function AIOpsPage() {
-  const [report, setReport] = useState('');
-  const [detail, setDetail] = useState<string[]>([]);
-  const [reportState, setReportState] = useState<AsyncTextState>({ loading: false, error: null });
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [question, setQuestion] = useState('');
+  const [responseMode, setResponseMode] = useState<ResponseMode>('stream');
   const [chatState, setChatState] = useState<AsyncTextState>({ loading: false, error: null });
   const [uploadState, setUploadState] = useState<AsyncTextState>({ loading: false, error: null });
   const [uploadResult, setUploadResult] = useState<AgentUploadResponse | null>(null);
-  const [question, setQuestion] = useState('');
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sessionId] = useState(createSessionId);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const latestAssistantMessage = useMemo(
-    () => [...messages].reverse().find((message) => message.role === 'assistant'),
-    [messages],
-  );
+  const isBusy = chatState.loading || uploadState.loading;
+  const hasMessages = messages.length > 0;
+
+  const statusText = useMemo(() => {
+    if (chatState.loading) {
+      return responseMode === 'stream' ? '正在流式输出' : '正在生成回复';
+    }
+    if (uploadState.loading) {
+      return '正在上传并写入知识库';
+    }
+    if (uploadResult) {
+      return `已索引 ${uploadResult.fileName}`;
+    }
+    return '已连接 agent_service';
+  }, [chatState.loading, responseMode, uploadResult, uploadState.loading]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+  }, [messages, chatState.loading]);
+
+  function appendAssistantMessage(message: ChatMessage) {
+    setMessages((current) => [...current, message]);
+  }
+
+  function updateAssistantMessage(id: string, updater: (message: ChatMessage) => ChatMessage) {
+    setMessages((current) => current.map((message) => (message.id === id ? updater(message) : message)));
+  }
 
   async function handleRunReport() {
-    setReportState({ loading: true, error: null });
-    setReport('');
-    setDetail([]);
+    if (isBusy) {
+      return;
+    }
+    const userMessage: ChatMessage = {
+      id: `${Date.now()}-report-user`,
+      role: 'user',
+      label: '快捷操作',
+      content: '生成当前集群的 AI 运维分析报告',
+    };
+    setMessages((current) => [...current, userMessage]);
+    setChatState({ loading: true, error: null });
+
     try {
       const result = await runAIOpsReport();
-      setReport(normalizeReport(result.result));
-      setDetail(result.detail || []);
-      setReportState({ loading: false, error: null });
+      appendAssistantMessage({
+        id: `${Date.now()}-report-assistant`,
+        role: 'assistant',
+        label: 'AI 运维报告',
+        content: normalizeReport(result.result),
+        detail: result.detail || [],
+      });
+      setChatState({ loading: false, error: null });
     } catch (error) {
-      setReportState({ loading: false, error: error instanceof Error ? error.message : '生成报告失败' });
+      setChatState({ loading: false, error: error instanceof Error ? error.message : '生成报告失败' });
     }
   }
 
   async function handleSendChat() {
     const trimmed = question.trim();
-    if (!trimmed || chatState.loading) {
+    if (!trimmed || isBusy) {
       return;
     }
+
     const userMessage: ChatMessage = {
       id: `${Date.now()}-user`,
       role: 'user',
       content: trimmed,
     };
+    const assistantMessageId = `${Date.now()}-assistant`;
     setMessages((current) => [...current, userMessage]);
     setQuestion('');
     setChatState({ loading: true, error: null });
+
     try {
-      const result = await sendAgentChat({ id: sessionId, question: trimmed });
-      setMessages((current) => [
-        ...current,
-        {
-          id: `${Date.now()}-assistant`,
+      if (responseMode === 'normal') {
+        const result = await sendAgentChat({ id: sessionId, question: trimmed });
+        appendAssistantMessage({
+          id: assistantMessageId,
           role: 'assistant',
+          label: '普通输出',
           content: result.answer,
-        },
-      ]);
+        });
+      } else {
+        appendAssistantMessage({
+          id: assistantMessageId,
+          role: 'assistant',
+          label: '流式输出',
+          content: '',
+        });
+        await sendAgentChatStream(
+          { id: sessionId, question: trimmed },
+          {
+            onToken: (token) => {
+              updateAssistantMessage(assistantMessageId, (message) => ({
+                ...message,
+                content: `${message.content}${token}`,
+              }));
+            },
+          },
+        );
+      }
       setChatState({ loading: false, error: null });
     } catch (error) {
       setChatState({ loading: false, error: error instanceof Error ? error.message : '发送失败' });
+      if (responseMode === 'stream') {
+        updateAssistantMessage(assistantMessageId, (message) => ({
+          ...message,
+          content: message.content || '流式响应中断，请稍后重试。',
+        }));
+      }
     }
   }
 
   async function handleUpload(file: File | null) {
-    if (!file) {
+    if (!file || isBusy) {
       return;
     }
+
     setUploadState({ loading: true, error: null });
     setUploadResult(null);
     try {
       const result = await uploadAgentKnowledge(file);
       setUploadResult(result);
+      setMessages((current) => [
+        ...current,
+        {
+          id: `${Date.now()}-upload`,
+          role: 'assistant',
+          label: '知识库',
+          content: `文件「${result.fileName}」已上传并写入知识库，大小 ${formatFileSize(result.fileSize)}。后续问答会检索这份文档。`,
+        },
+      ]);
       setUploadState({ loading: false, error: null });
     } catch (error) {
       setUploadState({ loading: false, error: error instanceof Error ? error.message : '上传失败' });
+    } finally {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void handleSendChat();
+  }
+
+  function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      void handleSendChat();
     }
   }
 
   return (
-    <div className="page-stack aiops-page">
-      <header className="page-header">
+    <div className="aiops-chat-page">
+      <div className="aiops-chat-header">
         <div>
-          <span className="eyebrow">POST /api/agent/ai_ops</span>
           <h1>AI 运维</h1>
+          <span>{statusText}</span>
         </div>
-        <button className="primary-action" type="button" disabled={reportState.loading} onClick={handleRunReport}>
-          {reportState.loading ? '生成中' : '生成报告'}
+        <button className="aiops-ghost-action" type="button" disabled={isBusy} onClick={handleRunReport}>
+          生成报告
         </button>
-      </header>
-
-      <section className="section-block aiops-report-section">
-        <div className="section-heading">
-          <h2>运维分析报告</h2>
-          {detail.length > 0 && <span className="muted-text">{detail.length} 条执行记录</span>}
-        </div>
-        {reportState.loading && <LoadingState title="正在生成报告" message="正在查询集群概览、异常和内部文档" />}
-        {reportState.error && <ErrorState title="报告生成失败" message={reportState.error} />}
-        {!reportState.loading && !reportState.error && !report && (
-          <EmptyState title="等待生成" message="点击生成报告后会展示最新分析结果" />
-        )}
-        {!reportState.loading && !reportState.error && report && <pre className="aiops-report">{report}</pre>}
-      </section>
-
-      <div className="aiops-grid">
-        <section className="section-block">
-          <div className="section-heading">
-            <h2>知识库</h2>
-            {uploadResult && <span className="muted-text">{formatFileSize(uploadResult.fileSize)}</span>}
-          </div>
-          <label className="file-drop">
-            <input
-              type="file"
-              accept=".md,.txt,.pdf,.csv,.doc,.docx"
-              disabled={uploadState.loading}
-              onChange={(event) => handleUpload(event.target.files?.[0] || null)}
-            />
-            <span>{uploadState.loading ? '上传中' : '上传文档'}</span>
-          </label>
-          {uploadState.error && <ErrorState title="上传失败" message={uploadState.error} />}
-          {uploadResult && (
-            <div className="upload-result">
-              <strong>{uploadResult.fileName}</strong>
-              <span>{uploadResult.filePath}</span>
-            </div>
-          )}
-        </section>
-
-        <section className="section-block">
-          <div className="section-heading">
-            <h2>运维问答</h2>
-            {latestAssistantMessage && <span className="muted-text">已响应</span>}
-          </div>
-          <div className="chat-panel" aria-live="polite">
-            {messages.length === 0 && <EmptyState title="暂无对话" message="输入问题后会展示回复" />}
-            {messages.map((message) => (
-              <div key={message.id} className={`chat-message chat-message-${message.role}`}>
-                <span>{message.role === 'user' ? '我' : 'AI'}</span>
-                <p>{message.content}</p>
-              </div>
-            ))}
-            {chatState.loading && <LoadingState title="正在分析" message="正在查询监控数据和知识库" />}
-            {chatState.error && <ErrorState title="发送失败" message={chatState.error} />}
-          </div>
-          <div className="aiops-chat-input">
-            <textarea
-              value={question}
-              rows={3}
-              placeholder="例如：分析当前最需要关注的服务器"
-              onChange={(event) => setQuestion(event.target.value)}
-            />
-            <button type="button" disabled={chatState.loading || !question.trim()} onClick={handleSendChat}>
-              发送
-            </button>
-          </div>
-        </section>
       </div>
 
-      {detail.length > 0 && (
-        <section className="section-block">
-          <div className="section-heading">
-            <h2>执行记录</h2>
+      <main className={`aiops-conversation ${hasMessages ? '' : 'aiops-conversation-empty'}`} aria-live="polite">
+        {!hasMessages && (
+          <section className="aiops-welcome">
+            <div className="aiops-mark">AI</div>
+            <h2>今天需要排查什么？</h2>
+            <p>可以直接询问集群健康、异常根因、服务器趋势，也可以先上传运维文档补充知识库。</p>
+            <div className="aiops-suggestion-grid">
+              <button type="button" onClick={() => setQuestion('分析当前最需要关注的服务器，并说明优先级')}>
+                分析重点服务器
+              </button>
+              <button type="button" onClick={() => setQuestion('根据最近异常记录，给出根因分析和处理建议')}>
+                追踪异常根因
+              </button>
+              <button type="button" onClick={() => setQuestion('总结当前集群健康状态，列出人工确认事项')}>
+                汇总健康状态
+              </button>
+            </div>
+          </section>
+        )}
+
+        {messages.map((message) => (
+          <article key={message.id} className={`aiops-message aiops-message-${message.role}`}>
+            <div className="aiops-avatar">{message.role === 'user' ? '我' : 'AI'}</div>
+            <div className="aiops-message-body">
+              {message.label && <span className="aiops-message-label">{message.label}</span>}
+              <p>{message.content}</p>
+              {message.detail && message.detail.length > 0 && (
+                <details className="aiops-run-detail">
+                  <summary>查看 {message.detail.length} 条执行记录</summary>
+                  <div>
+                    {message.detail.map((item, index) => (
+                      <pre key={`${index}-${item.slice(0, 20)}`}>{item}</pre>
+                    ))}
+                  </div>
+                </details>
+              )}
+            </div>
+          </article>
+        ))}
+
+        {chatState.loading && (
+          <div className="aiops-thinking" role="status">
+            <span />
+            <span />
+            <span />
           </div>
-          <div className="detail-log">
-            {detail.map((item, index) => (
-              <pre key={`${index}-${item.slice(0, 20)}`}>{item}</pre>
-            ))}
+        )}
+        {(chatState.error || uploadState.error) && (
+          <div className="aiops-inline-error" role="alert">
+            {chatState.error || uploadState.error}
           </div>
-        </section>
-      )}
+        )}
+        <div ref={messagesEndRef} />
+      </main>
+
+      <form className="aiops-composer" onSubmit={handleSubmit}>
+        {uploadResult && (
+          <div className="aiops-attachment-chip">
+            <span>{uploadResult.fileName}</span>
+            <small>{formatFileSize(uploadResult.fileSize)}</small>
+          </div>
+        )}
+        <textarea
+          value={question}
+          rows={1}
+          placeholder="给 AI 运维发送消息"
+          disabled={isBusy}
+          onChange={(event) => setQuestion(event.target.value)}
+          onKeyDown={handleComposerKeyDown}
+        />
+        <div className="aiops-composer-toolbar">
+          <label className="aiops-icon-button" aria-label="上传文件">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".md,.txt,.pdf,.csv,.doc,.docx"
+              disabled={isBusy}
+              onChange={(event) => void handleUpload(event.target.files?.[0] || null)}
+            />
+            <AttachmentIcon />
+          </label>
+          <div className="aiops-mode-switch" aria-label="输出模式">
+            <button
+              type="button"
+              className={responseMode === 'stream' ? 'active' : ''}
+              disabled={isBusy}
+              onClick={() => setResponseMode('stream')}
+            >
+              流式
+            </button>
+            <button
+              type="button"
+              className={responseMode === 'normal' ? 'active' : ''}
+              disabled={isBusy}
+              onClick={() => setResponseMode('normal')}
+            >
+              普通
+            </button>
+          </div>
+          <button className="aiops-send-button" type="submit" aria-label="发送" disabled={isBusy || !question.trim()}>
+            <SendIcon />
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

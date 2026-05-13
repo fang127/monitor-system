@@ -21,6 +21,11 @@ export type AgentOpsResponse = {
   detail: string[];
 };
 
+type AgentChatStreamHandlers = {
+  onToken: (token: string) => void;
+  onEvent?: (event: string, data: string) => void;
+};
+
 const agentApiBaseUrl = import.meta.env.VITE_AGENT_API_BASE_URL || '/api/agent';
 
 const agentClient = axios.create({
@@ -64,6 +69,84 @@ export function sendAgentChat(params: { id: string; question: string }): Promise
     Id: params.id,
     Question: params.question,
   });
+}
+
+function parseSseBlock(block: string): { event: string; data: string } | null {
+  const lines = block.split(/\r?\n/);
+  let event = 'message';
+  const data: string[] = [];
+
+  for (const line of lines) {
+    if (line.startsWith('event:')) {
+      event = line.slice('event:'.length).trim();
+    }
+    if (line.startsWith('data:')) {
+      data.push(line.slice('data:'.length).replace(/^ /, ''));
+    }
+  }
+
+  if (data.length === 0) {
+    return null;
+  }
+
+  return { event, data: data.join('\n') };
+}
+
+export async function sendAgentChatStream(
+  params: { id: string; question: string },
+  handlers: AgentChatStreamHandlers,
+): Promise<void> {
+  try {
+    const response = await fetch(`${agentApiBaseUrl}/chat_stream`, {
+      method: 'POST',
+      headers: {
+        Accept: 'text/event-stream',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        Id: params.id,
+        Question: params.question,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`AI 运维服务暂不可用 (${response.status})`);
+    }
+    if (!response.body) {
+      throw new Error('浏览器不支持流式响应');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    for (;;) {
+      const { done, value } = await reader.read();
+      buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+      const blocks = buffer.split(/\r?\n\r?\n/);
+      buffer = blocks.pop() || '';
+
+      for (const block of blocks) {
+        const parsed = parseSseBlock(block);
+        if (!parsed) {
+          continue;
+        }
+        handlers.onEvent?.(parsed.event, parsed.data);
+        if (parsed.event === 'message') {
+          handlers.onToken(parsed.data);
+        }
+        if (parsed.event === 'error') {
+          throw new Error(parsed.data || '流式响应失败');
+        }
+      }
+
+      if (done) {
+        break;
+      }
+    }
+  } catch (error) {
+    throw formatAgentError(error);
+  }
 }
 
 export function uploadAgentKnowledge(file: File): Promise<AgentUploadResponse> {

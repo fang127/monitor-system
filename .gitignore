@@ -28,6 +28,9 @@ build
 *.order
 *.mod.c
 
+# configs目录下的env文件
+*.env
+
 # Backup files
 .cache
 
