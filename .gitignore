@@ -30,6 +30,7 @@ build
 
 # configs目录下的env文件
 *.env
+!*.example.env
 
 # Backup files
 .cache
