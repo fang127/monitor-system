@@ -1,249 +1,103 @@
-# OnCall-Agent Architecture Overview
+# monitor_system agent_service 架构概览
 
-## 1. Project Positioning
+## 1. 服务定位
 
-`OnCall-Agent` is a GoFrame-based backend plus a static frontend for:
+`agent_service` 是 `monitor_system` 中独立运行的 GoFrame AI 运维服务，负责把监控数据、内部知识库和大模型编排能力连接起来。
 
-- Knowledge-aware chat (`/api/chat`, `/api/chat_stream`)
-- Knowledge ingestion from uploaded files (`/api/upload`)
-- AI Ops alert analysis (`/api/ai_ops`)
+- 知识增强对话：`POST /api/agent/chat`
+- 流式知识增强对话：`POST /api/agent/chat_stream`
+- 运维知识入库：`POST /api/agent/upload`
+- AI 运维报告生成：`POST /api/agent/ai_ops`
 
-Core AI orchestration is implemented with CloudWeGo Eino (Graph + ADK), with Milvus as vector store, and MCP-based external tools for logs.
+服务基于 CloudWeGo Eino 构建对话、RAG 检索和 plan-execute-replan 编排流程。
 
----
+运行时监控事实来自现有 `api_gateway`
 
-## 2. High-Level Layering
+## 2. 分层结构
 
-- **Entry and HTTP Layer**
-  - `main.go`
-  - `api/chat/v1/chat.go`
-  - `internal/controller/chat/*.go`
-- **AI Orchestration Layer**
-  - `internal/ai/agent/chat_pipeline/*`
-  - `internal/ai/agent/knowledge_index_pipeline/*`
-  - `internal/ai/agent/plan_execute_replan/*`
-- **Capability and Integration Layer**
-  - `internal/ai/tools/*`
-  - `internal/ai/models/open_ai.go`
-  - `internal/ai/embedder/embedder.go`
-  - `internal/ai/retriever/retriever.go`
-  - `internal/ai/indexer/indexer.go`
-- **Infrastructure Utilities**
-  - `utility/client/client.go`
-  - `utility/mem/mem.go`
-  - `utility/middleware/middleware.go`
-  - `utility/log_call_back/log_call_back.go`
-  - `utility/common/common.go`
-- **Runtime and Deployment**
-  - `manifest/config/config.yaml`
-  - `manifest/docker/docker-compose.yml`
-- **Frontend**
-  - `SuperBizAgentFrontend/index.html`
-  - `SuperBizAgentFrontend/app.js`
+- **HTTP 接入层**：`main.go`、`api/chat/v1/chat.go`、`internal/controller/chat/*`
+- **AI 编排层**：`internal/ai/agent/chat_pipeline/*`、`knowledge_index_pipeline/*`、`plan_execute_replan/*`
+- **工具与外部集成**：`internal/ai/tools/query_monitor_gateway.go`、`query_internal_docs.go`、`get_current_time.go`
+- **知识库存储**：通过 `utility/client/client.go` 访问 Milvus
+- **运行时配置**：`manifest/config/config.yaml`，并支持环境变量覆盖
+- **前端入口**：根目录 `web` React 应用中的 `AI 运维` 页面
 
----
+## 3. 启动流程
 
-## 3. Backend Boot Flow
+1. `main.go` 读取 `docs_dir` / `AGENT_DOCS_DIR`，并写入 `common.FileDir`。
+2. 读取 `agent_service_port` / `AGENT_SERVICE_PORT`，默认监听端口为 `6872`。
+3. 注册 `/api/agent` 路由组，并挂载 CORS 中间件与统一响应中间件。
+4. 绑定 `chat.NewV1()` 控制器后启动 GoFrame HTTP 服务。
 
-1. `main.go` reads `file_dir` from config and sets `common.FileDir`.
-2. Registers `/api` group with:
-   - `CORSMiddleware`
-   - `ResponseMiddleware` (unified response envelope)
-3. Binds `chat.NewV1()` controller (implements `api/chat.IChatV1`).
-4. Starts server on port `6872`.
+## 4. 核心流程
 
----
+### 4.1 对话流程
 
-## 4. Core Business Flows
+`/api/agent/chat` 和 `/api/agent/chat_stream` 会根据请求构造 `UserMessage`，从 Milvus 检索相关知识片段，渲染对话提示词，并运行带有监控系统工具的 ReAct Agent。
 
-## 4.1 Chat (non-stream): `/api/chat`
+当前可用的监控工具如下：
 
-Path:
+- `query_monitor_cluster_overview`：调用 `GET /api/servers/latest` 查询集群概览。
+- `query_monitor_anomalies`：调用 `GET /api/servers/:server/anomalies` 查询异常记录；`server_name` 为空时会查询所有服务器。
+- `query_monitor_performance`：调用 `GET /api/servers/:server/performance` 查询历史性能数据。
+- `query_monitor_trend`：调用 `GET /api/servers/:server/trend` 查询指标趋势。
+- `query_monitor_detail`：调用 `GET /api/servers/:server/{net,disk,mem,softirq}-detail` 查询网络、磁盘、内存或软中断明细。
+- `query_internal_docs`：查询 Milvus 支撑的内部运维知识库。
+- `get_current_time`：提供当前时间戳，用于构造时间窗口查询。
 
-- `internal/controller/chat/chat_v1_chat.go`
-- `internal/ai/agent/chat_pipeline/orchestration.go`
+### 4.2 知识上传流程
 
-Flow:
+`/api/agent/upload` 会把上传文件保存到 `common.FileDir`，读取真实落盘路径和文件信息，删除 Milvus 中 `_source` 相同的旧分片，然后重新构建索引。
 
-1. Build `UserMessage{ID, Query, History}` from request and in-memory history (`utility/mem`).
-2. Build chat runner with `BuildChatAgent`.
-3. Invoke graph and get `*schema.Message` output.
-4. Persist one user/assistant pair into in-memory window.
-5. Return `answer`.
+Milvus 默认配置如下：
 
-Graph (`ChatAgent`) nodes:
+- 数据库：`monitor_system_agent`
+- Collection：`ops_docs`
 
-- `InputToRag`: query string for retrieval
-- `MilvusRetriever`: RAG fetch
-- `InputToChat`: chat vars (`content`, `history`, `date`)
-- `ChatTemplate`: system prompt + history + user input + retrieved docs
-- `ReactAgent`: ReAct execution with tools
+### 4.3 AI 运维报告流程
 
-## 4.2 ChatStream: `/api/chat_stream`
+`/api/agent/ai_ops` 会运行固定的中文 plan-execute-replan 任务：
 
-Path:
+1. 查询集群概览。
+2. 查询所有服务器异常。
+3. 对异常或低分服务器继续查询性能、趋势或明细指标。
+4. 检索内部运维文档，查找匹配的处理手册。
+5. 输出基于 `monitor_system` 真实数据的中文 AI 运维分析报告。
 
-- `internal/controller/chat/chat_v1_chat_stream.go`
-- `internal/logic/sse/sse.go`
+## 5. 配置说明
 
-Flow:
-
-1. Create SSE client (`Service.Create`), set text/event-stream headers.
-2. Build same `UserMessage` as sync chat.
-3. Call `runner.Stream(...)` and forward chunks to SSE `message` events.
-4. On EOF, send `done` event.
-5. Aggregate full output and append history in defer.
-
-## 4.3 File Upload + Index Build: `/api/upload`
-
-Path:
-
-- `internal/controller/chat/chat_v1_file_upload.go`
-- `internal/ai/agent/knowledge_index_pipeline/orchestration.go`
-
-Flow:
-
-1. Save uploaded file into `common.FileDir`.
-2. For same `_source`, query existing Milvus ids and delete them first.
-3. Run `KnowledgeIndexing` graph:
-   - `FileLoader` -> `MarkdownSplitter` -> `MilvusIndexer`
-4. Return file metadata.
-
-A standalone batch indexer also exists:
-
-- `internal/ai/cmd/knowledge_cmd/main.go`
-
-It walks `./docs` and rebuilds indexes per markdown file.
-
-## 4.4 AI Ops: `/api/ai_ops`
-
-Path:
-
-- `internal/controller/chat/chat_v1_ai_ops.go`
-- `internal/ai/agent/plan_execute_replan/*`
-
-Flow:
-
-1. Controller prepares a fixed Chinese instruction template.
-2. Calls `BuildPlanAgent(ctx, query)`.
-3. Plan-Execute-Replan pipeline runs:
-   - Planner: model for decomposition
-   - Executor: tools (MCP logs + prometheus + internal docs + time)
-   - Replanner: iterative correction
-4. Returns final result and detail events.
-
----
-
-## 5. Data and State
-
-- **Conversation state**: in-memory map by session id (`utility/mem/mem.go`), max window size = 6 messages.
-- **Knowledge state**: Milvus DB `agent`, collection `biz` (`utility/common/common.go`).
-- **File source marker**: document metadata `_source` used for dedup/delete-before-reindex.
-
----
-
-## 6. External Dependencies and Integrations
-
-- **Framework**: GoFrame (`github.com/gogf/gf/v2`)
-- **AI orchestration**: Eino + Eino ADK
-- **LLM**: OpenAI-compatible endpoints (`internal/ai/models/open_ai.go`)
-- **Embedding**: DashScope embedding (`internal/ai/embedder/embedder.go`)
-- **Vector DB**: Milvus (`utility/client/client.go`)
-- **MCP tools**: Tencent MCP SSE endpoint (`internal/ai/tools/query_log.go`)
-- **Frontend transport**: Fetch + SSE (`SuperBizAgentFrontend/app.js`)
-
-Milvus local stack is provided by:
-
-- `manifest/docker/docker-compose.yml` (etcd + minio + milvus + attu)
-
----
-
-## 7. Configuration Model
-
-Primary config file:
+主配置文件：
 
 - `manifest/config/config.yaml`
 
-Important keys:
+重要配置项和对应环境变量如下：
 
-- `ds_think_chat_model.*`
-- `ds_quick_chat_model.*`
-- `doubao_embedding_model.*`
-- `file_dir`
-- `mcp_url`
+- `agent_service_port` / `AGENT_SERVICE_PORT`
+- `api_gateway_base_url` / `API_GATEWAY_BASE_URL`
+- `milvus_addr` / `MILVUS_ADDR`
+- `docs_dir` / `AGENT_DOCS_DIR`
+- `ds_think_chat_model.*` / `AGENT_THINK_*`
+- `ds_quick_chat_model.*` / `AGENT_QUICK_*`
+- `doubao_embedding_model.*` / `AGENT_EMBEDDING_*`
 
-CLI demo commands have separate sample configs in:
+仓库提交的配置文件会刻意留空模型密钥，部署或本地运行时应通过环境变量注入。
 
-- `internal/ai/cmd/chat_cmd/config/config.yaml`
-- `internal/ai/cmd/knowledge_cmd/config/config.yaml`
+## 6. 部署关系
 
----
+根目录 `deploy/docker-compose.yml` 已包含以下服务：
 
-## 8. Frontend Architecture
+- MySQL
+- Redis
+- Milvus etcd
+- Milvus MinIO
+- Milvus standalone
+- Attu
+- `agent_service`
 
-Main file:
+`agent_service` 通过 `MILVUS_ADDR` 连接 Milvus，通过 `API_GATEWAY_BASE_URL` 获取监控事实。容器部署时，默认把 `API_GATEWAY_BASE_URL` 指向宿主机上的 `api_gateway`。
 
-- `SuperBizAgentFrontend/app.js`
+## 7. 注意事项
 
-Key behavior:
-
-- `quick` mode -> calls `/api/chat`
-- `stream` mode -> calls `/api/chat_stream` and parses SSE events manually
-- file upload via `/api/upload`
-- AI Ops button triggers `/api/ai_ops`
-- local chat history stored in `localStorage`
-
----
-
-## 9. Risk Register (Priority)
-
-- **P0 - Secret exposure risk**
-  - `manifest/config/config.yaml` contains real API keys and endpoint token-like values.
-  - Should be moved to environment variables or private secret manager.
-
-- **P1 - Tool stability risk**
-  - Some tools use `log.Fatal` inside tool callbacks (`query_internal_docs.go`, `mysql_crud.go`, `get_current_time.go`), which can terminate process unexpectedly.
-
-- **P1 - Alert tool logic short-circuit**
-  - `queryPrometheusAlerts()` in `query_metrics_alerts.go` currently returns immediately with empty result before HTTP logic.
-
-- **P1 - Upload path/file stat mismatch possibility**
-  - In upload controller, `os.Stat(savePath)` checks directory path, not explicit saved file path.
-
-- **P2 - Coupling and duplication**
-  - Index dedup/delete logic appears both in upload controller and `knowledge_cmd` main; can be refactored into shared service.
-
-- **P2 - In-memory session state**
-  - `utility/mem` is process-local; not suitable for multi-instance deployment without external memory store.
-
----
-
-## 10. Suggested Reading Order (Fast Onboarding)
-
-1. `main.go`
-2. `api/chat/v1/chat.go`
-3. `internal/controller/chat/chat_new.go`
-4. `internal/controller/chat/chat_v1_chat.go`
-5. `internal/controller/chat/chat_v1_chat_stream.go`
-6. `internal/ai/agent/chat_pipeline/orchestration.go`
-7. `internal/controller/chat/chat_v1_file_upload.go`
-8. `internal/ai/agent/knowledge_index_pipeline/orchestration.go`
-9. `internal/controller/chat/chat_v1_ai_ops.go`
-10. `internal/ai/agent/plan_execute_replan/plan_execute_replan.go`
-11. `internal/ai/tools/*.go`
-12. `utility/client/client.go`
-13. `manifest/config/config.yaml`
-14. `SuperBizAgentFrontend/app.js`
-
----
-
-## 11. Architecture Summary
-
-This project is a practical AI Ops assistant with three main capability surfaces:
-
-- RAG-enhanced chat
-- markdown-to-vector knowledge ingestion
-- tool-driven plan/execute/replan operations
-
-Its current architecture is clear for single-node development and demos, with next-stage hardening mainly needed in secrets management, tool error handling, and distributed session/storage concerns.
-
+- 会话记忆仍是进程内存级别，具体实现位于 `utility/mem`。
+- 服务只消费现有 `api_gateway` HTTP API，不改变 C++ `manager` 的 gRPC 契约。
+- 依赖可用后，建议在 `agent_service` 目录执行 `go test ./...` 做基础验证。

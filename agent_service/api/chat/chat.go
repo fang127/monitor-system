@@ -7,7 +7,7 @@ package chat
 import (
 	"context"
 
-	"SuperBizAgent/api/chat/v1"
+	"monitor-system/agent_service/api/chat/v1"
 )
 
 type IChatV1 interface {

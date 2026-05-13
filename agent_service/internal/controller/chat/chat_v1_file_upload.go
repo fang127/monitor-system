@@ -1,14 +1,14 @@
 package chat
 
 import (
-	"SuperBizAgent/api/chat/v1"
-	"SuperBizAgent/internal/ai/agent/knowledge_index_pipeline"
-	loader2 "SuperBizAgent/internal/ai/loader"
-	"SuperBizAgent/utility/client"
-	"SuperBizAgent/utility/common"
-	"SuperBizAgent/utility/log_call_back"
 	"context"
 	"fmt"
+	"monitor-system/agent_service/api/chat/v1"
+	"monitor-system/agent_service/internal/ai/agent/knowledge_index_pipeline"
+	loader2 "monitor-system/agent_service/internal/ai/loader"
+	"monitor-system/agent_service/utility/client"
+	"monitor-system/agent_service/utility/common"
+	"monitor-system/agent_service/utility/log_call_back"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,14 +37,16 @@ func (c *ControllerV1) FileUpload(ctx context.Context, req *v1.FileUploadReq) (r
 
 	// 获取原始文件名
 	newFileName := uploadFile.Filename
-	// 完整的保存路径
-	savePath := filepath.Join(common.FileDir)
 
 	// 保存文件
-	_, err = uploadFile.Save(savePath, false)
+	savedFileName, err := uploadFile.Save(common.FileDir, false)
 	if err != nil {
 		return nil, gerror.Wrapf(err, "保存文件失败")
 	}
+	if savedFileName != "" {
+		newFileName = savedFileName
+	}
+	savePath := filepath.Join(common.FileDir, newFileName)
 
 	// 获取文件信息
 	fileInfo, err := os.Stat(savePath)
@@ -57,7 +59,7 @@ func (c *ControllerV1) FileUpload(ctx context.Context, req *v1.FileUploadReq) (r
 		FilePath: savePath,
 		FileSize: fileInfo.Size(),
 	}
-	err = buildIntoIndex(ctx, common.FileDir+"/"+newFileName)
+	err = buildIntoIndex(ctx, savePath)
 	if err != nil {
 		return nil, gerror.Wrapf(err, "构建知识库失败")
 	}

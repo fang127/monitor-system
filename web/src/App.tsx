@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { PageLayout } from './components/PageLayout';
+import { AIOpsPage } from './pages/AIOpsPage';
 import { AnomaliesPage } from './pages/AnomaliesPage';
 import { Dashboard } from './pages/Dashboard';
 import { DetailPage } from './pages/DetailPage';
@@ -21,6 +22,7 @@ export default function App() {
           <Route path="servers/:server/trend" element={<TrendPage />} />
           <Route path="servers/:server/anomalies" element={<AnomaliesPage />} />
           <Route path="servers/:server/details/:kind" element={<DetailPage />} />
+          <Route path="ai-ops" element={<AIOpsPage />} />
           <Route path="system" element={<SystemPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

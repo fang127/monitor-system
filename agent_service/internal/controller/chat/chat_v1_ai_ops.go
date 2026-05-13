@@ -1,26 +1,29 @@
 package chat
 
 import (
-	"SuperBizAgent/api/chat/v1"
-	"SuperBizAgent/internal/ai/agent/plan_execute_replan"
 	"context"
 	"errors"
+	"monitor-system/agent_service/api/chat/v1"
+	"monitor-system/agent_service/internal/ai/agent/plan_execute_replan"
 )
 
 func (c *ControllerV1) AIOps(ctx context.Context, req *v1.AIOpsReq) (res *v1.AIOpsRes, err error) {
 	query := `
-"1. 你是一个智能的服务告警分析助手,首先调用工具query_prometheus_alerts获取所有活跃的告警。"
-"2. 分别根据告警的名称调用工具query_internal_docs，获取告警名对应的处理方案。"
-"3. 完全遵循内部文档的内容进行查询和分析,不允许使用文档外的任何信息。"
-"4. 涉及到时间的参数都需要先通过工具get_current_time获取当前时间,再结合工具的时间要求进行传参。"
-"5. 涉及到日志的查询,需要先通过日志工具获取相关日志信息，参数必须携带地域和日志主题。"
-"6. 分别将告警对应查询到的信息进行总结分析,最后生成告警运维分析报告，格式如下：
-告警分析报告
+"1. 你是 monitor_system 的 AI 运维分析助手，必须优先使用工具查询当前监控事实。"
+"2. 首先调用 query_monitor_cluster_overview 获取集群概览、服务器在线状态、评分和关键指标快照。"
+"3. 再调用 query_monitor_anomalies；server_name 留空时表示分析所有服务器的异常记录。"
+"4. 对异常或低分服务器，按需调用 query_monitor_performance、query_monitor_trend、query_monitor_detail 查询最近性能、趋势、网络、磁盘、内存、软中断明细。"
+"5. 调用 query_internal_docs 搜索内部运维文档，获取相关处理建议；没有文档依据时必须明确说明。"
+"6. 涉及当前时间或时间窗口时，先调用 get_current_time，再构造查询参数。"
+"7. 不允许编造监控数据，不允许直接访问数据库，不允许使用 Prometheus 或外部日志系统作为事实来源。"
+"8. 最后生成中文 AI 运维分析报告，格式如下：
+AI 运维分析报告
 ---
-# 告警处理详情
-## 活跃告警清单
-## 告警根因分析N(第N个告警)
-## 处理方案执行N(第N个告警)
+# 集群健康概览
+# 异常与低分服务器清单
+# 根因分析
+# 处理建议
+# 需要人工确认的事项
 ## 结论
 `
 

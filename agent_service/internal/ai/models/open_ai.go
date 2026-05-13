@@ -2,29 +2,29 @@ package models
 
 import (
 	"context"
+	"monitor-system/agent_service/utility/common"
 
 	"github.com/cloudwego/eino-ext/components/model/openai"
 	"github.com/cloudwego/eino/components/model"
-	"github.com/gogf/gf/v2/frame/g"
 )
 
 func OpenAIForDeepSeekV31Think(ctx context.Context) (cm model.ToolCallingChatModel, err error) {
-	model, err := g.Cfg().Get(ctx, "ds_think_chat_model.model")
+	modelName, err := common.ConfigString(ctx, "ds_think_chat_model.model", "AGENT_THINK_MODEL", "")
 	if err != nil {
 		return nil, err
 	}
-	api_key, err := g.Cfg().Get(ctx, "ds_think_chat_model.api_key")
+	apiKey, err := common.ConfigString(ctx, "ds_think_chat_model.api_key", "AGENT_THINK_API_KEY", "")
 	if err != nil {
 		return nil, err
 	}
-	base_url, err := g.Cfg().Get(ctx, "ds_think_chat_model.base_url")
+	baseURL, err := common.ConfigString(ctx, "ds_think_chat_model.base_url", "AGENT_THINK_BASE_URL", "")
 	if err != nil {
 		return nil, err
 	}
 	config := &openai.ChatModelConfig{
-		Model:   model.String(),
-		APIKey:  api_key.String(),
-		BaseURL: base_url.String(),
+		Model:   modelName,
+		APIKey:  apiKey,
+		BaseURL: baseURL,
 	}
 	cm, err = openai.NewChatModel(ctx, config)
 	if err != nil {
@@ -34,22 +34,22 @@ func OpenAIForDeepSeekV31Think(ctx context.Context) (cm model.ToolCallingChatMod
 }
 
 func OpenAIForDeepSeekV3Quick(ctx context.Context) (cm model.ToolCallingChatModel, err error) {
-	model, err := g.Cfg().Get(ctx, "ds_quick_chat_model.model")
+	modelName, err := common.ConfigString(ctx, "ds_quick_chat_model.model", "AGENT_QUICK_MODEL", "")
 	if err != nil {
 		return nil, err
 	}
-	api_key, err := g.Cfg().Get(ctx, "ds_quick_chat_model.api_key")
+	apiKey, err := common.ConfigString(ctx, "ds_quick_chat_model.api_key", "AGENT_QUICK_API_KEY", "")
 	if err != nil {
 		return nil, err
 	}
-	base_url, err := g.Cfg().Get(ctx, "ds_quick_chat_model.base_url")
+	baseURL, err := common.ConfigString(ctx, "ds_quick_chat_model.base_url", "AGENT_QUICK_BASE_URL", "")
 	if err != nil {
 		return nil, err
 	}
 	config := &openai.ChatModelConfig{
-		Model:   model.String(),
-		APIKey:  api_key.String(),
-		BaseURL: base_url.String(),
+		Model:   modelName,
+		APIKey:  apiKey,
+		BaseURL: baseURL,
 	}
 	cm, err = openai.NewChatModel(ctx, config)
 	if err != nil {

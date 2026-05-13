@@ -1,8 +1,8 @@
 package chat_pipeline
 
 import (
-	retriever2 "SuperBizAgent/internal/ai/retriever"
 	"context"
+	retriever2 "monitor-system/agent_service/internal/ai/retriever"
 
 	"github.com/cloudwego/eino/components/retriever"
 )

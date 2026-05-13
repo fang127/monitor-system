@@ -1,18 +1,22 @@
 package client
 
 import (
-	"SuperBizAgent/utility/common"
 	"context"
 	"fmt"
+	"monitor-system/agent_service/utility/common"
 
 	cli "github.com/milvus-io/milvus-sdk-go/v2/client"
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
 )
 
 func NewMilvusClient(ctx context.Context) (cli.Client, error) {
+	address, err := common.ConfigString(ctx, "milvus_addr", "MILVUS_ADDR", "127.0.0.1:19530")
+	if err != nil {
+		return nil, err
+	}
 	// 1. 先连接default数据库
 	defaultClient, err := cli.NewClient(ctx, cli.Config{
-		Address: "localhost:19530",
+		Address: address,
 		DBName:  "default",
 	})
 	if err != nil {
@@ -39,7 +43,7 @@ func NewMilvusClient(ctx context.Context) (cli.Client, error) {
 
 	// 3. 创建连接到agent数据库的客户端
 	agentClient, err := cli.NewClient(ctx, cli.Config{
-		Address: "localhost:19530",
+		Address: address,
 		DBName:  common.MilvusDBName,
 	})
 	if err != nil {

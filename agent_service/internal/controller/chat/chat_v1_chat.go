@@ -1,11 +1,11 @@
 package chat
 
 import (
-	"SuperBizAgent/api/chat/v1"
-	"SuperBizAgent/internal/ai/agent/chat_pipeline"
-	"SuperBizAgent/utility/log_call_back"
-	"SuperBizAgent/utility/mem"
 	"context"
+	"monitor-system/agent_service/api/chat/v1"
+	"monitor-system/agent_service/internal/ai/agent/chat_pipeline"
+	"monitor-system/agent_service/utility/log_call_back"
+	"monitor-system/agent_service/utility/mem"
 
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"

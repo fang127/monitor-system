@@ -21,13 +21,19 @@ func ResponseMiddleware(r *ghttp.Request) {
 	} else {
 		msg = "OK"
 	}
+	code := 0
+	if err != nil {
+		code = 1
+	}
 	r.Response.WriteJson(Response{
+		Code:    code,
 		Message: msg,
 		Data:    res,
 	})
 }
 
 type Response struct {
+	Code    int         `json:"code"    dc:"状态码，0表示成功"`
 	Message string      `json:"message" dc:"消息提示"`
 	Data    interface{} `json:"data"    dc:"执行结果"`
 }

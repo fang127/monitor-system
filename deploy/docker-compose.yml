@@ -26,5 +26,107 @@ services:
     ports:
       - "6379:6379"
 
+  milvus-etcd:
+    image: quay.io/coreos/etcd:v3.5.18
+    container_name: monitor_system_milvus_etcd
+    restart: unless-stopped
+    environment:
+      ETCD_AUTO_COMPACTION_MODE: revision
+      ETCD_AUTO_COMPACTION_RETENTION: "1000"
+      ETCD_QUOTA_BACKEND_BYTES: "4294967296"
+      ETCD_SNAPSHOT_COUNT: "50000"
+    command: etcd -advertise-client-urls=http://milvus-etcd:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    volumes:
+      - milvus_etcd_data:/etcd
+    healthcheck:
+      test: [ "CMD", "etcdctl", "endpoint", "health" ]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  milvus-minio:
+    image: minio/minio:RELEASE.2023-03-20T20-16-18Z
+    container_name: monitor_system_milvus_minio
+    restart: unless-stopped
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    command: minio server /minio_data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - milvus_minio_data:/minio_data
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  milvus:
+    image: milvusdb/milvus:v2.5.10
+    container_name: monitor_system_milvus
+    restart: unless-stopped
+    command: [ "milvus", "run", "standalone" ]
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      ETCD_ENDPOINTS: milvus-etcd:2379
+      MINIO_ADDRESS: milvus-minio:9000
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    volumes:
+      - milvus_data:/var/lib/milvus
+    depends_on:
+      - milvus-etcd
+      - milvus-minio
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9091/healthz" ]
+      interval: 30s
+      start_period: 90s
+      timeout: 20s
+      retries: 3
+
+  milvus-attu:
+    image: zilliz/attu:v2.6
+    container_name: monitor_system_milvus_attu
+    restart: unless-stopped
+    environment:
+      MILVUS_URL: milvus:19530
+    ports:
+      - "8000:3000"
+    depends_on:
+      - milvus
+
+  agent_service:
+    build:
+      context: ../agent_service
+      dockerfile: manifest/docker/Dockerfile
+    container_name: monitor_system_agent_service
+    restart: unless-stopped
+    environment:
+      AGENT_SERVICE_PORT: ${AGENT_SERVICE_PORT:-6872}
+      API_GATEWAY_BASE_URL: ${API_GATEWAY_BASE_URL:-http://host.docker.internal:8080}
+      MILVUS_ADDR: milvus:19530
+      AGENT_DOCS_DIR: /app/docs
+      AGENT_THINK_API_KEY: ${AGENT_THINK_API_KEY:-}
+      AGENT_THINK_BASE_URL: ${AGENT_THINK_BASE_URL:-}
+      AGENT_THINK_MODEL: ${AGENT_THINK_MODEL:-}
+      AGENT_QUICK_API_KEY: ${AGENT_QUICK_API_KEY:-}
+      AGENT_QUICK_BASE_URL: ${AGENT_QUICK_BASE_URL:-}
+      AGENT_QUICK_MODEL: ${AGENT_QUICK_MODEL:-}
+      AGENT_EMBEDDING_API_KEY: ${AGENT_EMBEDDING_API_KEY:-}
+      AGENT_EMBEDDING_MODEL: ${AGENT_EMBEDDING_MODEL:-text-embedding-v4}
+    ports:
+      - "${AGENT_SERVICE_PORT:-6872}:${AGENT_SERVICE_PORT:-6872}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - milvus
+
 volumes:
   mysql_data:
+  milvus_etcd_data:
+  milvus_minio_data:
+  milvus_data:

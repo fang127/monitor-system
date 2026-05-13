@@ -1,16 +1,19 @@
-FROM loads/alpine:3.8
+FROM golang:1.24-alpine AS builder
 
-###############################################################################
-#                                INSTALLATION
-###############################################################################
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN go build -o /out/agent_service ./main.go
 
-ENV WORKDIR                 /app
-ADD resource                $WORKDIR/
-ADD ./temp/linux_amd64/main $WORKDIR/main
-RUN chmod +x $WORKDIR/main
+FROM alpine:3.20
 
-###############################################################################
-#                                   START
-###############################################################################
-WORKDIR $WORKDIR
-CMD ./main
+WORKDIR /app
+COPY --from=builder /out/agent_service /app/agent_service
+COPY manifest/config/config.yaml /app/manifest/config/config.yaml
+COPY docs /app/docs
+
+ENV AGENT_DOCS_DIR=/app/docs
+EXPOSE 6872
+
+CMD ["/app/agent_service"]

@@ -64,7 +64,7 @@ func NewGetCurrentTimeTool() tool.InvokableTool {
 		})
 
 	if err != nil {
-		log.Fatal(err)
+		return errorTool("get_current_time", err)
 	}
 
 	return t

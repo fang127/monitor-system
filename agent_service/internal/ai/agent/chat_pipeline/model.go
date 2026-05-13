@@ -1,8 +1,8 @@
 package chat_pipeline
 
 import (
-	"SuperBizAgent/internal/ai/models"
 	"context"
+	"monitor-system/agent_service/internal/ai/models"
 
 	"github.com/cloudwego/eino/components/model"
 )

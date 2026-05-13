@@ -1,10 +1,9 @@
 package tools
 
 import (
-	"SuperBizAgent/internal/ai/retriever"
 	"context"
 	"encoding/json"
-	"log"
+	"monitor-system/agent_service/internal/ai/retriever"
 
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/components/tool/utils"
@@ -21,18 +20,18 @@ func NewQueryInternalDocsTool() tool.InvokableTool {
 		func(ctx context.Context, input *QueryInternalDocsInput, opts ...tool.Option) (output string, err error) {
 			rr, err := retriever.NewMilvusRetriever(ctx)
 			if err != nil {
-				log.Fatal(err)
+				return "", err
 			}
 			resp, err := rr.Retrieve(ctx, input.Query)
 			if err != nil {
-				log.Fatal(err)
+				return "", err
 			}
 			respBytes, _ := json.Marshal(resp)
 			output = string(respBytes)
 			return output, nil
 		})
 	if err != nil {
-		log.Fatal(err)
+		return errorTool("query_internal_docs", err)
 	}
 	return t
 }

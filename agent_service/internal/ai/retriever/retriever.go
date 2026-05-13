@@ -1,10 +1,10 @@
 package retriever
 
 import (
-	"SuperBizAgent/internal/ai/embedder"
-	"SuperBizAgent/utility/client"
-	"SuperBizAgent/utility/common"
 	"context"
+	"monitor-system/agent_service/internal/ai/embedder"
+	"monitor-system/agent_service/utility/client"
+	"monitor-system/agent_service/utility/common"
 
 	"github.com/cloudwego/eino-ext/components/retriever/milvus"
 	"github.com/cloudwego/eino/components/retriever"

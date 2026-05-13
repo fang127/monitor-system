@@ -1,10 +1,10 @@
 package main
 
 import (
-	"SuperBizAgent/internal/ai/agent/chat_pipeline"
-	"SuperBizAgent/utility/mem"
 	"context"
 	"fmt"
+	"monitor-system/agent_service/internal/ai/agent/chat_pipeline"
+	"monitor-system/agent_service/utility/mem"
 
 	"github.com/cloudwego/eino/schema"
 )

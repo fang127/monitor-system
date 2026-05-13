@@ -1,10 +1,10 @@
 package indexer
 
 import (
-	embedder2 "SuperBizAgent/internal/ai/embedder"
-	"SuperBizAgent/utility/client"
-	"SuperBizAgent/utility/common"
 	"context"
+	embedder2 "monitor-system/agent_service/internal/ai/embedder"
+	"monitor-system/agent_service/utility/client"
+	"monitor-system/agent_service/utility/common"
 
 	"github.com/cloudwego/eino-ext/components/indexer/milvus"
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"

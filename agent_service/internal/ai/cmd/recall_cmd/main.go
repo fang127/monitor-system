@@ -1,9 +1,9 @@
 package main
 
 import (
-	retriever2 "SuperBizAgent/internal/ai/retriever"
 	"context"
 	"fmt"
+	retriever2 "monitor-system/agent_service/internal/ai/retriever"
 )
 
 func main() {
