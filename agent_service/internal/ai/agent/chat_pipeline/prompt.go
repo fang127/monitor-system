@@ -7,19 +7,21 @@ import (
 	"github.com/cloudwego/eino/schema"
 )
 
+// 定义聊天提示词模板
+
 type ChatTemplateConfig struct {
-	FormatType schema.FormatType
-	Templates  []schema.MessagesTemplate
+	FormatType schema.FormatType         // 模板格式
+	Templates  []schema.MessagesTemplate // 消息模板列表
 }
 
-// newChatTemplate component initialization function of node 'ChatTemplate' in graph 'EinoAgent'
+// newChatTemplate 创建一个新的聊天提示词模板
 func newChatTemplate(ctx context.Context) (ctp prompt.ChatTemplate, err error) {
 	config := &ChatTemplateConfig{
-		FormatType: schema.FString,
+		FormatType: schema.FString, // 使用 FString 格式，表示模板是一个字符串
 		Templates: []schema.MessagesTemplate{
-			schema.SystemMessage(systemPrompt),
-			schema.MessagesPlaceholder("history", false),
-			schema.UserMessage("{content}"),
+			schema.SystemMessage(systemPrompt),           // 系统提示词，定义角色、能力、互动指南、边界和输出要求
+			schema.MessagesPlaceholder("history", false), // 历史消息占位符，表示之前的对话历史
+			schema.UserMessage("{content}"),              // 用户消息模板，{content} 将被替换为用户输入的内容
 		},
 	}
 	ctp = prompt.FromMessages(config.FormatType, config.Templates...)
@@ -27,7 +29,7 @@ func newChatTemplate(ctx context.Context) (ctp prompt.ChatTemplate, err error) {
 }
 
 var systemPrompt = `
-# 角色：monitor_system AI 运维助手
+# 角色：AI 运维助手
 ## 核心能力
 - 根据 monitor_system 的 api_gateway 查询集群概览、服务器异常、性能趋势和明细指标
 - 检索内部运维文档，并结合实时监控数据给出解释和建议
@@ -43,8 +45,6 @@ var systemPrompt = `
   • 适用时建议改进或下一步操作
 - 边界：
   • 不要编造监控数据
-  • 不要直接访问数据库
-  • 不要假设 Prometheus 或外部日志系统存在
 - 如果请求超出了你的能力范围：
   • 清晰地说明你的局限性，如果可能的话，建议其他方法
 - 如果问题是复合或复杂的，你需要一步步思考，避免直接给出质量不高的回答。

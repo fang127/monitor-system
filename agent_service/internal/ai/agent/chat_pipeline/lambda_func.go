@@ -5,12 +5,12 @@ import (
 	"time"
 )
 
-// newInputToRagLambda component initialization function of node 'InputToQuery' in graph 'EinoAgent'
+// 定义 Graph 中的数据转换 Lambda
+
 func newInputToRagLambda(ctx context.Context, input *UserMessage, opts ...any) (output string, err error) {
 	return input.Query, nil
 }
 
-// newInputToChatLambda component initialization function of node 'InputToHistory' in graph 'EinoAgent'
 func newInputToChatLambda(ctx context.Context, input *UserMessage, opts ...any) (output map[string]any, err error) {
 	return map[string]any{
 		"content": input.Query,

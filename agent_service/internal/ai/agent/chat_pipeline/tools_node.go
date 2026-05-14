@@ -7,6 +7,7 @@ import (
 	"github.com/cloudwego/eino/components/tool"
 )
 
+// 创建一个搜索工具
 func newSearchTool(ctx context.Context) (bt tool.BaseTool, err error) {
 	config := &duckduckgo.Config{}
 	bt, err = duckduckgo.NewTextSearchTool(ctx, config)
