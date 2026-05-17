@@ -209,3 +209,50 @@ CREATE TABLE IF NOT EXISTS server_disk_detail (
     timestamp DATETIME NOT NULL,
     INDEX idx_server_disk_time(server_name, disk_name, timestamp)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 6. MySQL 实例详细数据表
+CREATE TABLE IF NOT EXISTS server_mysql_detail (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    server_name VARCHAR(255) NOT NULL,
+    instance VARCHAR(255) NOT NULL,
+    mysql_host VARCHAR(255) NOT NULL,
+    mysql_port INT DEFAULT 0,
+    up TINYINT(1) DEFAULT 0,
+    version VARCHAR(128) DEFAULT '',
+    `role` VARCHAR(32) DEFAULT 'unknown',
+    -- 连接指标
+    max_connections BIGINT UNSIGNED DEFAULT 0,
+    threads_connected BIGINT UNSIGNED DEFAULT 0,
+    threads_running BIGINT UNSIGNED DEFAULT 0,
+    aborted_connects BIGINT UNSIGNED DEFAULT 0,
+    -- 查询和事务计数器
+    questions BIGINT UNSIGNED DEFAULT 0,
+    com_select BIGINT UNSIGNED DEFAULT 0,
+    com_insert BIGINT UNSIGNED DEFAULT 0,
+    com_update BIGINT UNSIGNED DEFAULT 0,
+    com_delete BIGINT UNSIGNED DEFAULT 0,
+    com_commit BIGINT UNSIGNED DEFAULT 0,
+    com_rollback BIGINT UNSIGNED DEFAULT 0,
+    slow_queries BIGINT UNSIGNED DEFAULT 0,
+    -- InnoDB 指标
+    innodb_buffer_pool_read_requests BIGINT UNSIGNED DEFAULT 0,
+    innodb_buffer_pool_reads BIGINT UNSIGNED DEFAULT 0,
+    innodb_buffer_pool_hit_percent FLOAT DEFAULT 0,
+    innodb_row_lock_waits BIGINT UNSIGNED DEFAULT 0,
+    innodb_row_lock_time_avg_ms FLOAT DEFAULT 0,
+    -- 复制指标
+    replication_configured TINYINT(1) DEFAULT 0,
+    replication_running TINYINT(1) DEFAULT 0,
+    replication_lag_seconds FLOAT DEFAULT 0,
+    -- 派生速率
+    connection_used_percent FLOAT DEFAULT 0, -- 连接使用率，单位：%
+    qps FLOAT DEFAULT 0, -- 每秒查询数，单位：queries/s
+    tps FLOAT DEFAULT 0, -- 每秒事务数，单位：transactions/s
+    slow_queries_rate FLOAT DEFAULT 0, -- 慢查询率，单位：%
+    innodb_row_lock_waits_rate FLOAT DEFAULT 0, -- InnoDB行锁等待率，单位：%
+    -- 时间戳
+    timestamp DATETIME NOT NULL,
+    INDEX idx_server_mysql_time(server_name, instance, timestamp),
+    INDEX idx_mysql_instance(instance, timestamp),
+    INDEX idx_mysql_up(up, timestamp)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

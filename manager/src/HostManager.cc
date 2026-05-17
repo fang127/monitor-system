@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cctype>
 #include <chrono>
+#include <cstdint>
+#include <map>
 #include <mutex>
 #include <thread>
 #include <sstream>
@@ -66,12 +68,27 @@ struct DiskDetailSample {
     float util_percent = 0;
 };
 
+/**
+ * @brief         MySQL instance counters used to calculate derived rates.
+ *
+ */
+struct MysqlDetailSample {
+    uint64_t questions = 0;
+    uint64_t com_commit = 0;
+    uint64_t com_rollback = 0;
+    uint64_t slow_queries = 0;
+    uint64_t innodb_row_lock_waits = 0;
+    std::chrono::system_clock::time_point timestamp;
+    bool initialized = false;
+};
+
 // store the last samples for each host, used to calculate the rate and
 // percentage
 std::map<std::string, std::map<std::string, NetDetailedSample>> lastNetSamples;
 std::map<std::string, std::map<std::string, SoftIrqSample>> lastSoftirqSamples;
 std::map<std::string, MemDetailSample> lastMemSamples;
 std::map<std::string, std::map<std::string, DiskDetailSample>> lastDiskSamples;
+std::map<std::string, std::map<std::string, MysqlDetailSample>> lastMysqlSamples;
 
 /**
  * @brief         Escape a string for safe insertion into MySQL queries,
@@ -585,6 +602,87 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
                 << rate(curr.avg_read_latency_ms, last.avg_read_latency_ms) << ","
                 << rate(curr.avg_write_latency_ms, last.avg_write_latency_ms) << ","
                 << rate(curr.util_percent, last.util_percent) << "," << timestampSql << ")";
+            mysql_query(conn, oss.str().c_str());
+
+            if (mysql_errno(conn)) {
+                std::cerr << "MySQL insert error: " << mysql_error(conn) << std::endl;
+                std::cerr << __func__ << " " << __LINE__ << std::endl;
+            }
+            last = curr;
+        }
+    }
+
+    // insert MySQL instance detail data into mysql
+    {
+        auto counterRate = [](uint64_t nowVal, uint64_t lastVal, double seconds) -> float {
+            if (seconds <= 0.0 || nowVal < lastVal) return 0.0f;
+            return static_cast<float>((nowVal - lastVal) / seconds);
+        };
+
+        for (int i = 0; i < info.mysql_info_size(); ++i) {
+            const auto &mysql = info.mysql_info(i);
+            std::string instance = mysql.instance();
+            if (instance.empty()) {
+                instance = mysql.host();
+                if (mysql.port() > 0) instance += ":" + std::to_string(mysql.port());
+            }
+            if (instance.empty()) instance = "unknown";
+
+            const std::string instanceSql = quoteSqlString(conn, instance);
+            const std::string mysqlHostSql = quoteSqlString(conn, mysql.host());
+            const std::string versionSql = quoteSqlString(conn, mysql.version());
+            const std::string roleSql = quoteSqlString(conn, mysql.role().empty() ? "unknown" : mysql.role());
+
+            const float connectionUsedPercent = mysql.max_connections() == 0
+                                                    ? 0.0f
+                                                    : static_cast<float>(mysql.threads_connected()) /
+                                                          static_cast<float>(mysql.max_connections()) * 100.0f;
+
+            MysqlDetailSample curr;
+            curr.questions = mysql.questions();
+            curr.com_commit = mysql.com_commit();
+            curr.com_rollback = mysql.com_rollback();
+            curr.slow_queries = mysql.slow_queries();
+            curr.innodb_row_lock_waits = mysql.innodb_row_lock_waits();
+            curr.timestamp = data.host_score.timestamp;
+            curr.initialized = true;
+
+            MysqlDetailSample &last = lastMysqlSamples[data.host_name][instance];
+            double seconds = 0.0;
+            if (last.initialized) {
+                seconds = std::chrono::duration<double>(curr.timestamp - last.timestamp).count();
+            }
+
+            const uint64_t currTransactions = curr.com_commit + curr.com_rollback;
+            const uint64_t lastTransactions = last.com_commit + last.com_rollback;
+            const float qps = last.initialized ? counterRate(curr.questions, last.questions, seconds) : 0.0f;
+            const float tps = last.initialized ? counterRate(currTransactions, lastTransactions, seconds) : 0.0f;
+            const float slowQueriesRate =
+                last.initialized ? counterRate(curr.slow_queries, last.slow_queries, seconds) : 0.0f;
+            const float rowLockWaitsRate =
+                last.initialized ? counterRate(curr.innodb_row_lock_waits, last.innodb_row_lock_waits, seconds) : 0.0f;
+
+            std::ostringstream oss;
+            oss << "INSERT INTO server_mysql_detail "
+                << "(server_name, instance, mysql_host, mysql_port, up, version, `role`, "
+                << "max_connections, threads_connected, threads_running, aborted_connects, "
+                << "questions, com_select, com_insert, com_update, com_delete, com_commit, com_rollback, "
+                << "slow_queries, innodb_buffer_pool_read_requests, innodb_buffer_pool_reads, "
+                << "innodb_buffer_pool_hit_percent, innodb_row_lock_waits, innodb_row_lock_time_avg_ms, "
+                << "replication_configured, replication_running, replication_lag_seconds, "
+                << "connection_used_percent, qps, tps, slow_queries_rate, innodb_row_lock_waits_rate, "
+                << "timestamp) VALUES (" << hostNameSql << "," << instanceSql << "," << mysqlHostSql << ","
+                << mysql.port() << "," << (mysql.up() ? 1 : 0) << "," << versionSql << "," << roleSql << ","
+                << mysql.max_connections() << "," << mysql.threads_connected() << "," << mysql.threads_running() << ","
+                << mysql.aborted_connects() << "," << mysql.questions() << "," << mysql.com_select() << ","
+                << mysql.com_insert() << "," << mysql.com_update() << "," << mysql.com_delete() << ","
+                << mysql.com_commit() << "," << mysql.com_rollback() << "," << mysql.slow_queries() << ","
+                << mysql.innodb_buffer_pool_read_requests() << "," << mysql.innodb_buffer_pool_reads() << ","
+                << mysql.innodb_buffer_pool_hit_percent() << "," << mysql.innodb_row_lock_waits() << ","
+                << mysql.innodb_row_lock_time_avg_ms() << "," << (mysql.replication_configured() ? 1 : 0) << ","
+                << (mysql.replication_running() ? 1 : 0) << "," << mysql.replication_lag_seconds() << ","
+                << connectionUsedPercent << "," << qps << "," << tps << "," << slowQueriesRate << ","
+                << rowLockWaitsRate << "," << timestampSql << ")";
             mysql_query(conn, oss.str().c_str());
 
             if (mysql_errno(conn)) {

@@ -47,6 +47,7 @@ set(PROTO_FILES
     mem_info.proto
     net_info.proto
     disk_info.proto
+    mysql_info.proto
     query_api.proto
 )
 
