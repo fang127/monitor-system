@@ -9,7 +9,7 @@ import { ErrorState, LoadingState } from '../components/SectionState';
 import type { AsyncState, DetailKind, PagedQueryParams, TimeRangeParams } from '../types/api';
 import { formatBytesRate, formatDateTime, formatNumber, formatPercent, pickBytesRateUnit } from '../utils/format';
 
-type MetricRow = Record<string, string | number | null | undefined> & { timestamp: string };
+type MetricRow = Record<string, string | number | boolean | null | undefined> & { timestamp: string };
 
 type DetailState = {
   records: MetricRow[];
@@ -25,7 +25,7 @@ type DetailConfig = {
   chartSeries: ChartSeries<MetricRow>[];
 };
 
-const detailKinds: DetailKind[] = ['net', 'disk', 'mem', 'softirq'];
+const detailKinds: DetailKind[] = ['net', 'disk', 'mem', 'softirq', 'mysql'];
 
 function serverFromParams(value: string | undefined): string {
   return value ? decodeURIComponent(value) : '';
@@ -124,6 +124,55 @@ const configs: Record<DetailKind, DetailConfig> = {
       { key: 'net_rx_rate', name: 'NET_RX变化率' },
       { key: 'net_tx_rate', name: 'NET_TX变化率' },
       { key: 'timer_rate', name: 'TIMER变化率' },
+    ],
+  },
+  mysql: {
+    title: 'MySQL 明细',
+    endpoint: 'mysql-detail',
+    columns: [
+      ...commonColumns('instance', '实例'),
+      {
+        key: 'up',
+        title: '可用性',
+        render: (row) => (
+          <span className={`status-pill ${row.up ? 'status-online' : 'status-critical'}`}>
+            {row.up ? '正常' : '不可用'}
+          </span>
+        ),
+      },
+      { key: 'role', title: '角色' },
+      {
+        key: 'connection_used_percent',
+        title: '连接压力',
+        render: (row) => formatPercent(Number(row.connection_used_percent)),
+      },
+      { key: 'qps', title: 'QPS', render: (row) => formatNumber(Number(row.qps), 1) },
+      { key: 'tps', title: 'TPS', render: (row) => formatNumber(Number(row.tps), 1) },
+      { key: 'slow_queries_rate', title: '慢查询/s', render: (row) => formatNumber(Number(row.slow_queries_rate), 2) },
+      {
+        key: 'innodb_row_lock_waits_rate',
+        title: '锁等待/s',
+        render: (row) => formatNumber(Number(row.innodb_row_lock_waits_rate), 2),
+      },
+      {
+        key: 'innodb_buffer_pool_hit_percent',
+        title: 'Buffer Pool',
+        render: (row) => formatPercent(Number(row.innodb_buffer_pool_hit_percent)),
+      },
+      {
+        key: 'replication_lag_seconds',
+        title: '复制延迟',
+        render: (row) => row.replication_configured ? `${formatNumber(Number(row.replication_lag_seconds), 1)}s` : '--',
+      },
+    ],
+    chartSeries: [
+      { key: 'connection_used_percent', name: '连接压力' },
+      { key: 'qps', name: 'QPS' },
+      { key: 'tps', name: 'TPS' },
+      { key: 'slow_queries_rate', name: '慢查询/s' },
+      { key: 'innodb_row_lock_waits_rate', name: '锁等待/s' },
+      { key: 'innodb_buffer_pool_hit_percent', name: 'Buffer Pool' },
+      { key: 'replication_lag_seconds', name: '复制延迟' },
     ],
   },
 };

@@ -267,6 +267,12 @@ int64_t toI64(const std::vector<std::string> &row, std::size_t index) {
     return index < row.size() && !row[index].empty() ? static_cast<int64_t>(std::stoll(row[index])) : 0;
 }
 
+bool toBool(const std::vector<std::string> &row, std::size_t index) {
+    if (index >= row.size() || row[index].empty()) return false;
+    return row[index] == "1" || row[index] == "true" || row[index] == "TRUE" || row[index] == "yes" ||
+           row[index] == "YES";
+}
+
 } // namespace
 #endif
 
@@ -685,6 +691,94 @@ std::vector<AnomalyRecord> QueryManager::queryAnomalyRecords(const std::string &
             add_anomaly("RATE_SPIKE", "mem_used_percent_rate", mem_rate, threshold.change_rate_threshold);
         }
     }
+
+    std::string mysqlWhereClause = "timestamp BETWEEN ? AND ?";
+    std::vector<SqlParam> mysqlWhereParams = {stringParam(startTimeStr), stringParam(endTimeStr)};
+    if (!serverName.empty()) {
+        mysqlWhereClause += " AND server_name=?";
+        mysqlWhereParams.push_back(stringParam(serverName));
+    }
+    mysqlWhereClause +=
+        " AND (up=0 OR connection_used_percent > ? "
+        "OR (replication_configured=1 AND replication_lag_seconds > ?) "
+        "OR slow_queries_rate > ? OR innodb_row_lock_waits_rate > ? "
+        "OR (innodb_buffer_pool_hit_percent > 0 AND innodb_buffer_pool_hit_percent < ?))";
+    mysqlWhereParams.push_back(doubleParam(threshold.mysql_connection_threshold));
+    mysqlWhereParams.push_back(doubleParam(threshold.mysql_replication_lag_threshold));
+    mysqlWhereParams.push_back(doubleParam(threshold.mysql_slow_query_rate_threshold));
+    mysqlWhereParams.push_back(doubleParam(threshold.mysql_lock_wait_rate_threshold));
+    mysqlWhereParams.push_back(doubleParam(threshold.mysql_buffer_pool_hit_threshold));
+
+    std::vector<std::vector<std::string>> mysqlRows;
+    if (!executePreparedRows(conn,
+                             "SELECT server_name, timestamp, instance, up, connection_used_percent, "
+                             "replication_lag_seconds, slow_queries_rate, innodb_row_lock_waits_rate, "
+                             "innodb_buffer_pool_hit_percent "
+                             "FROM server_mysql_detail WHERE " +
+                                 mysqlWhereClause + " ORDER BY timestamp DESC",
+                             std::move(mysqlWhereParams), mysqlRows, "mysql anomaly query", error)) {
+        return records;
+    }
+
+    for (const auto &row : mysqlRows) {
+        std::string name = !row.empty() ? row[0] : "";
+        auto ts = row.size() > 1 && !row[1].empty() ? parseTimeString(row[1]) : std::chrono::system_clock::now();
+        std::string instance = row.size() > 2 ? row[2] : "";
+        bool up = toBool(row, 3);
+        float connectionUsed = toFloat(row, 4);
+        float replicationLag = toFloat(row, 5);
+        float slowQueryRate = toFloat(row, 6);
+        float lockWaitRate = toFloat(row, 7);
+        float bufferPoolHit = toFloat(row, 8);
+
+        auto add_mysql_anomaly = [&](const std::string &type, const std::string &metric, float value,
+                                     float thresholdValue, const std::string &severity) {
+            AnomalyRecord rec;
+            rec.server_name = name;
+            rec.timestamp = ts;
+            rec.anomaly_type = type;
+            rec.severity = severity;
+            rec.value = value;
+            rec.threshold = thresholdValue;
+            rec.metric_name = instance.empty() ? metric : instance + "." + metric;
+            records.push_back(rec);
+        };
+
+        if (!up) {
+            add_mysql_anomaly("MYSQL_DOWN", "up", 0.0f, 1.0f, "CRITICAL");
+        }
+        if (connectionUsed > threshold.mysql_connection_threshold) {
+            add_mysql_anomaly(connectionUsed > 95.0f ? "MYSQL_CONNECTION_CRITICAL" : "MYSQL_CONNECTION_HIGH",
+                              "connection_used_percent", connectionUsed, threshold.mysql_connection_threshold,
+                              connectionUsed > 95.0f ? "CRITICAL" : "WARNING");
+        }
+        if (replicationLag > threshold.mysql_replication_lag_threshold) {
+            add_mysql_anomaly("MYSQL_REPLICATION_LAG", "replication_lag_seconds", replicationLag,
+                              threshold.mysql_replication_lag_threshold,
+                              replicationLag > threshold.mysql_replication_lag_threshold * 2 ? "CRITICAL"
+                                                                                             : "WARNING");
+        }
+        if (slowQueryRate > threshold.mysql_slow_query_rate_threshold) {
+            add_mysql_anomaly("MYSQL_SLOW_QUERY_SPIKE", "slow_queries_rate", slowQueryRate,
+                              threshold.mysql_slow_query_rate_threshold,
+                              slowQueryRate > threshold.mysql_slow_query_rate_threshold * 5 ? "CRITICAL"
+                                                                                            : "WARNING");
+        }
+        if (lockWaitRate > threshold.mysql_lock_wait_rate_threshold) {
+            add_mysql_anomaly("MYSQL_LOCK_WAIT_SPIKE", "innodb_row_lock_waits_rate", lockWaitRate,
+                              threshold.mysql_lock_wait_rate_threshold,
+                              lockWaitRate > threshold.mysql_lock_wait_rate_threshold * 5 ? "CRITICAL" : "WARNING");
+        }
+        if (bufferPoolHit > 0 && bufferPoolHit < threshold.mysql_buffer_pool_hit_threshold) {
+            add_mysql_anomaly("MYSQL_BUFFER_POOL_LOW", "innodb_buffer_pool_hit_percent", bufferPoolHit,
+                              threshold.mysql_buffer_pool_hit_threshold, bufferPoolHit < 90.0f ? "CRITICAL"
+                                                                                               : "WARNING");
+        }
+    }
+
+    std::sort(records.begin(), records.end(), [](const AnomalyRecord &lhs, const AnomalyRecord &rhs) {
+        return lhs.timestamp > rhs.timestamp;
+    });
 
     if (totalCount) *totalCount = static_cast<int>(records.size());
     int offset = (page - 1) * pageSize;
@@ -1179,6 +1273,139 @@ std::vector<SoftIrqDetailRecord> QueryManager::querySoftIrqDetailRecords(const s
     (void)pageSize;
     (void)totalCount;
 #endif
+    return records;
+}
+
+std::vector<MysqlDetailRecord> QueryManager::queryMysqlDetailRecords(const std::string &serverName,
+                                                                     const TimeRange &range, int page, int pageSize,
+                                                                     int *totalCount, std::string *error) {
+    std::vector<MysqlDetailRecord> records;
+    if (error) error->clear();
+
+#ifdef ENABLE_MYSQL
+    auto lease = acquireConnection(error);
+    MYSQL *conn = lease.conn;
+    if (!conn) return records;
+
+    if (!validateTimeRange(range)) {
+        setError(error, "Invalid time range: start_time > end_time");
+        return records;
+    }
+    if (page < 1) page = 1;
+    if (pageSize < 1) pageSize = 100;
+
+    std::string startTime = formatTimePoint(range.start_time);
+    std::string endTime = formatTimePoint(range.end_time);
+
+    if (totalCount) {
+        if (!executePreparedCount(conn,
+                                  "SELECT COUNT(*) FROM server_mysql_detail "
+                                  "WHERE server_name=? AND timestamp BETWEEN ? AND ?",
+                                  {stringParam(serverName), stringParam(startTime), stringParam(endTime)},
+                                  "mysql detail count", totalCount, error)) {
+            return records;
+        }
+    }
+
+    int offset = (page - 1) * pageSize;
+    std::vector<std::vector<std::string>> rows;
+    if (!executePreparedRows(conn,
+                             "SELECT server_name, instance, timestamp, mysql_host, mysql_port, up, version, `role`, "
+                             "max_connections, threads_connected, threads_running, aborted_connects, "
+                             "questions, com_select, com_insert, com_update, com_delete, com_commit, com_rollback, "
+                             "slow_queries, innodb_buffer_pool_read_requests, innodb_buffer_pool_reads, "
+                             "innodb_buffer_pool_hit_percent, innodb_row_lock_waits, innodb_row_lock_time_avg_ms, "
+                             "replication_configured, replication_running, replication_lag_seconds, "
+                             "connection_used_percent, qps, tps, slow_queries_rate, innodb_row_lock_waits_rate "
+                             "FROM server_mysql_detail WHERE server_name=? "
+                             "AND timestamp BETWEEN ? AND ? "
+                             "ORDER BY timestamp DESC LIMIT ? OFFSET ?",
+                             {stringParam(serverName), stringParam(startTime), stringParam(endTime), intParam(pageSize),
+                              intParam(offset)},
+                             rows, "mysql detail query", error)) {
+        return records;
+    }
+
+    for (const auto &row : rows) {
+        MysqlDetailRecord rec;
+        int i = 0;
+        rec.server_name = i < static_cast<int>(row.size()) ? row[i] : "";
+        ++i;
+        rec.instance = i < static_cast<int>(row.size()) ? row[i] : "";
+        ++i;
+        rec.timestamp = i < static_cast<int>(row.size()) && !row[i].empty() ? parseTimeString(row[i])
+                                                                            : std::chrono::system_clock::now();
+        ++i;
+        rec.mysql_host = i < static_cast<int>(row.size()) ? row[i] : "";
+        ++i;
+        rec.mysql_port = static_cast<int>(toI64(row, i));
+        ++i;
+        rec.up = toBool(row, i);
+        ++i;
+        rec.version = i < static_cast<int>(row.size()) ? row[i] : "";
+        ++i;
+        rec.role = i < static_cast<int>(row.size()) ? row[i] : "";
+        ++i;
+        rec.max_connections = toU64(row, i);
+        ++i;
+        rec.threads_connected = toU64(row, i);
+        ++i;
+        rec.threads_running = toU64(row, i);
+        ++i;
+        rec.aborted_connects = toU64(row, i);
+        ++i;
+        rec.questions = toU64(row, i);
+        ++i;
+        rec.com_select = toU64(row, i);
+        ++i;
+        rec.com_insert = toU64(row, i);
+        ++i;
+        rec.com_update = toU64(row, i);
+        ++i;
+        rec.com_delete = toU64(row, i);
+        ++i;
+        rec.com_commit = toU64(row, i);
+        ++i;
+        rec.com_rollback = toU64(row, i);
+        ++i;
+        rec.slow_queries = toU64(row, i);
+        ++i;
+        rec.innodb_buffer_pool_read_requests = toU64(row, i);
+        ++i;
+        rec.innodb_buffer_pool_reads = toU64(row, i);
+        ++i;
+        rec.innodb_buffer_pool_hit_percent = toFloat(row, i);
+        ++i;
+        rec.innodb_row_lock_waits = toU64(row, i);
+        ++i;
+        rec.innodb_row_lock_time_avg_ms = toFloat(row, i);
+        ++i;
+        rec.replication_configured = toBool(row, i);
+        ++i;
+        rec.replication_running = toBool(row, i);
+        ++i;
+        rec.replication_lag_seconds = toFloat(row, i);
+        ++i;
+        rec.connection_used_percent = toFloat(row, i);
+        ++i;
+        rec.qps = toFloat(row, i);
+        ++i;
+        rec.tps = toFloat(row, i);
+        ++i;
+        rec.slow_queries_rate = toFloat(row, i);
+        ++i;
+        rec.innodb_row_lock_waits_rate = toFloat(row, i);
+        records.push_back(rec);
+    }
+#else
+    setError(error, "QueryManager: MySQL support is not enabled");
+    (void)serverName;
+    (void)range;
+    (void)page;
+    (void)pageSize;
+    (void)totalCount;
+#endif
+
     return records;
 }
 

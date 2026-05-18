@@ -104,15 +104,40 @@ func (h *QueryHandler) Anomalies(c *gin.Context) {
 	if !ok {
 		return
 	}
+	mysqlConnectionThreshold, ok := parseOptionalFloat32(c, "mysql_connection_threshold", 0)
+	if !ok {
+		return
+	}
+	mysqlReplicationLagThreshold, ok := parseOptionalFloat32(c, "mysql_replication_lag_threshold", 0)
+	if !ok {
+		return
+	}
+	mysqlSlowQueryRateThreshold, ok := parseOptionalFloat32(c, "mysql_slow_query_rate_threshold", 0)
+	if !ok {
+		return
+	}
+	mysqlLockWaitRateThreshold, ok := parseOptionalFloat32(c, "mysql_lock_wait_rate_threshold", 0)
+	if !ok {
+		return
+	}
+	mysqlBufferPoolHitThreshold, ok := parseOptionalFloat32(c, "mysql_buffer_pool_hit_threshold", 0)
+	if !ok {
+		return
+	}
 
 	data, err := h.client.Anomalies(c.Request.Context(), c.Param("server"), grpcclient.AnomalyOptions{
-		TimeRange:           timeRange,
-		CPUThreshold:        cpuThreshold,
-		MemThreshold:        memThreshold,
-		DiskThreshold:       diskThreshold,
-		ChangeRateThreshold: changeRateThreshold,
-		Page:                page,
-		PageSize:            pageSize,
+		TimeRange:                    timeRange,
+		CPUThreshold:                 cpuThreshold,
+		MemThreshold:                 memThreshold,
+		DiskThreshold:                diskThreshold,
+		ChangeRateThreshold:          changeRateThreshold,
+		MySQLConnectionThreshold:     mysqlConnectionThreshold,
+		MySQLReplicationLagThreshold: mysqlReplicationLagThreshold,
+		MySQLSlowQueryRateThreshold:  mysqlSlowQueryRateThreshold,
+		MySQLLockWaitRateThreshold:   mysqlLockWaitRateThreshold,
+		MySQLBufferPoolHitThreshold:  mysqlBufferPoolHitThreshold,
+		Page:                         page,
+		PageSize:                     pageSize,
 	})
 	h.writeGRPCResult(c, data, err)
 }
@@ -154,6 +179,11 @@ func (h *QueryHandler) MemDetail(c *gin.Context) {
 // SoftIrqDetail 处理软中断详细指标查询请求
 func (h *QueryHandler) SoftIrqDetail(c *gin.Context) {
 	h.detail(c, h.client.SoftIrqDetail)
+}
+
+// MysqlDetail 处理 MySQL 详细指标查询请求
+func (h *QueryHandler) MysqlDetail(c *gin.Context) {
+	h.detail(c, h.client.MysqlDetail)
 }
 
 // detail 是一个通用的处理函数，用于处理网络、磁盘、内存和软中断等详细指标的查询请求。它首先解析时间范围和分页参数，然后调用传入的gRPC函数获取数据，并将结果写入HTTP响应。

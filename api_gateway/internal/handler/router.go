@@ -28,6 +28,7 @@ func NewRouter(cfg config.Config, queryClient *grpcclient.Client) *gin.Engine {
 	router.GET("/api/servers/:server/disk-detail", queryHandler.DiskDetail)
 	router.GET("/api/servers/:server/mem-detail", queryHandler.MemDetail)
 	router.GET("/api/servers/:server/softirq-detail", queryHandler.SoftIrqDetail)
+	router.GET("/api/servers/:server/mysql-detail", queryHandler.MysqlDetail)
 
 	return router
 }

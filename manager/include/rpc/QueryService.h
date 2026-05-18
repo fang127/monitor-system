@@ -177,6 +177,10 @@ public:
                                       const ::monitor::proto::QueryDetailRequest *request,
                                       ::monitor::proto::QuerySoftIrqDetailResponse *response) override;
 
+    ::grpc::Status QueryMysqlDetail(::grpc::ServerContext *context,
+                                    const ::monitor::proto::QueryDetailRequest *request,
+                                    ::monitor::proto::QueryMysqlDetailResponse *response) override;
+
 private:
     /**
      * @brief         convert a protobuf TimeRange message to a TimeRange struct

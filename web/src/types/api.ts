@@ -209,6 +209,42 @@ export type SoftIrqDetailRecord = {
   sched_rate: number;
 };
 
+export type MysqlDetailRecord = {
+  server_name: string;
+  instance: string;
+  timestamp: string;
+  mysql_host: string;
+  mysql_port: number;
+  up: boolean;
+  version: string;
+  role: string;
+  max_connections: string | number;
+  threads_connected: string | number;
+  threads_running: string | number;
+  aborted_connects: string | number;
+  questions: string | number;
+  com_select: string | number;
+  com_insert: string | number;
+  com_update: string | number;
+  com_delete: string | number;
+  com_commit: string | number;
+  com_rollback: string | number;
+  slow_queries: string | number;
+  innodb_buffer_pool_read_requests: string | number;
+  innodb_buffer_pool_reads: string | number;
+  innodb_buffer_pool_hit_percent: number;
+  innodb_row_lock_waits: string | number;
+  innodb_row_lock_time_avg_ms: number;
+  replication_configured: boolean;
+  replication_running: boolean;
+  replication_lag_seconds: number;
+  connection_used_percent: number;
+  qps: number;
+  tps: number;
+  slow_queries_rate: number;
+  innodb_row_lock_waits_rate: number;
+};
+
 export type QueryNetDetailResponse = {
   records: NetDetailRecord[];
   total_count: number;
@@ -237,6 +273,13 @@ export type QuerySoftIrqDetailResponse = {
   page_size: number;
 };
 
+export type QueryMysqlDetailResponse = {
+  records: MysqlDetailRecord[];
+  total_count: number;
+  page: number;
+  page_size: number;
+};
+
 export type GatewayHealth = {
   service: string;
   status: string;
@@ -247,13 +290,14 @@ export type GatewayVersion = {
   version: string;
 };
 
-export type DetailKind = 'net' | 'disk' | 'mem' | 'softirq';
+export type DetailKind = 'net' | 'disk' | 'mem' | 'softirq' | 'mysql';
 
 export type DetailResponseMap = {
   net: QueryNetDetailResponse;
   disk: QueryDiskDetailResponse;
   mem: QueryMemDetailResponse;
   softirq: QuerySoftIrqDetailResponse;
+  mysql: QueryMysqlDetailResponse;
 };
 
 export type DetailRecordMap = {
@@ -261,4 +305,5 @@ export type DetailRecordMap = {
   disk: DiskDetailRecord;
   mem: MemDetailRecord;
   softirq: SoftIrqDetailRecord;
+  mysql: MysqlDetailRecord;
 };

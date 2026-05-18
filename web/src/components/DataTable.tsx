@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { EmptyState } from './SectionState';
 
-type RowValue = string | number | null | undefined;
+type RowValue = string | number | boolean | null | undefined;
 
 export type Column<T extends object> = {
   key: keyof T | string;

@@ -230,6 +230,16 @@ void QueryServiceImpl::setTimestamp(::google::protobuf::Timestamp *ts,
     thresholds.memory_threshold = request->mem_threshold() > 0 ? request->mem_threshold() : 90.0f;
     thresholds.disk_threshold = request->disk_threshold() > 0 ? request->disk_threshold() : 85.0f;
     thresholds.change_rate_threshold = request->change_rate_threshold() > 0 ? request->change_rate_threshold() : 0.5f;
+    thresholds.mysql_connection_threshold =
+        request->mysql_connection_threshold() > 0 ? request->mysql_connection_threshold() : 90.0f;
+    thresholds.mysql_replication_lag_threshold =
+        request->mysql_replication_lag_threshold() > 0 ? request->mysql_replication_lag_threshold() : 30.0f;
+    thresholds.mysql_slow_query_rate_threshold =
+        request->mysql_slow_query_rate_threshold() > 0 ? request->mysql_slow_query_rate_threshold() : 1.0f;
+    thresholds.mysql_lock_wait_rate_threshold =
+        request->mysql_lock_wait_rate_threshold() > 0 ? request->mysql_lock_wait_rate_threshold() : 1.0f;
+    thresholds.mysql_buffer_pool_hit_threshold =
+        request->mysql_buffer_pool_hit_threshold() > 0 ? request->mysql_buffer_pool_hit_threshold() : 95.0f;
 
     int page = request->pagination().page();
     int pageSize = request->pagination().page_size();
@@ -555,6 +565,80 @@ void QueryServiceImpl::setTimestamp(::google::protobuf::Timestamp *ts,
         protoRec->set_net_rx(rec.net_rx);
         protoRec->set_block(rec.block);
         protoRec->set_sched(rec.sched);
+    }
+
+    response->set_total_count(totalCount);
+    response->set_page(page);
+    response->set_page_size(pageSize);
+
+    return grpc::Status::OK;
+}
+
+::grpc::Status QueryServiceImpl::QueryMysqlDetail(::grpc::ServerContext *context,
+                                                  const ::monitor::proto::QueryDetailRequest *request,
+                                                  ::monitor::proto::QueryMysqlDetailResponse *response) {
+    (void)context;
+
+    if (dispatcher_ && !g_inside_dispatcher) {
+        return dispatchQuery(dispatcher_, request, response,
+                             [this](const auto *req, auto *resp) { return QueryMysqlDetail(nullptr, req, resp); });
+    }
+
+    if (!queryManager_ || !queryManager_->isInitialized()) {
+        return grpc::Status(grpc::StatusCode::UNAVAILABLE, "Query manager not initialized");
+    }
+
+    TimeRange time_range = convertTimeRange(request->time_range());
+    if (!queryManager_->validateTimeRange(time_range)) {
+        return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "Invalid time range: start_time > end_time");
+    }
+
+    int page = request->pagination().page();
+    int pageSize = request->pagination().page_size();
+    if (page < 1) page = 1;
+    if (pageSize < 1) pageSize = 100;
+
+    int totalCount = 0;
+    std::string error;
+    auto records =
+        queryManager_->queryMysqlDetailRecords(request->server_name(), time_range, page, pageSize, &totalCount, &error);
+    if (!error.empty()) return queryErrorStatus(error);
+
+    for (const auto &rec : records) {
+        auto *protoRec = response->add_records();
+        protoRec->set_server_name(rec.server_name);
+        protoRec->set_instance(rec.instance);
+        setTimestamp(protoRec->mutable_timestamp(), rec.timestamp);
+        protoRec->set_mysql_host(rec.mysql_host);
+        protoRec->set_mysql_port(rec.mysql_port);
+        protoRec->set_up(rec.up);
+        protoRec->set_version(rec.version);
+        protoRec->set_role(rec.role);
+        protoRec->set_max_connections(rec.max_connections);
+        protoRec->set_threads_connected(rec.threads_connected);
+        protoRec->set_threads_running(rec.threads_running);
+        protoRec->set_aborted_connects(rec.aborted_connects);
+        protoRec->set_questions(rec.questions);
+        protoRec->set_com_select(rec.com_select);
+        protoRec->set_com_insert(rec.com_insert);
+        protoRec->set_com_update(rec.com_update);
+        protoRec->set_com_delete(rec.com_delete);
+        protoRec->set_com_commit(rec.com_commit);
+        protoRec->set_com_rollback(rec.com_rollback);
+        protoRec->set_slow_queries(rec.slow_queries);
+        protoRec->set_innodb_buffer_pool_read_requests(rec.innodb_buffer_pool_read_requests);
+        protoRec->set_innodb_buffer_pool_reads(rec.innodb_buffer_pool_reads);
+        protoRec->set_innodb_buffer_pool_hit_percent(rec.innodb_buffer_pool_hit_percent);
+        protoRec->set_innodb_row_lock_waits(rec.innodb_row_lock_waits);
+        protoRec->set_innodb_row_lock_time_avg_ms(rec.innodb_row_lock_time_avg_ms);
+        protoRec->set_replication_configured(rec.replication_configured);
+        protoRec->set_replication_running(rec.replication_running);
+        protoRec->set_replication_lag_seconds(rec.replication_lag_seconds);
+        protoRec->set_connection_used_percent(rec.connection_used_percent);
+        protoRec->set_qps(rec.qps);
+        protoRec->set_tps(rec.tps);
+        protoRec->set_slow_queries_rate(rec.slow_queries_rate);
+        protoRec->set_innodb_row_lock_waits_rate(rec.innodb_row_lock_waits_rate);
     }
 
     response->set_total_count(totalCount);

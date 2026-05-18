@@ -57,6 +57,11 @@ message QueryAnomalyRequest {
     float disk_threshold = 5;     // 磁盘利用率阈值，默认85
     float change_rate_threshold = 6;  // 变化率阈值，默认0.5（50%）
     Pagination pagination = 7;
+    float mysql_connection_threshold = 8;      // MySQL连接使用率阈值，默认90
+    float mysql_replication_lag_threshold = 9; // MySQL复制延迟阈值，默认30秒
+    float mysql_slow_query_rate_threshold = 10; // MySQL慢查询速率阈值，默认1/s
+    float mysql_lock_wait_rate_threshold = 11;  // MySQL行锁等待速率阈值，默认1/s
+    float mysql_buffer_pool_hit_threshold = 12; // MySQL Buffer Pool命中率低阈值，默认95
 }
 
 // 评分排序查询请求
@@ -298,6 +303,43 @@ message SoftIrqDetailRecord {
     float sched_rate = 25;
 }
 
+// MySQL 实例详细数据
+message MysqlDetailRecord {
+    string server_name = 1;
+    string instance = 2;
+    google.protobuf.Timestamp timestamp = 3;
+    string mysql_host = 4;
+    int32 mysql_port = 5;
+    bool up = 6;
+    string version = 7;
+    string role = 8;
+    uint64 max_connections = 10;
+    uint64 threads_connected = 11;
+    uint64 threads_running = 12;
+    uint64 aborted_connects = 13;
+    uint64 questions = 20;
+    uint64 com_select = 21;
+    uint64 com_insert = 22;
+    uint64 com_update = 23;
+    uint64 com_delete = 24;
+    uint64 com_commit = 25;
+    uint64 com_rollback = 26;
+    uint64 slow_queries = 27;
+    uint64 innodb_buffer_pool_read_requests = 30;
+    uint64 innodb_buffer_pool_reads = 31;
+    float innodb_buffer_pool_hit_percent = 32;
+    uint64 innodb_row_lock_waits = 33;
+    float innodb_row_lock_time_avg_ms = 34;
+    bool replication_configured = 40;
+    bool replication_running = 41;
+    float replication_lag_seconds = 42;
+    float connection_used_percent = 50;
+    float qps = 51;
+    float tps = 52;
+    float slow_queries_rate = 53;
+    float innodb_row_lock_waits_rate = 54;
+}
+
 // ========== 详细数据查询响应 ==========
 
 message QueryNetDetailResponse {
@@ -328,6 +370,13 @@ message QuerySoftIrqDetailResponse {
     int32 page_size = 4;
 }
 
+message QueryMysqlDetailResponse {
+    repeated MysqlDetailRecord records = 1;
+    int32 total_count = 2;
+    int32 page = 3;
+    int32 page_size = 4;
+}
+
 // ========== 查询服务定义 ==========
 
 service QueryService {
@@ -351,4 +400,5 @@ service QueryService {
     rpc QueryDiskDetail(QueryDetailRequest) returns (QueryDiskDetailResponse);
     rpc QueryMemDetail(QueryDetailRequest) returns (QueryMemDetailResponse);
     rpc QuerySoftIrqDetail(QueryDetailRequest) returns (QuerySoftIrqDetailResponse);
+    rpc QueryMysqlDetail(QueryDetailRequest) returns (QueryMysqlDetailResponse);
 }

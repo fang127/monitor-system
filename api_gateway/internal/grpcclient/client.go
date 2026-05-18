@@ -56,13 +56,18 @@ type DetailOptions struct {
 
 // AnomalyOptions 包含查询异常数据的选项
 type AnomalyOptions struct {
-	TimeRange           TimeRange // 查询的时间范围
-	CPUThreshold        float32   // CPU使用率的异常阈值，默认为0表示不使用
-	MemThreshold        float32   // 内存使用率的异常阈值，默认为0表示不使用
-	DiskThreshold       float32   // 磁盘使用率的异常阈值，默认为0表示不使用
-	ChangeRateThreshold float32   // 变化率的异常阈值，默认为0表示不使用
-	Page                int32     // 分页页码，默认为0表示不分页
-	PageSize            int32     // 分页大小，默认为0表示不分页
+	TimeRange                    TimeRange // 查询的时间范围
+	CPUThreshold                 float32   // CPU使用率的异常阈值，默认为0表示不使用
+	MemThreshold                 float32   // 内存使用率的异常阈值，默认为0表示不使用
+	DiskThreshold                float32   // 磁盘使用率的异常阈值，默认为0表示不使用
+	ChangeRateThreshold          float32   // 变化率的异常阈值，默认为0表示不使用
+	MySQLConnectionThreshold     float32
+	MySQLReplicationLagThreshold float32
+	MySQLSlowQueryRateThreshold  float32
+	MySQLLockWaitRateThreshold   float32
+	MySQLBufferPoolHitThreshold  float32
+	Page                         int32 // 分页页码，默认为0表示不分页
+	PageSize                     int32 // 分页大小，默认为0表示不分页
 }
 
 // New 创建一个新的gRPC客户端实例，连接到指定的地址，并设置请求超时时间
@@ -144,6 +149,11 @@ func (c *Client) Anomalies(ctx context.Context, server string, opts AnomalyOptio
 	setFloat32(req, "mem_threshold", opts.MemThreshold)
 	setFloat32(req, "disk_threshold", opts.DiskThreshold)
 	setFloat32(req, "change_rate_threshold", opts.ChangeRateThreshold)
+	setFloat32(req, "mysql_connection_threshold", opts.MySQLConnectionThreshold)
+	setFloat32(req, "mysql_replication_lag_threshold", opts.MySQLReplicationLagThreshold)
+	setFloat32(req, "mysql_slow_query_rate_threshold", opts.MySQLSlowQueryRateThreshold)
+	setFloat32(req, "mysql_lock_wait_rate_threshold", opts.MySQLLockWaitRateThreshold)
+	setFloat32(req, "mysql_buffer_pool_hit_threshold", opts.MySQLBufferPoolHitThreshold)
 	setPagination(req, "pagination", opts.Page, opts.PageSize)
 
 	resp, err := newMessage("QueryAnomalyResponse")
@@ -187,6 +197,11 @@ func (c *Client) MemDetail(ctx context.Context, server string, opts DetailOption
 // SoftIrqDetail 获取软中断详细指标
 func (c *Client) SoftIrqDetail(ctx context.Context, server string, opts DetailOptions) (json.RawMessage, error) {
 	return c.detail(ctx, "QuerySoftIrqDetail", "QuerySoftIrqDetailResponse", server, opts)
+}
+
+// MysqlDetail 获取 MySQL 实例详细指标
+func (c *Client) MysqlDetail(ctx context.Context, server string, opts DetailOptions) (json.RawMessage, error) {
+	return c.detail(ctx, "QueryMysqlDetail", "QueryMysqlDetailResponse", server, opts)
 }
 
 // detail 获取详细指标的通用方法，适用于网络、磁盘、内存和软中断等指标

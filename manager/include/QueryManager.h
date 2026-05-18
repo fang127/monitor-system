@@ -40,6 +40,11 @@ struct AnomalyThreshold {
     float memory_threshold = 90.0f;
     float disk_threshold = 85.0f;
     float change_rate_threshold = 0.5f; // 50% change rate
+    float mysql_connection_threshold = 90.0f;
+    float mysql_replication_lag_threshold = 30.0f;
+    float mysql_slow_query_rate_threshold = 1.0f;
+    float mysql_lock_wait_rate_threshold = 1.0f;
+    float mysql_buffer_pool_hit_threshold = 95.0f;
 };
 
 /**
@@ -208,6 +213,46 @@ struct SoftIrqDetailRecord {
     int64_t sched = 0;  // scheduler softirqs per second
 };
 
+/**
+ * @brief         detailed mysql performance record for a server at a specific timestamp
+ *
+ */
+struct MysqlDetailRecord {
+    std::string server_name;
+    std::string instance;
+    std::chrono::system_clock::time_point timestamp;
+    std::string mysql_host;
+    int mysql_port = 0;
+    bool up = false;
+    std::string version;
+    std::string role;
+    uint64_t max_connections = 0;
+    uint64_t threads_connected = 0;
+    uint64_t threads_running = 0;
+    uint64_t aborted_connects = 0;
+    uint64_t questions = 0;
+    uint64_t com_select = 0;
+    uint64_t com_insert = 0;
+    uint64_t com_update = 0;
+    uint64_t com_delete = 0;
+    uint64_t com_commit = 0;
+    uint64_t com_rollback = 0;
+    uint64_t slow_queries = 0;
+    uint64_t innodb_buffer_pool_read_requests = 0;
+    uint64_t innodb_buffer_pool_reads = 0;
+    float innodb_buffer_pool_hit_percent = 0.0f;
+    uint64_t innodb_row_lock_waits = 0;
+    float innodb_row_lock_time_avg_ms = 0.0f;
+    bool replication_configured = false;
+    bool replication_running = false;
+    float replication_lag_seconds = 0.0f;
+    float connection_used_percent = 0.0f;
+    float qps = 0.0f;
+    float tps = 0.0f;
+    float slow_queries_rate = 0.0f;
+    float innodb_row_lock_waits_rate = 0.0f;
+};
+
 class QueryManager {
 public:
     QueryManager() = default;
@@ -362,6 +407,21 @@ public:
     std::vector<SoftIrqDetailRecord> querySoftIrqDetailRecords(const std::string &serverName, const TimeRange &range,
                                                                int page, int pageSize, int *totalCount,
                                                                std::string *error = nullptr);
+
+    /**
+     * @brief         query MySQL statistics
+     *
+     * @param         serverName
+     * @param         range
+     * @param         page
+     * @param         pageSize
+     * @param         totalCount
+     * @param         error
+     * @return
+     */
+    std::vector<MysqlDetailRecord> queryMysqlDetailRecords(const std::string &serverName, const TimeRange &range,
+                                                           int page, int pageSize, int *totalCount,
+                                                           std::string *error = nullptr);
 
 private:
 #ifdef ENABLE_MYSQL

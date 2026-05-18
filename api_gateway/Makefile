@@ -5,6 +5,7 @@ PROTO_OUT ?= ./internal/pb/queryapi
 BIN_DIR ?= $(CURDIR)/.bin
 PROTOC_GEN_GO ?= $(BIN_DIR)/protoc-gen-go
 PROTOC_GEN_GO_GRPC ?= $(BIN_DIR)/protoc-gen-go-grpc
+PROTOC ?= $(shell command -v protoc 2>/dev/null || sed -n 's/^Protobuf_PROTOC_EXECUTABLE:FILEPATH=//p' ../build/Debug/CMakeCache.txt 2>/dev/null)
 PROTOC_GEN_GO_VERSION ?= google.golang.org/protobuf/cmd/protoc-gen-go@v1.34.1
 PROTOC_GEN_GO_GRPC_VERSION ?= google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.4.0
 
@@ -29,4 +30,4 @@ $(PROTOC_GEN_GO_GRPC):
 
 proto: proto-tools
 	mkdir -p $(PROTO_OUT)
-	PATH="$(BIN_DIR):$$PATH" protoc -I $(PROTO_DIR) --go_out=$(PROTO_OUT) --go_opt=paths=source_relative --go-grpc_out=$(PROTO_OUT) --go-grpc_opt=paths=source_relative query_api.proto
+	PATH="$(BIN_DIR):$$PATH" $(PROTOC) -I $(PROTO_DIR) --go_out=$(PROTO_OUT) --go_opt=paths=source_relative --go-grpc_out=$(PROTO_OUT) --go-grpc_opt=paths=source_relative query_api.proto
