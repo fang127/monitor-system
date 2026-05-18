@@ -14,6 +14,10 @@
 #include "MemMonitor.h"
 #include "HostInfoMonitor.h"
 
+#ifdef ENABLE_MYSQL_MONITOR
+#include "MysqlMonitor.h"
+#endif
+
 #ifdef ENABLE_EBPF
 #include "NetEbpfMonitor.h"
 #else
@@ -40,6 +44,9 @@ MetricCollector::MetricCollector() {
     monitors_.push_back(std::make_unique<NetMonitor>());
 #endif
     monitors_.push_back(std::make_unique<DiskMonitor>());
+#ifdef ENABLE_MYSQL_MONITOR
+    monitors_.push_back(std::make_unique<MysqlMonitor>());
+#endif
     monitors_.push_back(std::make_unique<HostInfoMonitor>());
 }
 

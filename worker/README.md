@@ -138,6 +138,7 @@ message MonitorInfo {
 | `mem_info` | `MemMonitor` | 内存容量、可用量、cache、dirty 等 |
 | `net_info` | `NetEbpfMonitor` 或 `NetMonitor` | 网卡吞吐、包速率、错误和丢弃 |
 | `disk_info` | `DiskMonitor` | 磁盘 I/O 计数、速率、IOPS、延迟、利用率 |
+| `mysql_info` | `MysqlMonitor` | MySQL 实例可用性、连接、查询、InnoDB、复制指标 |
 
 ## 采集器架构
 
@@ -159,7 +160,8 @@ public:
 4. `MemMonitor`
 5. `NetEbpfMonitor` 或 `NetMonitor`
 6. `DiskMonitor`
-7. `HostInfoMonitor`
+7. `MysqlMonitor`（编译启用且环境变量打开时采集）
+8. `HostInfoMonitor`
 
 每轮采集时，`MetricCollector::collectAll()` 先设置 `MonitorInfo.name`，再依次调用每个采集器的 `updateOnce()`。采集器直接把结果写入同一个 protobuf 对象。
 
@@ -275,9 +277,38 @@ used_percent = (MemTotal - MemAvailable) / MemTotal * 100
 
 manager 会优先使用 `hostname_ip` 作为 server ID，所以同名容器或同名虚拟机也能通过 IP 区分。
 
+### MySQL
+
+`MysqlMonitor` 使用 MySQL C API 连接目标实例，默认运行时关闭。启用后每轮采集：
+
+- `SHOW GLOBAL VARIABLES`：`max_connections`、`read_only`、`super_read_only`
+- `SHOW GLOBAL STATUS`：连接数、线程数、查询/事务计数、慢查询、InnoDB buffer pool、行锁等待
+- `SHOW REPLICA STATUS` 或 `SHOW SLAVE STATUS`：复制状态和复制延迟
+
+单实例配置：
+
+```bash
+export MYSQL_MONITOR_ENABLED=true
+export MYSQL_MONITOR_HOST=127.0.0.1
+export MYSQL_MONITOR_PORT=3306
+export MYSQL_MONITOR_USER=monitor
+export MYSQL_MONITOR_PASSWORD='password'
+export MYSQL_MONITOR_INSTANCE=127.0.0.1:3306
+export MYSQL_MONITOR_ROLE=unknown
+export MYSQL_MONITOR_TIMEOUT_SECONDS=3
+```
+
+多实例配置使用分号分隔实例，字段格式为 `instance|host|port|user|password|role`：
+
+```bash
+export MYSQL_MONITOR_TARGETS='db1|127.0.0.1|3306|monitor|password|primary;db2|10.0.0.2|3306|monitor|password|replica'
+```
+
+如果连接失败，worker 仍会上报该实例并设置 `up=false`，不会影响其它系统指标采集。建议监控账号授予最小权限：`PROCESS`、`REPLICATION CLIENT`、`SELECT`。
+
 ## 构建
 
-worker 依赖 gRPC。默认 `ENABLE_EBPF=ON` 时，还依赖 libbpf、elfutils、ZLIB、clang、bpftool 和系统 eBPF 头文件。
+worker 依赖 gRPC。默认 `ENABLE_EBPF=ON` 时，还依赖 libbpf、elfutils、ZLIB、clang、bpftool 和系统 eBPF 头文件。默认 `ENABLE_MYSQL_MONITOR=ON` 时，还会链接 libmysqlclient；运行时仍需要 `MYSQL_MONITOR_ENABLED=true` 或 `MYSQL_MONITOR_TARGETS` 才会采集 MySQL。
 
 完整 Debug 构建：
 
@@ -294,6 +325,16 @@ cmake -S . -B build/Debug \
   -DCMAKE_TOOLCHAIN_FILE=build/Debug/generators/conan_toolchain.cmake \
   -DCMAKE_BUILD_TYPE=Debug \
   -DENABLE_EBPF=OFF
+cmake --build build/Debug --target worker
+```
+
+如果只想构建主机指标采集，不链接 MySQL client，可以关闭 MySQL 采集器：
+
+```bash
+cmake -S . -B build/Debug \
+  -DCMAKE_TOOLCHAIN_FILE=build/Debug/generators/conan_toolchain.cmake \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DENABLE_MYSQL_MONITOR=OFF
 cmake --build build/Debug --target worker
 ```
 

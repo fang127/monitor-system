@@ -2,6 +2,11 @@ find_package(gRPC CONFIG REQUIRED)
 
 # eBPF 支持选项
 option(ENABLE_EBPF "Enable eBPF-based network monitoring" ON)
+option(ENABLE_MYSQL_MONITOR "Enable MySQL instance monitoring in worker" ON)
+
+if(ENABLE_MYSQL_MONITOR)
+    find_package(libmysqlclient CONFIG REQUIRED)
+endif()
 
 if(ENABLE_EBPF)
     # 找到eBPF依赖库
@@ -45,6 +50,10 @@ set(WORKER_SRC
     src/utils/ReadFile.cc
 )
 
+if(ENABLE_MYSQL_MONITOR)
+    list(APPEND WORKER_SRC src/monitor/MysqlMonitor.cc)
+endif()
+
 # 根据 eBPF 支持选项添加源文件和库
 if(EBPF_FOUND)
     list(APPEND WORKER_SRC src/monitor/NetEbpfMonitor.cc)
@@ -69,6 +78,11 @@ if(EBPF_FOUND)
     add_dependencies(worker ebpf_skeleton) # 确保在构建 worker 之前生成 eBPF 骨架头文件
     target_compile_definitions(worker PRIVATE ENABLE_EBPF=1) # 定义宏以启用 eBPF 相关代码
     list(APPEND WORKER_LIBS libbpf::libbpf elfutils::elfutils ZLIB::ZLIB) # 添加 eBPF 相关库链接
+endif()
+
+if(ENABLE_MYSQL_MONITOR)
+    target_compile_definitions(worker PRIVATE ENABLE_MYSQL_MONITOR=1)
+    list(APPEND WORKER_LIBS libmysqlclient::libmysqlclient)
 endif()
 
 target_link_libraries(worker PUBLIC ${WORKER_LIBS})

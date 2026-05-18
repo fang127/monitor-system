@@ -180,6 +180,34 @@ bool MonitorPusher::pushOnce() {
         }
     }
 
+    // MySQL info
+    if (info.mysql_info_size() > 0) {
+        std::cout << "\n--- MySQL Info ---" << std::endl;
+        for (int i = 0; i < info.mysql_info_size(); ++i) {
+            const auto &mysql = info.mysql_info(i);
+            std::cout << "[" << mysql.instance() << "] "
+                      << "Up: " << (mysql.up() ? "yes" : "no") << ", "
+                      << "Role: " << mysql.role() << ", "
+                      << "Version: " << mysql.version() << std::endl;
+            std::cout << "  Connections: " << mysql.threads_connected()
+                      << "/" << mysql.max_connections()
+                      << ", Running: " << mysql.threads_running()
+                      << ", Questions: " << mysql.questions()
+                      << ", Slow: " << mysql.slow_queries() << std::endl;
+            std::cout << "  InnoDB hit: "
+                      << mysql.innodb_buffer_pool_hit_percent()
+                      << "%, Row lock waits: "
+                      << mysql.innodb_row_lock_waits() << std::endl;
+            if (mysql.replication_configured()) {
+                std::cout << "  Replication: "
+                          << (mysql.replication_running() ? "running"
+                                                          : "stopped")
+                          << ", Lag: " << mysql.replication_lag_seconds()
+                          << "s" << std::endl;
+            }
+        }
+    }
+
     std::cout << "==============================================" << std::endl;
 
     // push to manager
