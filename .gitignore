@@ -18,6 +18,9 @@ build
 # .out
 *.out
 
+# codex
+AGENTS.md
+
 # kmod
 *.ko
 *.mod
