@@ -49,6 +49,11 @@ export function getAnomalies(
     mysql_slow_query_rate_threshold?: number;
     mysql_lock_wait_rate_threshold?: number;
     mysql_buffer_pool_hit_threshold?: number;
+    redis_connection_threshold?: number;
+    redis_memory_threshold?: number;
+    redis_hit_rate_threshold?: number;
+    redis_replication_lag_threshold?: number;
+    redis_slowlog_growth_threshold?: number;
   },
 ): Promise<QueryAnomalyResponse> {
   return apiGet<QueryAnomalyResponse>(`/servers/${serverPath(server)}/anomalies`, { params });

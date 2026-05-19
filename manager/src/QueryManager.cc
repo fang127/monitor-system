@@ -774,6 +774,98 @@ std::vector<AnomalyRecord> QueryManager::queryAnomalyRecords(const std::string &
         }
     }
 
+    std::string redisWhereClause = "timestamp BETWEEN ? AND ?";
+    std::vector<SqlParam> redisWhereParams = {stringParam(startTimeStr), stringParam(endTimeStr)};
+    if (!serverName.empty()) {
+        redisWhereClause += " AND server_name=?";
+        redisWhereParams.push_back(stringParam(serverName));
+    }
+    redisWhereClause +=
+        " AND (up=0 OR connection_used_percent > ? OR memory_used_percent > ? "
+        "OR (keyspace_hit_percent > 0 AND keyspace_hit_percent < ?) "
+        "OR (replication_configured=1 AND master_link_up=0) "
+        "OR master_last_io_seconds_ago > ? OR rejected_connections > 0 OR slowlog_growth > ?)";
+    redisWhereParams.push_back(doubleParam(threshold.redis_connection_threshold));
+    redisWhereParams.push_back(doubleParam(threshold.redis_memory_threshold));
+    redisWhereParams.push_back(doubleParam(threshold.redis_hit_rate_threshold));
+    redisWhereParams.push_back(doubleParam(threshold.redis_replication_lag_threshold));
+    redisWhereParams.push_back(doubleParam(threshold.redis_slowlog_growth_threshold));
+
+    std::vector<std::vector<std::string>> redisRows;
+    if (!executePreparedRows(conn,
+                             "SELECT server_name, timestamp, instance, up, connection_used_percent, "
+                             "memory_used_percent, keyspace_hit_percent, replication_configured, master_link_up, "
+                             "master_last_io_seconds_ago, rejected_connections, slowlog_growth "
+                             "FROM server_redis_detail WHERE " +
+                                 redisWhereClause + " ORDER BY timestamp DESC",
+                             std::move(redisWhereParams), redisRows, "redis anomaly query", error)) {
+        return records;
+    }
+
+    for (const auto &row : redisRows) {
+        std::string name = !row.empty() ? row[0] : "";
+        auto ts = row.size() > 1 && !row[1].empty() ? parseTimeString(row[1]) : std::chrono::system_clock::now();
+        std::string instance = row.size() > 2 ? row[2] : "";
+        bool up = toBool(row, 3);
+        float connectionUsed = toFloat(row, 4);
+        float memoryUsed = toFloat(row, 5);
+        float hitRate = toFloat(row, 6);
+        bool replicationConfigured = toBool(row, 7);
+        bool masterLinkUp = toBool(row, 8);
+        float replicationLag = toFloat(row, 9);
+        float rejectedConnections = toFloat(row, 10);
+        float slowlogGrowth = toFloat(row, 11);
+
+        auto add_redis_anomaly = [&](const std::string &type, const std::string &metric, float value,
+                                     float thresholdValue, const std::string &severity) {
+            AnomalyRecord rec;
+            rec.server_name = name;
+            rec.timestamp = ts;
+            rec.anomaly_type = type;
+            rec.severity = severity;
+            rec.value = value;
+            rec.threshold = thresholdValue;
+            rec.metric_name = instance.empty() ? metric : instance + "." + metric;
+            records.push_back(rec);
+        };
+
+        if (!up) {
+            add_redis_anomaly("REDIS_DOWN", "up", 0.0f, 1.0f, "CRITICAL");
+        }
+        if (connectionUsed > threshold.redis_connection_threshold) {
+            add_redis_anomaly(connectionUsed > 95.0f ? "REDIS_CONNECTION_CRITICAL" : "REDIS_CONNECTION_HIGH",
+                              "connection_used_percent", connectionUsed, threshold.redis_connection_threshold,
+                              connectionUsed > 95.0f ? "CRITICAL" : "WARNING");
+        }
+        if (memoryUsed > threshold.redis_memory_threshold) {
+            add_redis_anomaly(memoryUsed > 95.0f ? "REDIS_MEMORY_CRITICAL" : "REDIS_MEMORY_HIGH",
+                              "memory_used_percent", memoryUsed, threshold.redis_memory_threshold,
+                              memoryUsed > 95.0f ? "CRITICAL" : "WARNING");
+        }
+        if (hitRate > 0 && hitRate < threshold.redis_hit_rate_threshold) {
+            add_redis_anomaly("REDIS_HIT_RATE_LOW", "keyspace_hit_percent", hitRate,
+                              threshold.redis_hit_rate_threshold, hitRate < 60.0f ? "CRITICAL" : "WARNING");
+        }
+        if (replicationConfigured && !masterLinkUp) {
+            add_redis_anomaly("REDIS_REPLICATION_LINK_DOWN", "master_link_up", 0.0f, 1.0f, "CRITICAL");
+        }
+        if (replicationLag > threshold.redis_replication_lag_threshold) {
+            add_redis_anomaly("REDIS_REPLICATION_LAG", "master_last_io_seconds_ago", replicationLag,
+                              threshold.redis_replication_lag_threshold,
+                              replicationLag > threshold.redis_replication_lag_threshold * 2 ? "CRITICAL"
+                                                                                              : "WARNING");
+        }
+        if (rejectedConnections > 0) {
+            add_redis_anomaly("REDIS_REJECTED_CONNECTIONS", "rejected_connections", rejectedConnections, 0.0f,
+                              "WARNING");
+        }
+        if (slowlogGrowth > threshold.redis_slowlog_growth_threshold) {
+            add_redis_anomaly("REDIS_SLOWLOG_GROWTH", "slowlog_growth", slowlogGrowth,
+                              threshold.redis_slowlog_growth_threshold,
+                              slowlogGrowth > threshold.redis_slowlog_growth_threshold * 5 ? "CRITICAL" : "WARNING");
+        }
+    }
+
     std::sort(records.begin(), records.end(),
               [](const AnomalyRecord &lhs, const AnomalyRecord &rhs) { return lhs.timestamp > rhs.timestamp; });
 
@@ -1390,6 +1482,149 @@ std::vector<MysqlDetailRecord> QueryManager::queryMysqlDetailRecords(const std::
         rec.slow_queries_rate = toFloat(row, i);
         ++i;
         rec.innodb_row_lock_waits_rate = toFloat(row, i);
+        records.push_back(rec);
+    }
+#else
+    setError(error, "QueryManager: MySQL support is not enabled");
+    (void)serverName;
+    (void)range;
+    (void)page;
+    (void)pageSize;
+    (void)totalCount;
+#endif
+
+    return records;
+}
+
+std::vector<RedisDetailRecord> QueryManager::queryRedisDetailRecords(const std::string &serverName,
+                                                                     const TimeRange &range, int page, int pageSize,
+                                                                     int *totalCount, std::string *error) {
+    std::vector<RedisDetailRecord> records;
+    if (error) error->clear();
+
+#ifdef ENABLE_MYSQL
+    auto lease = acquireConnection(error);
+    MYSQL *conn = lease.conn;
+    if (!conn) return records;
+
+    if (!validateTimeRange(range)) {
+        setError(error, "Invalid time range: start_time > end_time");
+        return records;
+    }
+    if (page < 1) page = 1;
+    if (pageSize < 1) pageSize = 100;
+
+    std::string startTime = formatTimePoint(range.start_time);
+    std::string endTime = formatTimePoint(range.end_time);
+
+    if (totalCount) {
+        if (!executePreparedCount(conn,
+                                  "SELECT COUNT(*) FROM server_redis_detail "
+                                  "WHERE server_name=? AND timestamp BETWEEN ? AND ?",
+                                  {stringParam(serverName), stringParam(startTime), stringParam(endTime)},
+                                  "redis detail count", totalCount, error)) {
+            return records;
+        }
+    }
+
+    int offset = (page - 1) * pageSize;
+    std::vector<std::vector<std::string>> rows;
+    if (!executePreparedRows(conn,
+                             "SELECT server_name, instance, timestamp, redis_host, redis_port, up, version, `role`, "
+                             "uptime_in_seconds, connected_clients, blocked_clients, maxclients, "
+                             "connection_used_percent, used_memory, maxmemory, mem_fragmentation_ratio, "
+                             "memory_used_percent, total_commands_processed, instantaneous_ops_per_sec, "
+                             "commands_per_sec, keyspace_hits, keyspace_misses, keyspace_hit_percent, expired_keys, "
+                             "evicted_keys, rejected_connections, total_error_replies, total_net_input_bytes, "
+                             "total_net_output_bytes, net_input_bytes_per_sec, net_output_bytes_per_sec, "
+                             "replication_configured, master_link_up, connected_slaves, master_last_io_seconds_ago, "
+                             "slowlog_len, slowlog_growth "
+                             "FROM server_redis_detail WHERE server_name=? "
+                             "AND timestamp BETWEEN ? AND ? "
+                             "ORDER BY timestamp DESC LIMIT ? OFFSET ?",
+                             {stringParam(serverName), stringParam(startTime), stringParam(endTime), intParam(pageSize),
+                              intParam(offset)},
+                             rows, "redis detail query", error)) {
+        return records;
+    }
+
+    for (const auto &row : rows) {
+        RedisDetailRecord rec;
+        int i = 0;
+        rec.server_name = i < static_cast<int>(row.size()) ? row[i] : "";
+        ++i;
+        rec.instance = i < static_cast<int>(row.size()) ? row[i] : "";
+        ++i;
+        rec.timestamp = i < static_cast<int>(row.size()) && !row[i].empty() ? parseTimeString(row[i])
+                                                                            : std::chrono::system_clock::now();
+        ++i;
+        rec.redis_host = i < static_cast<int>(row.size()) ? row[i] : "";
+        ++i;
+        rec.redis_port = static_cast<int>(toI64(row, i));
+        ++i;
+        rec.up = toBool(row, i);
+        ++i;
+        rec.version = i < static_cast<int>(row.size()) ? row[i] : "";
+        ++i;
+        rec.role = i < static_cast<int>(row.size()) ? row[i] : "";
+        ++i;
+        rec.uptime_in_seconds = toU64(row, i);
+        ++i;
+        rec.connected_clients = toU64(row, i);
+        ++i;
+        rec.blocked_clients = toU64(row, i);
+        ++i;
+        rec.maxclients = toU64(row, i);
+        ++i;
+        rec.connection_used_percent = toFloat(row, i);
+        ++i;
+        rec.used_memory = toU64(row, i);
+        ++i;
+        rec.maxmemory = toU64(row, i);
+        ++i;
+        rec.mem_fragmentation_ratio = toFloat(row, i);
+        ++i;
+        rec.memory_used_percent = toFloat(row, i);
+        ++i;
+        rec.total_commands_processed = toU64(row, i);
+        ++i;
+        rec.instantaneous_ops_per_sec = toFloat(row, i);
+        ++i;
+        rec.commands_per_sec = toFloat(row, i);
+        ++i;
+        rec.keyspace_hits = toU64(row, i);
+        ++i;
+        rec.keyspace_misses = toU64(row, i);
+        ++i;
+        rec.keyspace_hit_percent = toFloat(row, i);
+        ++i;
+        rec.expired_keys = toU64(row, i);
+        ++i;
+        rec.evicted_keys = toU64(row, i);
+        ++i;
+        rec.rejected_connections = toU64(row, i);
+        ++i;
+        rec.total_error_replies = toU64(row, i);
+        ++i;
+        rec.total_net_input_bytes = toU64(row, i);
+        ++i;
+        rec.total_net_output_bytes = toU64(row, i);
+        ++i;
+        rec.net_input_bytes_per_sec = toFloat(row, i);
+        ++i;
+        rec.net_output_bytes_per_sec = toFloat(row, i);
+        ++i;
+        rec.replication_configured = toBool(row, i);
+        ++i;
+        rec.master_link_up = toBool(row, i);
+        ++i;
+        rec.connected_slaves = toU64(row, i);
+        ++i;
+        rec.master_last_io_seconds_ago = toFloat(row, i);
+        ++i;
+        rec.slowlog_len = toU64(row, i);
+        ++i;
+        rec.slowlog_growth = toFloat(row, i);
         records.push_back(rec);
     }
 #else

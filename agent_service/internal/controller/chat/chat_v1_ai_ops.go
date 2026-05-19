@@ -25,10 +25,11 @@ func (c *ControllerV1) runAIOps(ctx context.Context, req *v1.AIOpsReq) (res *v1.
 "3. 再调用 query_monitor_anomalies；server_name 留空时表示分析所有服务器的异常记录。"
 "4. 对异常或低分服务器，按需调用 query_monitor_performance、query_monitor_trend、query_monitor_detail 查询最近性能、趋势、网络、磁盘、内存、软中断明细。"
 "5. 当异常包含 MYSQL_*、服务器低分且疑似数据库相关、或用户问题涉及数据库时，调用 query_monitor_mysql_detail 或 query_monitor_detail(kind=mysql) 查询 MySQL 明细；重点关注 up、connection_used_percent、qps、tps、slow_queries_rate、innodb_row_lock_waits_rate、innodb_buffer_pool_hit_percent、replication_lag_seconds。"
-"6. 调用 query_internal_docs 搜索内部运维文档，获取相关处理建议；没有文档依据时必须明确说明。"
-"7. 涉及当前时间或时间窗口时，先调用 get_current_time，再构造查询参数。"
-"8. 不允许编造监控数据，不允许直接访问数据库，不允许使用外部日志系统作为事实来源。"
-"9. 最后生成中文 AI 运维分析报告，格式如下：
+"6. 当异常包含 REDIS_*、服务器低分且疑似缓存相关、或用户问题涉及 Redis 时，调用 query_monitor_redis_detail 或 query_monitor_detail(kind=redis) 查询 Redis 明细；重点关注 up、connection_used_percent、memory_used_percent、commands_per_sec、keyspace_hit_percent、master_last_io_seconds_ago、slowlog_growth。"
+"7. 调用 query_internal_docs 搜索内部运维文档，获取相关处理建议；没有文档依据时必须明确说明。"
+"8. 涉及当前时间或时间窗口时，先调用 get_current_time，再构造查询参数。"
+"9. 不允许编造监控数据，不允许直接访问数据库，不允许使用外部日志系统作为事实来源。"
+"10. 最后生成中文 AI 运维分析报告，格式如下：
 AI 运维分析报告
 ---
 # 集群健康概览

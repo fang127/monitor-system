@@ -256,3 +256,53 @@ CREATE TABLE IF NOT EXISTS server_mysql_detail (
     INDEX idx_mysql_instance(instance, timestamp),
     INDEX idx_mysql_up(up, timestamp)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 7. Redis 实例详细数据表
+CREATE TABLE IF NOT EXISTS server_redis_detail (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    server_name VARCHAR(255) NOT NULL,
+    instance VARCHAR(255) NOT NULL,
+    redis_host VARCHAR(255) NOT NULL,
+    redis_port INT DEFAULT 0,
+    up TINYINT(1) DEFAULT 0,
+    version VARCHAR(128) DEFAULT '',
+    `role` VARCHAR(32) DEFAULT 'unknown',
+    uptime_in_seconds BIGINT UNSIGNED DEFAULT 0,
+    -- 连接指标
+    connected_clients BIGINT UNSIGNED DEFAULT 0,
+    blocked_clients BIGINT UNSIGNED DEFAULT 0,
+    maxclients BIGINT UNSIGNED DEFAULT 0,
+    connection_used_percent FLOAT DEFAULT 0,
+    -- 内存指标
+    used_memory BIGINT UNSIGNED DEFAULT 0,
+    maxmemory BIGINT UNSIGNED DEFAULT 0,
+    mem_fragmentation_ratio FLOAT DEFAULT 0,
+    memory_used_percent FLOAT DEFAULT 0,
+    -- 命令和命中率
+    total_commands_processed BIGINT UNSIGNED DEFAULT 0,
+    instantaneous_ops_per_sec FLOAT DEFAULT 0,
+    commands_per_sec FLOAT DEFAULT 0,
+    keyspace_hits BIGINT UNSIGNED DEFAULT 0,
+    keyspace_misses BIGINT UNSIGNED DEFAULT 0,
+    keyspace_hit_percent FLOAT DEFAULT 0,
+    -- 键淘汰、错误和网络计数器
+    expired_keys BIGINT UNSIGNED DEFAULT 0,
+    evicted_keys BIGINT UNSIGNED DEFAULT 0,
+    rejected_connections BIGINT UNSIGNED DEFAULT 0,
+    total_error_replies BIGINT UNSIGNED DEFAULT 0,
+    total_net_input_bytes BIGINT UNSIGNED DEFAULT 0,
+    total_net_output_bytes BIGINT UNSIGNED DEFAULT 0,
+    net_input_bytes_per_sec FLOAT DEFAULT 0,
+    net_output_bytes_per_sec FLOAT DEFAULT 0,
+    -- 复制和慢日志
+    replication_configured TINYINT(1) DEFAULT 0,
+    master_link_up TINYINT(1) DEFAULT 0,
+    connected_slaves BIGINT UNSIGNED DEFAULT 0,
+    master_last_io_seconds_ago FLOAT DEFAULT 0,
+    slowlog_len BIGINT UNSIGNED DEFAULT 0,
+    slowlog_growth FLOAT DEFAULT 0,
+    timestamp DATETIME NOT NULL,
+    INDEX idx_server_redis_time(server_name, instance, timestamp),
+    INDEX idx_redis_instance(instance, timestamp),
+    INDEX idx_redis_up(up, timestamp)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

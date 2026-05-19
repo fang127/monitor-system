@@ -140,6 +140,7 @@ export function ServerDetailPage() {
                 <Link to={`/servers/${encodeURIComponent(serverName)}/details/mem`}>内存明细</Link>
                 <Link to={`/servers/${encodeURIComponent(serverName)}/details/softirq`}>软中断明细</Link>
                 <Link to={`/servers/${encodeURIComponent(serverName)}/details/mysql`}>MySQL 明细</Link>
+                <Link to={`/servers/${encodeURIComponent(serverName)}/details/redis`}>Redis 明细</Link>
               </div>
             </section>
           </div>

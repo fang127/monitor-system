@@ -1,0 +1,46 @@
+syntax = "proto3";
+package monitor.proto;
+
+message RedisInfo {
+  // 实例身份信息。
+  string instance = 1; // 逻辑实例 ID，通常为 "host:port"
+  string host = 2;
+  uint32 port = 3;
+  bool up = 4; // 实例在线且能响应 INFO 时为 true
+  string version = 5;
+  string role = 6; // master、slave、sentinel 或 unknown
+  uint64 uptime_in_seconds = 7;
+
+  // 连接指标。
+  uint64 connected_clients = 10; // 已连接的客户端数量，不包括被阻塞的客户端
+  uint64 blocked_clients = 11; // 当前被阻塞等待某些事件（如 BLPOP、BRPOP、BRPOPLPUSH）的客户端数量
+  uint64 maxclients = 12; // 服务器允许的最大客户端连接数
+
+  // 内存指标。
+  uint64 used_memory = 20; // Redis 当前使用的内存总量（以字节为单位）
+  uint64 maxmemory = 21; // Redis 配置的最大内存限制（以字节为单位），如果没有设置则为 0
+  double mem_fragmentation_ratio = 22; // 内存碎片率，计算公式为 used_memory_rss / used_memory，used_memory_rss 是 Redis 从操作系统申请的实际内存量
+  double memory_used_percent = 23; // 内存使用率，计算公式为 (used_memory / maxmemory) * 100，当 maxmemory 为 0 时为 0
+
+  // 命令和命中率计数器。
+  uint64 total_commands_processed = 30; // 从 Redis 服务器接收的命令总数
+  double instantaneous_ops_per_sec = 31; // 每秒处理的命令数量，基于最近 1 秒钟的统计数据
+  uint64 keyspace_hits = 32; // 从 Redis 服务器接收的 keyspace hits（键命中次数）总数
+  uint64 keyspace_misses = 33; // 从 Redis 服务器接收的 keyspace misses（键未命中次数）总数
+  double keyspace_hit_percent = 34; // 键命中率，计算公式为 (keyspace_hits / (keyspace_hits + keyspace_misses)) * 100，当总请求数为 0 时为 0
+
+  // 键淘汰、错误和网络计数器。
+  uint64 expired_keys = 40; // Redis 服务器过期的键总数
+  uint64 evicted_keys = 41; // 由于内存限制被 Redis 服务器驱逐的键总数
+  uint64 rejected_connections = 42; // 因为达到 maxclients 限制而被 Redis 服务器拒绝的连接总数
+  uint64 total_error_replies = 43; // Redis 服务器返回的错误回复总数
+  uint64 total_net_input_bytes = 44; // Redis 服务器接收的网络输入字节总数
+  uint64 total_net_output_bytes = 45; // Redis 服务器发送的网络输出字节总数
+
+  // 复制和慢日志指标。
+  bool replication_configured = 50; // 是否配置了复制（即是否有主从关系）
+  bool master_link_up = 51; // 主从复制链接是否正常（仅当 role 为 slave 时有效）
+  uint64 connected_slaves = 52; // 连接的从服务器数量（仅当 role 为 master 时有效）
+  double master_last_io_seconds_ago = 53; // 主从复制最后一次 I/O 交互距现在的秒数（仅当 role 为 slave 时有效）
+  uint64 slowlog_len = 54; // 慢日志条目数量
+}

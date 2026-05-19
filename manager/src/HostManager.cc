@@ -82,12 +82,26 @@ struct MysqlDetailSample {
     bool initialized = false;
 };
 
+/**
+ * @brief         Redis 实例计数器采样，用于计算命令、网络和慢日志派生速率
+ *
+ */
+struct RedisDetailSample {
+    uint64_t total_commands_processed = 0;
+    uint64_t total_net_input_bytes = 0;
+    uint64_t total_net_output_bytes = 0;
+    uint64_t slowlog_len = 0; // 慢日志长度
+    std::chrono::system_clock::time_point timestamp;
+    bool initialized = false;
+};
+
 // 保存每台主机的上一次采样，用于计算速率和变化率
 std::map<std::string, std::map<std::string, NetDetailedSample>> lastNetSamples;
 std::map<std::string, std::map<std::string, SoftIrqSample>> lastSoftirqSamples;
 std::map<std::string, MemDetailSample> lastMemSamples;
 std::map<std::string, std::map<std::string, DiskDetailSample>> lastDiskSamples;
 std::map<std::string, std::map<std::string, MysqlDetailSample>> lastMysqlSamples;
+std::map<std::string, std::map<std::string, RedisDetailSample>> lastRedisSamples;
 
 /**
  * @brief         转义字符串并包裹单引号，确保可安全拼接到 MySQL 查询中，避免 SQL 注入
@@ -689,6 +703,92 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
         }
     }
 
+    // 向 MySQL 明细表插入 Redis 实例指标数据
+    {
+        auto counterRate = [](uint64_t nowVal, uint64_t lastVal, double seconds) -> float {
+            if (seconds <= 0.0 || nowVal < lastVal) return 0.0f;
+            return static_cast<float>((nowVal - lastVal) / seconds);
+        };
+        auto counterDelta = [](uint64_t nowVal, uint64_t lastVal) -> float {
+            if (nowVal < lastVal) return 0.0f;
+            return static_cast<float>(nowVal - lastVal);
+        };
+
+        for (int i = 0; i < info.redis_info_size(); ++i) {
+            const auto &redis = info.redis_info(i);
+            std::string instance = redis.instance();
+            if (instance.empty()) {
+                instance = redis.host();
+                if (redis.port() > 0) instance += ":" + std::to_string(redis.port());
+            }
+            if (instance.empty()) instance = "unknown";
+
+            const std::string instanceSql = quoteSqlString(conn, instance);
+            const std::string redisHostSql = quoteSqlString(conn, redis.host());
+            const std::string versionSql = quoteSqlString(conn, redis.version());
+            const std::string roleSql = quoteSqlString(conn, redis.role().empty() ? "unknown" : redis.role());
+
+            const float connectionUsedPercent =
+                redis.maxclients() == 0
+                    ? 0.0f
+                    : static_cast<float>(redis.connected_clients()) / static_cast<float>(redis.maxclients()) * 100.0f;
+
+            RedisDetailSample curr;
+            curr.total_commands_processed = redis.total_commands_processed();
+            curr.total_net_input_bytes = redis.total_net_input_bytes();
+            curr.total_net_output_bytes = redis.total_net_output_bytes();
+            curr.slowlog_len = redis.slowlog_len();
+            curr.timestamp = data.host_score.timestamp;
+            curr.initialized = true;
+
+            RedisDetailSample &last = lastRedisSamples[data.host_name][instance];
+            double seconds = 0.0;
+            if (last.initialized) seconds = std::chrono::duration<double>(curr.timestamp - last.timestamp).count();
+
+            // Redis 的总量计数器只增不减，重启或回绕时派生速率按 0 处理。
+            const float commandsPerSec =
+                last.initialized ? counterRate(curr.total_commands_processed, last.total_commands_processed, seconds)
+                                 : 0.0f;
+            const float netInputBytesPerSec =
+                last.initialized ? counterRate(curr.total_net_input_bytes, last.total_net_input_bytes, seconds) : 0.0f;
+            const float netOutputBytesPerSec =
+                last.initialized ? counterRate(curr.total_net_output_bytes, last.total_net_output_bytes, seconds)
+                                 : 0.0f;
+            const float slowlogGrowth = last.initialized ? counterDelta(curr.slowlog_len, last.slowlog_len) : 0.0f;
+
+            std::ostringstream oss;
+            oss << "INSERT INTO server_redis_detail "
+                << "(server_name, instance, redis_host, redis_port, up, version, `role`, uptime_in_seconds, "
+                << "connected_clients, blocked_clients, maxclients, connection_used_percent, "
+                << "used_memory, maxmemory, mem_fragmentation_ratio, memory_used_percent, "
+                << "total_commands_processed, instantaneous_ops_per_sec, commands_per_sec, "
+                << "keyspace_hits, keyspace_misses, keyspace_hit_percent, expired_keys, evicted_keys, "
+                << "rejected_connections, total_error_replies, total_net_input_bytes, total_net_output_bytes, "
+                << "net_input_bytes_per_sec, net_output_bytes_per_sec, replication_configured, master_link_up, "
+                << "connected_slaves, master_last_io_seconds_ago, slowlog_len, slowlog_growth, timestamp) VALUES ("
+                << hostNameSql << "," << instanceSql << "," << redisHostSql << "," << redis.port() << ","
+                << (redis.up() ? 1 : 0) << "," << versionSql << "," << roleSql << "," << redis.uptime_in_seconds()
+                << "," << redis.connected_clients() << "," << redis.blocked_clients() << "," << redis.maxclients()
+                << "," << connectionUsedPercent << "," << redis.used_memory() << "," << redis.maxmemory() << ","
+                << redis.mem_fragmentation_ratio() << "," << redis.memory_used_percent() << ","
+                << redis.total_commands_processed() << "," << redis.instantaneous_ops_per_sec() << "," << commandsPerSec
+                << "," << redis.keyspace_hits() << "," << redis.keyspace_misses() << "," << redis.keyspace_hit_percent()
+                << "," << redis.expired_keys() << "," << redis.evicted_keys() << "," << redis.rejected_connections()
+                << "," << redis.total_error_replies() << "," << redis.total_net_input_bytes() << ","
+                << redis.total_net_output_bytes() << "," << netInputBytesPerSec << "," << netOutputBytesPerSec << ","
+                << (redis.replication_configured() ? 1 : 0) << "," << (redis.master_link_up() ? 1 : 0) << ","
+                << redis.connected_slaves() << "," << redis.master_last_io_seconds_ago() << "," << redis.slowlog_len()
+                << "," << slowlogGrowth << "," << timestampSql << ")";
+            mysql_query(conn, oss.str().c_str());
+
+            if (mysql_errno(conn)) {
+                std::cerr << "MySQL insert error: " << mysql_error(conn) << std::endl;
+                std::cerr << __func__ << " " << __LINE__ << std::endl;
+            }
+            last = curr;
+        }
+    }
+
 #else
     (void)data; // 避免未使用参数警告
 #endif
@@ -910,6 +1010,18 @@ void HostManager::onDataReceived(const monitor::proto::MonitorInfo &info) {
         if (disk.util_percent() > max_disk_util) max_disk_util = disk.util_percent();
     }
     if (info.disk_info_size() == 0) std::cout << "  No disk data" << std::endl;
+
+    // Redis 信息
+    if (info.redis_info_size() > 0) {
+        std::cout << "\n--- Redis ---" << std::endl;
+        for (int i = 0; i < info.redis_info_size(); ++i) {
+            const auto &redis = info.redis_info(i);
+            std::cout << "  [" << redis.instance() << "] Up: " << (redis.up() ? "yes" : "no")
+                      << ", Role: " << redis.role() << ", Clients: " << redis.connected_clients()
+                      << ", Memory: " << redis.memory_used_percent() << "%, Hit: " << redis.keyspace_hit_percent()
+                      << "%" << std::endl;
+        }
+    }
 
     // 软中断信息
     std::cout << "\n--- SoftIRQ ---" << std::endl;

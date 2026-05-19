@@ -3,9 +3,14 @@ find_package(gRPC CONFIG REQUIRED)
 # eBPF 支持选项
 option(ENABLE_EBPF "Enable eBPF-based network monitoring" ON)
 option(ENABLE_MYSQL_MONITOR "Enable MySQL instance monitoring in worker" ON)
+option(ENABLE_REDIS_MONITOR "Enable Redis instance monitoring in worker" ON)
 
 if(ENABLE_MYSQL_MONITOR)
     find_package(libmysqlclient CONFIG REQUIRED)
+endif()
+
+if(ENABLE_REDIS_MONITOR)
+    find_package(redis++ CONFIG REQUIRED)
 endif()
 
 if(ENABLE_EBPF)
@@ -54,6 +59,10 @@ if(ENABLE_MYSQL_MONITOR)
     list(APPEND WORKER_SRC src/monitor/MysqlMonitor.cc)
 endif()
 
+if(ENABLE_REDIS_MONITOR)
+    list(APPEND WORKER_SRC src/monitor/RedisMonitor.cc)
+endif()
+
 # 根据 eBPF 支持选项添加源文件和库
 if(EBPF_FOUND)
     list(APPEND WORKER_SRC src/monitor/NetEbpfMonitor.cc)
@@ -83,6 +92,17 @@ endif()
 if(ENABLE_MYSQL_MONITOR)
     target_compile_definitions(worker PRIVATE ENABLE_MYSQL_MONITOR=1)
     list(APPEND WORKER_LIBS libmysqlclient::libmysqlclient)
+endif()
+
+if(ENABLE_REDIS_MONITOR)
+    target_compile_definitions(worker PRIVATE ENABLE_REDIS_MONITOR=1)
+    if(TARGET redis++::redis++)
+        list(APPEND WORKER_LIBS redis++::redis++)
+    elseif(TARGET redis++::redis++_static)
+        list(APPEND WORKER_LIBS redis++::redis++_static)
+    else()
+        message(FATAL_ERROR "redis-plus-plus target not found")
+    endif()
 endif()
 
 target_link_libraries(worker PUBLIC ${WORKER_LIBS})

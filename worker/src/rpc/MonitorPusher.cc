@@ -206,6 +206,23 @@ bool MonitorPusher::pushOnce() {
         }
     }
 
+    // Redis 信息
+    if (info.redis_info_size() > 0) {
+        std::cout << "\n--- Redis Info ---" << std::endl;
+        for (int i = 0; i < info.redis_info_size(); ++i) {
+            const auto &redis = info.redis_info(i);
+            std::cout << "[" << redis.instance() << "] "
+                      << "Up: " << (redis.up() ? "yes" : "no") << ", "
+                      << "Role: " << redis.role() << ", "
+                      << "Version: " << redis.version() << std::endl;
+            std::cout << "  Clients: " << redis.connected_clients() << "/" << redis.maxclients()
+                      << ", Memory: " << redis.memory_used_percent() << "%, Ops/s: "
+                      << redis.instantaneous_ops_per_sec() << std::endl;
+            std::cout << "  Hit: " << redis.keyspace_hit_percent() << "%, Evicted: "
+                      << redis.evicted_keys() << ", Slowlog: " << redis.slowlog_len() << std::endl;
+        }
+    }
+
     std::cout << "==============================================" << std::endl;
 
     // 推送到 manager

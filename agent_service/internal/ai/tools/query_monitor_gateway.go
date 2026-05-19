@@ -39,15 +39,20 @@ type ClusterOverviewInput struct{}
 
 // MonitorAnomaliesInput 定义了查询异常记录工具的输入结构，包含服务器名称、时间范围、分页参数和阈值过滤参数。
 type MonitorAnomaliesInput struct {
-	ServerName          string  `json:"server_name" jsonschema:"description=Server name to query. Leave empty to query every server returned by query_monitor_cluster_overview"`
-	StartTime           string  `json:"start_time" jsonschema:"description=Optional start time, RFC3339 or Unix seconds"`
-	EndTime             string  `json:"end_time" jsonschema:"description=Optional end time, RFC3339 or Unix seconds"`
-	Page                int     `json:"page" jsonschema:"description=Optional page number, defaults to 1"`
-	PageSize            int     `json:"page_size" jsonschema:"description=Optional page size, defaults to 50"`
-	CPUThreshold        float64 `json:"cpu_threshold" jsonschema:"description=Optional CPU usage threshold"`
-	MemThreshold        float64 `json:"mem_threshold" jsonschema:"description=Optional memory usage threshold"`
-	DiskThreshold       float64 `json:"disk_threshold" jsonschema:"description=Optional disk utilization threshold"`
-	ChangeRateThreshold float64 `json:"change_rate_threshold" jsonschema:"description=Optional metric change-rate threshold"`
+	ServerName                   string  `json:"server_name" jsonschema:"description=Server name to query. Leave empty to query every server returned by query_monitor_cluster_overview"`
+	StartTime                    string  `json:"start_time" jsonschema:"description=Optional start time, RFC3339 or Unix seconds"`
+	EndTime                      string  `json:"end_time" jsonschema:"description=Optional end time, RFC3339 or Unix seconds"`
+	Page                         int     `json:"page" jsonschema:"description=Optional page number, defaults to 1"`
+	PageSize                     int     `json:"page_size" jsonschema:"description=Optional page size, defaults to 50"`
+	CPUThreshold                 float64 `json:"cpu_threshold" jsonschema:"description=Optional CPU usage threshold"`
+	MemThreshold                 float64 `json:"mem_threshold" jsonschema:"description=Optional memory usage threshold"`
+	DiskThreshold                float64 `json:"disk_threshold" jsonschema:"description=Optional disk utilization threshold"`
+	ChangeRateThreshold          float64 `json:"change_rate_threshold" jsonschema:"description=Optional metric change-rate threshold"`
+	RedisConnectionThreshold     float64 `json:"redis_connection_threshold" jsonschema:"description=Optional Redis connection usage threshold"`
+	RedisMemoryThreshold         float64 `json:"redis_memory_threshold" jsonschema:"description=Optional Redis memory usage threshold"`
+	RedisHitRateThreshold        float64 `json:"redis_hit_rate_threshold" jsonschema:"description=Optional Redis low hit-rate threshold"`
+	RedisReplicationLagThreshold float64 `json:"redis_replication_lag_threshold" jsonschema:"description=Optional Redis replication lag threshold in seconds"`
+	RedisSlowlogGrowthThreshold  float64 `json:"redis_slowlog_growth_threshold" jsonschema:"description=Optional Redis slowlog growth threshold"`
 }
 
 // MonitorSeriesInput 定义了查询性能数据和趋势数据工具的输入结构，包含服务器名称、时间范围、分页参数和趋势聚合间隔参数。
@@ -63,7 +68,7 @@ type MonitorSeriesInput struct {
 // MonitorDetailInput 定义了查询详细数据工具的输入结构，包含服务器名称、详细数据类型、时间范围和分页参数。
 type MonitorDetailInput struct {
 	ServerName string `json:"server_name" jsonschema:"description=Server name to query"`
-	Kind       string `json:"kind" jsonschema:"description=Detail kind: net, disk, mem, softirq, or mysql"`
+	Kind       string `json:"kind" jsonschema:"description=Detail kind: net, disk, mem, softirq, mysql, or redis"`
 	StartTime  string `json:"start_time" jsonschema:"description=Optional start time, RFC3339 or Unix seconds"`
 	EndTime    string `json:"end_time" jsonschema:"description=Optional end time, RFC3339 or Unix seconds"`
 	Page       int    `json:"page" jsonschema:"description=Optional page number, defaults to 1"`
@@ -72,6 +77,15 @@ type MonitorDetailInput struct {
 
 // MonitorMysqlDetailInput 定义了查询 MySQL 明细数据工具的输入结构。
 type MonitorMysqlDetailInput struct {
+	ServerName string `json:"server_name" jsonschema:"description=Server name to query"`
+	StartTime  string `json:"start_time" jsonschema:"description=Optional start time, RFC3339 or Unix seconds"`
+	EndTime    string `json:"end_time" jsonschema:"description=Optional end time, RFC3339 or Unix seconds"`
+	Page       int    `json:"page" jsonschema:"description=Optional page number, defaults to 1"`
+	PageSize   int    `json:"page_size" jsonschema:"description=Optional page size, defaults to 100"`
+}
+
+// MonitorRedisDetailInput 定义了查询 Redis 明细数据工具的输入结构。
+type MonitorRedisDetailInput struct {
 	ServerName string `json:"server_name" jsonschema:"description=Server name to query"`
 	StartTime  string `json:"start_time" jsonschema:"description=Optional start time, RFC3339 or Unix seconds"`
 	EndTime    string `json:"end_time" jsonschema:"description=Optional end time, RFC3339 or Unix seconds"`
@@ -160,7 +174,7 @@ func NewMonitorTrendTool() tool.InvokableTool {
 func NewMonitorDetailTool() tool.InvokableTool {
 	t, err := utils.InferOptionableTool(
 		"query_monitor_detail",
-		"Query monitor_system detail records for one server from api_gateway. kind must be net, disk, mem, softirq, or mysql. Use kind=mysql for MySQL availability, connection pressure, QPS/TPS, slow query rate, lock waits, InnoDB buffer pool hit rate, and replication lag.",
+		"Query monitor_system detail records for one server from api_gateway. kind must be net, disk, mem, softirq, mysql, or redis. Use kind=redis for Redis availability, connection pressure, memory pressure, commands/s, hit rate, replication lag, and slowlog growth.",
 		func(ctx context.Context, input *MonitorDetailInput, opts ...tool.Option) (string, error) {
 			if input == nil || strings.TrimSpace(input.ServerName) == "" {
 				return formatGatewayOutput("/api/servers/:server/:kind-detail", nil, fmt.Errorf("server_name is required"))
@@ -176,6 +190,25 @@ func NewMonitorDetailTool() tool.InvokableTool {
 	)
 	if err != nil {
 		return errorTool("query_monitor_detail", err)
+	}
+	return t
+}
+
+func NewMonitorRedisDetailTool() tool.InvokableTool {
+	t, err := utils.InferOptionableTool(
+		"query_monitor_redis_detail",
+		"Query monitor_system Redis detail records for one server from api_gateway. Returns Redis availability, connection pressure, memory pressure, commands/s, hit rate, evictions, rejected connections, replication lag, and slowlog growth. This tool reads monitoring facts only and never connects directly to Redis.",
+		func(ctx context.Context, input *MonitorRedisDetailInput, opts ...tool.Option) (string, error) {
+			if input == nil || strings.TrimSpace(input.ServerName) == "" {
+				return formatGatewayOutput("/api/servers/:server/redis-detail", nil, fmt.Errorf("server_name is required"))
+			}
+			path := fmt.Sprintf("/api/servers/%s/redis-detail", url.PathEscape(input.ServerName))
+			data, err := apiGatewayGet(ctx, path, redisDetailQuery(input))
+			return formatGatewayOutput(path, data, err)
+		},
+	)
+	if err != nil {
+		return errorTool("query_monitor_redis_detail", err)
 	}
 	return t
 }
@@ -289,6 +322,11 @@ func anomalyQuery(input *MonitorAnomaliesInput) url.Values {
 	addFloat(values, "mem_threshold", input.MemThreshold)
 	addFloat(values, "disk_threshold", input.DiskThreshold)
 	addFloat(values, "change_rate_threshold", input.ChangeRateThreshold)
+	addFloat(values, "redis_connection_threshold", input.RedisConnectionThreshold)
+	addFloat(values, "redis_memory_threshold", input.RedisMemoryThreshold)
+	addFloat(values, "redis_hit_rate_threshold", input.RedisHitRateThreshold)
+	addFloat(values, "redis_replication_lag_threshold", input.RedisReplicationLagThreshold)
+	addFloat(values, "redis_slowlog_growth_threshold", input.RedisSlowlogGrowthThreshold)
 	return values
 }
 
@@ -314,6 +352,14 @@ func detailQuery(input *MonitorDetailInput) url.Values {
 }
 
 func mysqlDetailQuery(input *MonitorMysqlDetailInput) url.Values {
+	values := url.Values{}
+	addTimeRange(values, input.StartTime, input.EndTime)
+	addInt(values, "page", input.Page, 1)
+	addInt(values, "page_size", input.PageSize, 100)
+	return values
+}
+
+func redisDetailQuery(input *MonitorRedisDetailInput) url.Values {
 	values := url.Values{}
 	addTimeRange(values, input.StartTime, input.EndTime)
 	addInt(values, "page", input.Page, 1)
@@ -358,8 +404,10 @@ func detailEndpoint(kind string) (string, error) {
 		return "softirq-detail", nil
 	case "mysql", "mysql_detail", "db":
 		return "mysql-detail", nil
+	case "redis", "redis_detail", "cache":
+		return "redis-detail", nil
 	default:
-		return "", fmt.Errorf("unsupported detail kind %q, expected net, disk, mem, softirq, or mysql", kind)
+		return "", fmt.Errorf("unsupported detail kind %q, expected net, disk, mem, softirq, mysql, or redis", kind)
 	}
 }
 

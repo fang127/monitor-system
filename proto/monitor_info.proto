@@ -10,6 +10,7 @@ import "cpu_softirq.proto";
 import "cpu_load.proto";
 import "disk_info.proto";
 import "mysql_info.proto";
+import "redis_info.proto";
 
 // 主机标识信息 - 用于调度服务器识别和定位服务器
 message HostInfo {
@@ -27,6 +28,7 @@ message MonitorInfo{
   repeated NetInfo net_info = 8;
   repeated DiskInfo disk_info = 9;
   repeated MysqlInfo mysql_info = 10;
+  repeated RedisInfo redis_info = 11;
 }
 
 service GrpcManager {

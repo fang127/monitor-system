@@ -25,7 +25,7 @@ type DetailConfig = {
   chartSeries: ChartSeries<MetricRow>[];
 };
 
-const detailKinds: DetailKind[] = ['net', 'disk', 'mem', 'softirq', 'mysql'];
+const detailKinds: DetailKind[] = ['net', 'disk', 'mem', 'softirq', 'mysql', 'redis'];
 
 function serverFromParams(value: string | undefined): string {
   return value ? decodeURIComponent(value) : '';
@@ -173,6 +173,56 @@ const configs: Record<DetailKind, DetailConfig> = {
       { key: 'innodb_row_lock_waits_rate', name: '锁等待/s' },
       { key: 'innodb_buffer_pool_hit_percent', name: 'Buffer Pool' },
       { key: 'replication_lag_seconds', name: '复制延迟' },
+    ],
+  },
+  redis: {
+    title: 'Redis 明细',
+    endpoint: 'redis-detail',
+    columns: [
+      ...commonColumns('instance', '实例'),
+      {
+        key: 'up',
+        title: '可用性',
+        render: (row) => (
+          <span className={`status-pill ${row.up ? 'status-online' : 'status-critical'}`}>
+            {row.up ? '正常' : '不可用'}
+          </span>
+        ),
+      },
+      { key: 'role', title: '角色' },
+      {
+        key: 'connection_used_percent',
+        title: '连接压力',
+        render: (row) => formatPercent(Number(row.connection_used_percent)),
+      },
+      {
+        key: 'memory_used_percent',
+        title: '内存压力',
+        render: (row) => Number(row.maxmemory) > 0 ? formatPercent(Number(row.memory_used_percent)) : '--',
+      },
+      { key: 'commands_per_sec', title: '命令/s', render: (row) => formatNumber(Number(row.commands_per_sec), 1) },
+      {
+        key: 'keyspace_hit_percent',
+        title: '命中率',
+        render: (row) => Number(row.keyspace_hits) + Number(row.keyspace_misses) > 0 ? formatPercent(Number(row.keyspace_hit_percent)) : '--',
+      },
+      { key: 'evicted_keys', title: '淘汰键' },
+      { key: 'rejected_connections', title: '拒绝连接' },
+      {
+        key: 'master_last_io_seconds_ago',
+        title: '复制延迟',
+        render: (row) => row.replication_configured ? `${formatNumber(Number(row.master_last_io_seconds_ago), 1)}s` : '--',
+      },
+      { key: 'slowlog_growth', title: '慢日志增长', render: (row) => formatNumber(Number(row.slowlog_growth), 1) },
+    ],
+    chartSeries: [
+      { key: 'connection_used_percent', name: '连接压力' },
+      { key: 'memory_used_percent', name: '内存压力' },
+      { key: 'commands_per_sec', name: '命令/s' },
+      { key: 'keyspace_hit_percent', name: '命中率' },
+      { key: 'net_input_bytes_per_sec', name: '输入字节/s' },
+      { key: 'net_output_bytes_per_sec', name: '输出字节/s' },
+      { key: 'slowlog_growth', name: '慢日志增长' },
     ],
   },
 };

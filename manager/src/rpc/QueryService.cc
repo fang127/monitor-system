@@ -246,6 +246,16 @@ void QueryServiceImpl::setTimestamp(::google::protobuf::Timestamp *ts,
         request->mysql_lock_wait_rate_threshold() > 0 ? request->mysql_lock_wait_rate_threshold() : 1.0f;
     thresholds.mysql_buffer_pool_hit_threshold =
         request->mysql_buffer_pool_hit_threshold() > 0 ? request->mysql_buffer_pool_hit_threshold() : 95.0f;
+    thresholds.redis_connection_threshold =
+        request->redis_connection_threshold() > 0 ? request->redis_connection_threshold() : 90.0f;
+    thresholds.redis_memory_threshold =
+        request->redis_memory_threshold() > 0 ? request->redis_memory_threshold() : 90.0f;
+    thresholds.redis_hit_rate_threshold =
+        request->redis_hit_rate_threshold() > 0 ? request->redis_hit_rate_threshold() : 80.0f;
+    thresholds.redis_replication_lag_threshold =
+        request->redis_replication_lag_threshold() > 0 ? request->redis_replication_lag_threshold() : 30.0f;
+    thresholds.redis_slowlog_growth_threshold =
+        request->redis_slowlog_growth_threshold() > 0 ? request->redis_slowlog_growth_threshold() : 1.0f;
 
     int page = request->pagination().page();
     int pageSize = request->pagination().page_size();
@@ -645,6 +655,84 @@ void QueryServiceImpl::setTimestamp(::google::protobuf::Timestamp *ts,
         protoRec->set_tps(rec.tps);
         protoRec->set_slow_queries_rate(rec.slow_queries_rate);
         protoRec->set_innodb_row_lock_waits_rate(rec.innodb_row_lock_waits_rate);
+    }
+
+    response->set_total_count(totalCount);
+    response->set_page(page);
+    response->set_page_size(pageSize);
+
+    return grpc::Status::OK;
+}
+
+::grpc::Status QueryServiceImpl::QueryRedisDetail(::grpc::ServerContext *context,
+                                                  const ::monitor::proto::QueryDetailRequest *request,
+                                                  ::monitor::proto::QueryRedisDetailResponse *response) {
+    (void)context;
+
+    if (dispatcher_ && !g_inside_dispatcher) {
+        return dispatchQuery(dispatcher_, request, response,
+                             [this](const auto *req, auto *resp) { return QueryRedisDetail(nullptr, req, resp); });
+    }
+
+    if (!queryManager_ || !queryManager_->isInitialized()) {
+        return grpc::Status(grpc::StatusCode::UNAVAILABLE, "Query manager not initialized");
+    }
+
+    TimeRange time_range = convertTimeRange(request->time_range());
+    if (!queryManager_->validateTimeRange(time_range)) {
+        return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "Invalid time range: start_time > end_time");
+    }
+
+    int page = request->pagination().page();
+    int pageSize = request->pagination().page_size();
+    if (page < 1) page = 1;
+    if (pageSize < 1) pageSize = 100;
+
+    int totalCount = 0;
+    std::string error;
+    auto records =
+        queryManager_->queryRedisDetailRecords(request->server_name(), time_range, page, pageSize, &totalCount, &error);
+    if (!error.empty()) return queryErrorStatus(error);
+
+    for (const auto &rec : records) {
+        auto *protoRec = response->add_records();
+        protoRec->set_server_name(rec.server_name);
+        protoRec->set_instance(rec.instance);
+        setTimestamp(protoRec->mutable_timestamp(), rec.timestamp);
+        protoRec->set_redis_host(rec.redis_host);
+        protoRec->set_redis_port(rec.redis_port);
+        protoRec->set_up(rec.up);
+        protoRec->set_version(rec.version);
+        protoRec->set_role(rec.role);
+        protoRec->set_uptime_in_seconds(rec.uptime_in_seconds);
+        protoRec->set_connected_clients(rec.connected_clients);
+        protoRec->set_blocked_clients(rec.blocked_clients);
+        protoRec->set_maxclients(rec.maxclients);
+        protoRec->set_connection_used_percent(rec.connection_used_percent);
+        protoRec->set_used_memory(rec.used_memory);
+        protoRec->set_maxmemory(rec.maxmemory);
+        protoRec->set_mem_fragmentation_ratio(rec.mem_fragmentation_ratio);
+        protoRec->set_memory_used_percent(rec.memory_used_percent);
+        protoRec->set_total_commands_processed(rec.total_commands_processed);
+        protoRec->set_instantaneous_ops_per_sec(rec.instantaneous_ops_per_sec);
+        protoRec->set_commands_per_sec(rec.commands_per_sec);
+        protoRec->set_keyspace_hits(rec.keyspace_hits);
+        protoRec->set_keyspace_misses(rec.keyspace_misses);
+        protoRec->set_keyspace_hit_percent(rec.keyspace_hit_percent);
+        protoRec->set_expired_keys(rec.expired_keys);
+        protoRec->set_evicted_keys(rec.evicted_keys);
+        protoRec->set_rejected_connections(rec.rejected_connections);
+        protoRec->set_total_error_replies(rec.total_error_replies);
+        protoRec->set_total_net_input_bytes(rec.total_net_input_bytes);
+        protoRec->set_total_net_output_bytes(rec.total_net_output_bytes);
+        protoRec->set_net_input_bytes_per_sec(rec.net_input_bytes_per_sec);
+        protoRec->set_net_output_bytes_per_sec(rec.net_output_bytes_per_sec);
+        protoRec->set_replication_configured(rec.replication_configured);
+        protoRec->set_master_link_up(rec.master_link_up);
+        protoRec->set_connected_slaves(rec.connected_slaves);
+        protoRec->set_master_last_io_seconds_ago(rec.master_last_io_seconds_ago);
+        protoRec->set_slowlog_len(rec.slowlog_len);
+        protoRec->set_slowlog_growth(rec.slowlog_growth);
     }
 
     response->set_total_count(totalCount);

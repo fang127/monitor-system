@@ -245,6 +245,46 @@ export type MysqlDetailRecord = {
   innodb_row_lock_waits_rate: number;
 };
 
+export type RedisDetailRecord = {
+  server_name: string;
+  instance: string;
+  timestamp: string;
+  redis_host: string;
+  redis_port: number;
+  up: boolean;
+  version: string;
+  role: string;
+  uptime_in_seconds: string | number;
+  connected_clients: string | number;
+  blocked_clients: string | number;
+  maxclients: string | number;
+  connection_used_percent: number;
+  used_memory: string | number;
+  maxmemory: string | number;
+  mem_fragmentation_ratio: number;
+  memory_used_percent: number;
+  total_commands_processed: string | number;
+  instantaneous_ops_per_sec: number;
+  commands_per_sec: number;
+  keyspace_hits: string | number;
+  keyspace_misses: string | number;
+  keyspace_hit_percent: number;
+  expired_keys: string | number;
+  evicted_keys: string | number;
+  rejected_connections: string | number;
+  total_error_replies: string | number;
+  total_net_input_bytes: string | number;
+  total_net_output_bytes: string | number;
+  net_input_bytes_per_sec: number;
+  net_output_bytes_per_sec: number;
+  replication_configured: boolean;
+  master_link_up: boolean;
+  connected_slaves: string | number;
+  master_last_io_seconds_ago: number;
+  slowlog_len: string | number;
+  slowlog_growth: number;
+};
+
 export type QueryNetDetailResponse = {
   records: NetDetailRecord[];
   total_count: number;
@@ -280,6 +320,13 @@ export type QueryMysqlDetailResponse = {
   page_size: number;
 };
 
+export type QueryRedisDetailResponse = {
+  records: RedisDetailRecord[];
+  total_count: number;
+  page: number;
+  page_size: number;
+};
+
 export type GatewayHealth = {
   service: string;
   status: string;
@@ -290,7 +337,7 @@ export type GatewayVersion = {
   version: string;
 };
 
-export type DetailKind = 'net' | 'disk' | 'mem' | 'softirq' | 'mysql';
+export type DetailKind = 'net' | 'disk' | 'mem' | 'softirq' | 'mysql' | 'redis';
 
 export type DetailResponseMap = {
   net: QueryNetDetailResponse;
@@ -298,6 +345,7 @@ export type DetailResponseMap = {
   mem: QueryMemDetailResponse;
   softirq: QuerySoftIrqDetailResponse;
   mysql: QueryMysqlDetailResponse;
+  redis: QueryRedisDetailResponse;
 };
 
 export type DetailRecordMap = {
@@ -306,4 +354,5 @@ export type DetailRecordMap = {
   mem: MemDetailRecord;
   softirq: SoftIrqDetailRecord;
   mysql: MysqlDetailRecord;
+  redis: RedisDetailRecord;
 };

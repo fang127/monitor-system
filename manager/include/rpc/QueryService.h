@@ -138,6 +138,17 @@ public:
     ::grpc::Status QueryMysqlDetail(::grpc::ServerContext *context, const ::monitor::proto::QueryDetailRequest *request,
                                     ::monitor::proto::QueryMysqlDetailResponse *response) override;
 
+    /**
+     * @brief         查询 Redis 指标明细数据
+     *
+     * @param         context gRPC 服务端上下文
+     * @param         request 明细查询请求
+     * @param         response Redis 明细查询响应
+     * @return        gRPC 调用状态
+     */
+    ::grpc::Status QueryRedisDetail(::grpc::ServerContext *context, const ::monitor::proto::QueryDetailRequest *request,
+                                    ::monitor::proto::QueryRedisDetailResponse *response) override;
+
 private:
     /**
      * @brief         将 protobuf 的 TimeRange 消息转换为 QueryManager 内部使用的 TimeRange 结构

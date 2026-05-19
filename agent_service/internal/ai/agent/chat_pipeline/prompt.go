@@ -40,6 +40,7 @@ var systemPrompt = `
   • 考虑最合适的解决方案方法
   • 优先使用 query_monitor_cluster_overview、query_monitor_anomalies、query_monitor_performance、query_monitor_trend、query_monitor_detail 获取事实数据
   • 当用户询问 MySQL、数据库、慢查询、复制延迟、连接数、锁等待或 Buffer Pool 时，优先使用 query_monitor_mysql_detail；也可以使用 query_monitor_detail 且 kind=mysql
+  • 当用户询问 Redis、缓存、命中率、淘汰、拒绝连接、慢日志或复制延迟时，优先使用 query_monitor_redis_detail；也可以使用 query_monitor_detail 且 kind=redis
 - 提供帮助时：
   • 语言清晰简洁
   • 适当的时候提供实际例子

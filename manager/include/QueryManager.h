@@ -45,6 +45,11 @@ struct AnomalyThreshold {
     float mysql_slow_query_rate_threshold = 1.0f;
     float mysql_lock_wait_rate_threshold = 1.0f;
     float mysql_buffer_pool_hit_threshold = 95.0f;
+    float redis_connection_threshold = 90.0f;
+    float redis_memory_threshold = 90.0f;
+    float redis_hit_rate_threshold = 80.0f;
+    float redis_replication_lag_threshold = 30.0f;
+    float redis_slowlog_growth_threshold = 1.0f;
 };
 
 /**
@@ -249,6 +254,50 @@ struct MysqlDetailRecord {
     float innodb_row_lock_waits_rate = 0.0f;
 };
 
+/**
+ * @brief         指定时间点的服务器 Redis 性能明细记录
+ *
+ */
+struct RedisDetailRecord {
+    std::string server_name;
+    std::string instance;
+    std::chrono::system_clock::time_point timestamp;
+    std::string redis_host;
+    int redis_port = 0;
+    bool up = false;
+    std::string version;
+    std::string role;
+    uint64_t uptime_in_seconds = 0;
+    uint64_t connected_clients = 0;
+    uint64_t blocked_clients = 0;
+    uint64_t maxclients = 0;
+    float connection_used_percent = 0.0f;
+    uint64_t used_memory = 0;
+    uint64_t maxmemory = 0;
+    float mem_fragmentation_ratio = 0.0f;
+    float memory_used_percent = 0.0f;
+    uint64_t total_commands_processed = 0;
+    float instantaneous_ops_per_sec = 0.0f;
+    float commands_per_sec = 0.0f;
+    uint64_t keyspace_hits = 0;
+    uint64_t keyspace_misses = 0;
+    float keyspace_hit_percent = 0.0f;
+    uint64_t expired_keys = 0;
+    uint64_t evicted_keys = 0;
+    uint64_t rejected_connections = 0;
+    uint64_t total_error_replies = 0;
+    uint64_t total_net_input_bytes = 0;
+    uint64_t total_net_output_bytes = 0;
+    float net_input_bytes_per_sec = 0.0f;
+    float net_output_bytes_per_sec = 0.0f;
+    bool replication_configured = false;
+    bool master_link_up = false;
+    uint64_t connected_slaves = 0;
+    float master_last_io_seconds_ago = 0.0f;
+    uint64_t slowlog_len = 0;
+    float slowlog_growth = 0.0f;
+};
+
 class QueryManager {
 public:
     QueryManager() = default;
@@ -421,6 +470,21 @@ public:
      * @return        MySQL 明细记录列表
      */
     std::vector<MysqlDetailRecord> queryMysqlDetailRecords(const std::string &serverName, const TimeRange &range,
+                                                           int page, int pageSize, int *totalCount,
+                                                           std::string *error = nullptr);
+
+    /**
+     * @brief         查询 Redis 明细统计
+     *
+     * @param         serverName 服务器名称
+     * @param         range 查询时间范围
+     * @param         page 页码
+     * @param         pageSize 每页记录数
+     * @param         totalCount 输出参数，保存总记录数
+     * @param         error 输出参数，保存错误信息
+     * @return        Redis 明细记录列表
+     */
+    std::vector<RedisDetailRecord> queryRedisDetailRecords(const std::string &serverName, const TimeRange &range,
                                                            int page, int pageSize, int *totalCount,
                                                            std::string *error = nullptr);
 

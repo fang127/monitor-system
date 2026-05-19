@@ -18,6 +18,10 @@
 #include "MysqlMonitor.h"
 #endif
 
+#ifdef ENABLE_REDIS_MONITOR
+#include "RedisMonitor.h"
+#endif
+
 #ifdef ENABLE_EBPF
 #include "NetEbpfMonitor.h"
 #else
@@ -50,6 +54,9 @@ MetricCollector::MetricCollector() {
     monitors_.push_back(std::make_unique<DiskMonitor>());
 #ifdef ENABLE_MYSQL_MONITOR
     monitors_.push_back(std::make_unique<MysqlMonitor>());
+#endif
+#ifdef ENABLE_REDIS_MONITOR
+    monitors_.push_back(std::make_unique<RedisMonitor>());
 #endif
     monitors_.push_back(std::make_unique<HostInfoMonitor>());
 }

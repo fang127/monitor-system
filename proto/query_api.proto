@@ -62,6 +62,11 @@ message QueryAnomalyRequest {
     float mysql_slow_query_rate_threshold = 10; // MySQL慢查询速率阈值，默认1/s
     float mysql_lock_wait_rate_threshold = 11;  // MySQL行锁等待速率阈值，默认1/s
     float mysql_buffer_pool_hit_threshold = 12; // MySQL Buffer Pool命中率低阈值，默认95
+    float redis_connection_threshold = 13;      // Redis连接使用率阈值，默认90
+    float redis_memory_threshold = 14;          // Redis内存使用率阈值，默认90
+    float redis_hit_rate_threshold = 15;        // Redis命中率低阈值，默认80
+    float redis_replication_lag_threshold = 16; // Redis复制延迟阈值，默认30秒
+    float redis_slowlog_growth_threshold = 17;  // Redis慢日志增长阈值，默认1
 }
 
 // 评分排序查询请求
@@ -340,6 +345,47 @@ message MysqlDetailRecord {
     float innodb_row_lock_waits_rate = 54;
 }
 
+// Redis 实例详细数据
+message RedisDetailRecord {
+    string server_name = 1;
+    string instance = 2;
+    google.protobuf.Timestamp timestamp = 3;
+    string redis_host = 4;
+    int32 redis_port = 5;
+    bool up = 6;
+    string version = 7;
+    string role = 8;
+    uint64 uptime_in_seconds = 9;
+    uint64 connected_clients = 10;
+    uint64 blocked_clients = 11;
+    uint64 maxclients = 12;
+    float connection_used_percent = 13;
+    uint64 used_memory = 20;
+    uint64 maxmemory = 21;
+    float mem_fragmentation_ratio = 22;
+    float memory_used_percent = 23;
+    uint64 total_commands_processed = 30;
+    float instantaneous_ops_per_sec = 31;
+    float commands_per_sec = 32;
+    uint64 keyspace_hits = 33;
+    uint64 keyspace_misses = 34;
+    float keyspace_hit_percent = 35;
+    uint64 expired_keys = 40;
+    uint64 evicted_keys = 41;
+    uint64 rejected_connections = 42;
+    uint64 total_error_replies = 43;
+    uint64 total_net_input_bytes = 44;
+    uint64 total_net_output_bytes = 45;
+    float net_input_bytes_per_sec = 46;
+    float net_output_bytes_per_sec = 47;
+    bool replication_configured = 50;
+    bool master_link_up = 51;
+    uint64 connected_slaves = 52;
+    float master_last_io_seconds_ago = 53;
+    uint64 slowlog_len = 54;
+    float slowlog_growth = 55;
+}
+
 // ========== 详细数据查询响应 ==========
 
 message QueryNetDetailResponse {
@@ -377,6 +423,13 @@ message QueryMysqlDetailResponse {
     int32 page_size = 4;
 }
 
+message QueryRedisDetailResponse {
+    repeated RedisDetailRecord records = 1;
+    int32 total_count = 2;
+    int32 page = 3;
+    int32 page_size = 4;
+}
+
 // ========== 查询服务定义 ==========
 
 service QueryService {
@@ -401,4 +454,5 @@ service QueryService {
     rpc QueryMemDetail(QueryDetailRequest) returns (QueryMemDetailResponse);
     rpc QuerySoftIrqDetail(QueryDetailRequest) returns (QuerySoftIrqDetailResponse);
     rpc QueryMysqlDetail(QueryDetailRequest) returns (QueryMysqlDetailResponse);
+    rpc QueryRedisDetail(QueryDetailRequest) returns (QueryRedisDetailResponse);
 }

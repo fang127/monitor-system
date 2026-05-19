@@ -31,6 +31,7 @@ const (
 	QueryService_QueryMemDetail_FullMethodName     = "/monitor.proto.QueryService/QueryMemDetail"
 	QueryService_QuerySoftIrqDetail_FullMethodName = "/monitor.proto.QueryService/QuerySoftIrqDetail"
 	QueryService_QueryMysqlDetail_FullMethodName   = "/monitor.proto.QueryService/QueryMysqlDetail"
+	QueryService_QueryRedisDetail_FullMethodName   = "/monitor.proto.QueryService/QueryRedisDetail"
 )
 
 // QueryServiceClient is the client API for QueryService service.
@@ -53,6 +54,7 @@ type QueryServiceClient interface {
 	QueryMemDetail(ctx context.Context, in *QueryDetailRequest, opts ...grpc.CallOption) (*QueryMemDetailResponse, error)
 	QuerySoftIrqDetail(ctx context.Context, in *QueryDetailRequest, opts ...grpc.CallOption) (*QuerySoftIrqDetailResponse, error)
 	QueryMysqlDetail(ctx context.Context, in *QueryDetailRequest, opts ...grpc.CallOption) (*QueryMysqlDetailResponse, error)
+	QueryRedisDetail(ctx context.Context, in *QueryDetailRequest, opts ...grpc.CallOption) (*QueryRedisDetailResponse, error)
 }
 
 type queryServiceClient struct {
@@ -163,6 +165,16 @@ func (c *queryServiceClient) QueryMysqlDetail(ctx context.Context, in *QueryDeta
 	return out, nil
 }
 
+func (c *queryServiceClient) QueryRedisDetail(ctx context.Context, in *QueryDetailRequest, opts ...grpc.CallOption) (*QueryRedisDetailResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QueryRedisDetailResponse)
+	err := c.cc.Invoke(ctx, QueryService_QueryRedisDetail_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // QueryServiceServer is the server API for QueryService service.
 // All implementations must embed UnimplementedQueryServiceServer
 // for forward compatibility
@@ -183,6 +195,7 @@ type QueryServiceServer interface {
 	QueryMemDetail(context.Context, *QueryDetailRequest) (*QueryMemDetailResponse, error)
 	QuerySoftIrqDetail(context.Context, *QueryDetailRequest) (*QuerySoftIrqDetailResponse, error)
 	QueryMysqlDetail(context.Context, *QueryDetailRequest) (*QueryMysqlDetailResponse, error)
+	QueryRedisDetail(context.Context, *QueryDetailRequest) (*QueryRedisDetailResponse, error)
 	mustEmbedUnimplementedQueryServiceServer()
 }
 
@@ -219,6 +232,9 @@ func (UnimplementedQueryServiceServer) QuerySoftIrqDetail(context.Context, *Quer
 }
 func (UnimplementedQueryServiceServer) QueryMysqlDetail(context.Context, *QueryDetailRequest) (*QueryMysqlDetailResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method QueryMysqlDetail not implemented")
+}
+func (UnimplementedQueryServiceServer) QueryRedisDetail(context.Context, *QueryDetailRequest) (*QueryRedisDetailResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method QueryRedisDetail not implemented")
 }
 func (UnimplementedQueryServiceServer) mustEmbedUnimplementedQueryServiceServer() {}
 
@@ -413,6 +429,24 @@ func _QueryService_QueryMysqlDetail_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _QueryService_QueryRedisDetail_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryDetailRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServiceServer).QueryRedisDetail(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: QueryService_QueryRedisDetail_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).QueryRedisDetail(ctx, req.(*QueryDetailRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // QueryService_ServiceDesc is the grpc.ServiceDesc for QueryService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -459,6 +493,10 @@ var QueryService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "QueryMysqlDetail",
 			Handler:    _QueryService_QueryMysqlDetail_Handler,
+		},
+		{
+			MethodName: "QueryRedisDetail",
+			Handler:    _QueryService_QueryRedisDetail_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

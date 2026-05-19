@@ -17,6 +17,7 @@ func main() {
 		tools.NewMonitorTrendTool(),
 		tools.NewMonitorDetailTool(),
 		tools.NewMonitorMysqlDetailTool(),
+		tools.NewMonitorRedisDetailTool(),
 		tools.NewGetCurrentTimeTool(),
 		tools.NewQueryInternalDocsTool(),
 	}

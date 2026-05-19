@@ -21,6 +21,7 @@ func NewExecutor(ctx context.Context) (adk.Agent, error) {
 		tools.NewMonitorTrendTool(),           // 监控趋势工具
 		tools.NewMonitorDetailTool(),          // 监控详情工具
 		tools.NewMonitorMysqlDetailTool(),     // MySQL 监控详情工具
+		tools.NewMonitorRedisDetailTool(),     // Redis 监控详情工具
 		tools.NewGetCurrentTimeTool(),         // 获取当前时间工具
 	}
 	// 添加查询内部文档的工具，以便在执行过程中能够访问相关文档信息

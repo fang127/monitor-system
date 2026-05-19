@@ -29,6 +29,7 @@ func NewRouter(cfg config.Config, queryClient *grpcclient.Client) *gin.Engine {
 	router.GET("/api/servers/:server/mem-detail", queryHandler.MemDetail)
 	router.GET("/api/servers/:server/softirq-detail", queryHandler.SoftIrqDetail)
 	router.GET("/api/servers/:server/mysql-detail", queryHandler.MysqlDetail)
+	router.GET("/api/servers/:server/redis-detail", queryHandler.RedisDetail)
 
 	return router
 }

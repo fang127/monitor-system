@@ -66,6 +66,11 @@ type AnomalyOptions struct {
 	MySQLSlowQueryRateThreshold  float32
 	MySQLLockWaitRateThreshold   float32
 	MySQLBufferPoolHitThreshold  float32
+	RedisConnectionThreshold     float32
+	RedisMemoryThreshold         float32
+	RedisHitRateThreshold        float32
+	RedisReplicationLagThreshold float32
+	RedisSlowlogGrowthThreshold  float32
 	Page                         int32 // 分页页码，默认为0表示不分页
 	PageSize                     int32 // 分页大小，默认为0表示不分页
 }
@@ -154,6 +159,11 @@ func (c *Client) Anomalies(ctx context.Context, server string, opts AnomalyOptio
 	setFloat32(req, "mysql_slow_query_rate_threshold", opts.MySQLSlowQueryRateThreshold)
 	setFloat32(req, "mysql_lock_wait_rate_threshold", opts.MySQLLockWaitRateThreshold)
 	setFloat32(req, "mysql_buffer_pool_hit_threshold", opts.MySQLBufferPoolHitThreshold)
+	setFloat32(req, "redis_connection_threshold", opts.RedisConnectionThreshold)
+	setFloat32(req, "redis_memory_threshold", opts.RedisMemoryThreshold)
+	setFloat32(req, "redis_hit_rate_threshold", opts.RedisHitRateThreshold)
+	setFloat32(req, "redis_replication_lag_threshold", opts.RedisReplicationLagThreshold)
+	setFloat32(req, "redis_slowlog_growth_threshold", opts.RedisSlowlogGrowthThreshold)
 	setPagination(req, "pagination", opts.Page, opts.PageSize)
 
 	resp, err := newMessage("QueryAnomalyResponse")
@@ -202,6 +212,11 @@ func (c *Client) SoftIrqDetail(ctx context.Context, server string, opts DetailOp
 // MysqlDetail 获取 MySQL 实例详细指标
 func (c *Client) MysqlDetail(ctx context.Context, server string, opts DetailOptions) (json.RawMessage, error) {
 	return c.detail(ctx, "QueryMysqlDetail", "QueryMysqlDetailResponse", server, opts)
+}
+
+// RedisDetail 获取 Redis 实例详细指标
+func (c *Client) RedisDetail(ctx context.Context, server string, opts DetailOptions) (json.RawMessage, error) {
+	return c.detail(ctx, "QueryRedisDetail", "QueryRedisDetailResponse", server, opts)
 }
 
 // detail 获取详细指标的通用方法，适用于网络、磁盘、内存和软中断等指标

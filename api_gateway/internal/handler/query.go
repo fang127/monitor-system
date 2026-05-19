@@ -124,6 +124,26 @@ func (h *QueryHandler) Anomalies(c *gin.Context) {
 	if !ok {
 		return
 	}
+	redisConnectionThreshold, ok := parseOptionalFloat32(c, "redis_connection_threshold", 0)
+	if !ok {
+		return
+	}
+	redisMemoryThreshold, ok := parseOptionalFloat32(c, "redis_memory_threshold", 0)
+	if !ok {
+		return
+	}
+	redisHitRateThreshold, ok := parseOptionalFloat32(c, "redis_hit_rate_threshold", 0)
+	if !ok {
+		return
+	}
+	redisReplicationLagThreshold, ok := parseOptionalFloat32(c, "redis_replication_lag_threshold", 0)
+	if !ok {
+		return
+	}
+	redisSlowlogGrowthThreshold, ok := parseOptionalFloat32(c, "redis_slowlog_growth_threshold", 0)
+	if !ok {
+		return
+	}
 
 	data, err := h.client.Anomalies(c.Request.Context(), c.Param("server"), grpcclient.AnomalyOptions{
 		TimeRange:                    timeRange,
@@ -136,6 +156,11 @@ func (h *QueryHandler) Anomalies(c *gin.Context) {
 		MySQLSlowQueryRateThreshold:  mysqlSlowQueryRateThreshold,
 		MySQLLockWaitRateThreshold:   mysqlLockWaitRateThreshold,
 		MySQLBufferPoolHitThreshold:  mysqlBufferPoolHitThreshold,
+		RedisConnectionThreshold:     redisConnectionThreshold,
+		RedisMemoryThreshold:         redisMemoryThreshold,
+		RedisHitRateThreshold:        redisHitRateThreshold,
+		RedisReplicationLagThreshold: redisReplicationLagThreshold,
+		RedisSlowlogGrowthThreshold:  redisSlowlogGrowthThreshold,
 		Page:                         page,
 		PageSize:                     pageSize,
 	})
@@ -184,6 +209,11 @@ func (h *QueryHandler) SoftIrqDetail(c *gin.Context) {
 // MysqlDetail 处理 MySQL 详细指标查询请求
 func (h *QueryHandler) MysqlDetail(c *gin.Context) {
 	h.detail(c, h.client.MysqlDetail)
+}
+
+// RedisDetail 处理 Redis 详细指标查询请求
+func (h *QueryHandler) RedisDetail(c *gin.Context) {
+	h.detail(c, h.client.RedisDetail)
 }
 
 // detail 是一个通用的处理函数，用于处理网络、磁盘、内存和软中断等详细指标的查询请求。它首先解析时间范围和分页参数，然后调用传入的gRPC函数获取数据，并将结果写入HTTP响应。
