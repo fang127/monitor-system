@@ -32,6 +32,7 @@ func newReactAgentLambda(ctx context.Context) (lba *compose.Lambda, err error) {
 	config.ToolsConfig.Tools = append(config.ToolsConfig.Tools, tools.NewMonitorPerformanceTool())
 	config.ToolsConfig.Tools = append(config.ToolsConfig.Tools, tools.NewMonitorTrendTool())
 	config.ToolsConfig.Tools = append(config.ToolsConfig.Tools, tools.NewMonitorDetailTool())
+	config.ToolsConfig.Tools = append(config.ToolsConfig.Tools, tools.NewMonitorMysqlDetailTool())
 	config.ToolsConfig.Tools = append(config.ToolsConfig.Tools, tools.NewGetCurrentTimeTool())
 	config.ToolsConfig.Tools = append(config.ToolsConfig.Tools, tools.NewQueryInternalDocsTool())
 

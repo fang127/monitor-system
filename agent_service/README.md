@@ -115,6 +115,17 @@ curl -X POST http://127.0.0.1:6872/api/agent/upload \
 curl -X POST http://127.0.0.1:6872/api/agent/ai_ops
 ```
 
+## Agent 工具
+
+`agent_service` 的对话 Agent 和 AI Ops Agent 只通过 `api_gateway` 获取监控事实，不直接访问 MySQL 数据库。当前监控查询工具包括：
+
+- `query_monitor_cluster_overview`：查询集群概览。
+- `query_monitor_anomalies`：查询服务器异常记录。
+- `query_monitor_performance`：查询单台服务器历史性能数据。
+- `query_monitor_trend`：查询单台服务器指标趋势。
+- `query_monitor_detail`：查询网络、磁盘、内存、软中断或 MySQL 明细；MySQL 可通过 `kind=mysql` 使用。
+- `query_monitor_mysql_detail`：查询 `GET /api/servers/:server/mysql-detail`，返回 MySQL 可用性、连接压力、QPS/TPS、慢查询、锁等待、Buffer Pool 命中率和复制延迟等明细。
+
 ## 前端入口
 
 AI 运维界面已集成到根目录 `web` React 应用中，侧边栏点击 `AI 运维` 即可进入。

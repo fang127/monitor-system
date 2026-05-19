@@ -41,7 +41,8 @@
 - `query_monitor_anomalies`：调用 `GET /api/servers/:server/anomalies` 查询异常记录；`server_name` 为空时会查询所有服务器。
 - `query_monitor_performance`：调用 `GET /api/servers/:server/performance` 查询历史性能数据。
 - `query_monitor_trend`：调用 `GET /api/servers/:server/trend` 查询指标趋势。
-- `query_monitor_detail`：调用 `GET /api/servers/:server/{net,disk,mem,softirq}-detail` 查询网络、磁盘、内存或软中断明细。
+- `query_monitor_detail`：调用 `GET /api/servers/:server/{net,disk,mem,softirq,mysql}-detail` 查询网络、磁盘、内存、软中断或 MySQL 明细。
+- `query_monitor_mysql_detail`：调用 `GET /api/servers/:server/mysql-detail` 查询 MySQL 可用性、连接压力、QPS/TPS、慢查询、锁等待、Buffer Pool 命中率和复制延迟；该工具只通过 `api_gateway` 读取监控事实，不直接访问 MySQL 数据库。
 - `query_internal_docs`：查询 Milvus 支撑的内部运维知识库。
 - `get_current_time`：提供当前时间戳，用于构造时间窗口查询。
 
@@ -61,8 +62,9 @@ Milvus 默认配置如下：
 1. 查询集群概览。
 2. 查询所有服务器异常。
 3. 对异常或低分服务器继续查询性能、趋势或明细指标。
-4. 检索内部运维文档，查找匹配的处理手册。
-5. 输出基于 `monitor_system` 真实数据的中文 AI 运维分析报告。
+4. 当异常包含 `MYSQL_*`、低分服务器疑似数据库相关、或用户询问数据库问题时，查询 MySQL 明细，并重点查看 `up`、`connection_used_percent`、`qps`、`tps`、`slow_queries_rate`、`innodb_row_lock_waits_rate`、`innodb_buffer_pool_hit_percent`、`replication_lag_seconds`。
+5. 检索内部运维文档，查找匹配的处理手册。
+6. 输出基于 `monitor_system` 真实数据的中文 AI 运维分析报告。
 
 ## 5. 配置说明
 

@@ -16,7 +16,7 @@ import (
 	"github.com/cloudwego/eino/components/tool/utils"
 )
 
-// 该文件定义了一组工具函数，用于从监控系统的 API 网关查询集群概览、异常记录、性能数据、趋势数据和详细数据。这些工具函数使用 HTTP GET 请求与 API 网关通信，并将响应格式化为统一的输出结构。工具函数支持可选的查询参数，如时间范围、分页和阈值过滤，以满足不同的查询需求。
+// 该文件定义了一组工具函数，用于从监控系统的 API 网关查询集群概览、异常记录、性能数据、趋势数据、通用明细和 MySQL 明细数据。这些工具函数使用 HTTP GET 请求与 API 网关通信，并将响应格式化为统一的输出结构。工具函数支持可选的查询参数，如时间范围、分页和阈值过滤，以满足不同的查询需求。
 
 // gatewayEnvelope 定义了 API 网关响应的通用结构，包含状态码、消息和数据字段。
 type gatewayEnvelope struct {
@@ -63,7 +63,16 @@ type MonitorSeriesInput struct {
 // MonitorDetailInput 定义了查询详细数据工具的输入结构，包含服务器名称、详细数据类型、时间范围和分页参数。
 type MonitorDetailInput struct {
 	ServerName string `json:"server_name" jsonschema:"description=Server name to query"`
-	Kind       string `json:"kind" jsonschema:"description=Detail kind: net, disk, mem, or softirq"`
+	Kind       string `json:"kind" jsonschema:"description=Detail kind: net, disk, mem, softirq, or mysql"`
+	StartTime  string `json:"start_time" jsonschema:"description=Optional start time, RFC3339 or Unix seconds"`
+	EndTime    string `json:"end_time" jsonschema:"description=Optional end time, RFC3339 or Unix seconds"`
+	Page       int    `json:"page" jsonschema:"description=Optional page number, defaults to 1"`
+	PageSize   int    `json:"page_size" jsonschema:"description=Optional page size, defaults to 100"`
+}
+
+// MonitorMysqlDetailInput 定义了查询 MySQL 明细数据工具的输入结构。
+type MonitorMysqlDetailInput struct {
+	ServerName string `json:"server_name" jsonschema:"description=Server name to query"`
 	StartTime  string `json:"start_time" jsonschema:"description=Optional start time, RFC3339 or Unix seconds"`
 	EndTime    string `json:"end_time" jsonschema:"description=Optional end time, RFC3339 or Unix seconds"`
 	Page       int    `json:"page" jsonschema:"description=Optional page number, defaults to 1"`
@@ -151,7 +160,7 @@ func NewMonitorTrendTool() tool.InvokableTool {
 func NewMonitorDetailTool() tool.InvokableTool {
 	t, err := utils.InferOptionableTool(
 		"query_monitor_detail",
-		"Query monitor_system detail records for one server from api_gateway. kind must be net, disk, mem, or softirq.",
+		"Query monitor_system detail records for one server from api_gateway. kind must be net, disk, mem, softirq, or mysql. Use kind=mysql for MySQL availability, connection pressure, QPS/TPS, slow query rate, lock waits, InnoDB buffer pool hit rate, and replication lag.",
 		func(ctx context.Context, input *MonitorDetailInput, opts ...tool.Option) (string, error) {
 			if input == nil || strings.TrimSpace(input.ServerName) == "" {
 				return formatGatewayOutput("/api/servers/:server/:kind-detail", nil, fmt.Errorf("server_name is required"))
@@ -167,6 +176,25 @@ func NewMonitorDetailTool() tool.InvokableTool {
 	)
 	if err != nil {
 		return errorTool("query_monitor_detail", err)
+	}
+	return t
+}
+
+func NewMonitorMysqlDetailTool() tool.InvokableTool {
+	t, err := utils.InferOptionableTool(
+		"query_monitor_mysql_detail",
+		"Query monitor_system MySQL detail records for one server from api_gateway. Returns MySQL availability, connection pressure, QPS/TPS, slow query rate, InnoDB row lock waits, buffer pool hit rate, and replication lag. This tool reads monitoring facts only and never connects directly to MySQL.",
+		func(ctx context.Context, input *MonitorMysqlDetailInput, opts ...tool.Option) (string, error) {
+			if input == nil || strings.TrimSpace(input.ServerName) == "" {
+				return formatGatewayOutput("/api/servers/:server/mysql-detail", nil, fmt.Errorf("server_name is required"))
+			}
+			path := fmt.Sprintf("/api/servers/%s/mysql-detail", url.PathEscape(input.ServerName))
+			data, err := apiGatewayGet(ctx, path, mysqlDetailQuery(input))
+			return formatGatewayOutput(path, data, err)
+		},
+	)
+	if err != nil {
+		return errorTool("query_monitor_mysql_detail", err)
 	}
 	return t
 }
@@ -285,6 +313,14 @@ func detailQuery(input *MonitorDetailInput) url.Values {
 	return values
 }
 
+func mysqlDetailQuery(input *MonitorMysqlDetailInput) url.Values {
+	values := url.Values{}
+	addTimeRange(values, input.StartTime, input.EndTime)
+	addInt(values, "page", input.Page, 1)
+	addInt(values, "page_size", input.PageSize, 100)
+	return values
+}
+
 func addTimeRange(values url.Values, start string, end string) {
 	if strings.TrimSpace(start) != "" {
 		values.Set("start_time", strings.TrimSpace(start))
@@ -320,8 +356,10 @@ func detailEndpoint(kind string) (string, error) {
 		return "mem-detail", nil
 	case "softirq", "soft_irq":
 		return "softirq-detail", nil
+	case "mysql", "mysql_detail", "db":
+		return "mysql-detail", nil
 	default:
-		return "", fmt.Errorf("unsupported detail kind %q, expected net, disk, mem, or softirq", kind)
+		return "", fmt.Errorf("unsupported detail kind %q, expected net, disk, mem, softirq, or mysql", kind)
 	}
 }
 
