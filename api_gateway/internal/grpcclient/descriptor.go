@@ -8,7 +8,7 @@ import (
 	"monitor-system/api_gateway/internal/pb/queryapi"
 )
 
-// queryAPIFileDescriptor returns the generated query API file descriptor.
+// queryAPIFileDescriptor 返回生成的查询 API 文件描述符。
 func queryAPIFileDescriptor() (protoreflect.FileDescriptor, error) {
 	return queryapi.File_query_api_proto, nil
 }

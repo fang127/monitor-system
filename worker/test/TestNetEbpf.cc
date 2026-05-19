@@ -21,7 +21,7 @@
 #include <csignal>
 #include <vector>
 
-// 包含生成的 skeleton
+// 包含生成的骨架头文件
 #include "net_stats.skel.h"
 
 // 共享数据结构
@@ -46,7 +46,7 @@ std::vector<uint32_t> get_all_ifindexes() {
     struct dirent *entry;
     while ((entry = readdir(dir)) != nullptr) {
         if (entry->d_name[0] == '.') continue;
-        if (strcmp(entry->d_name, "lo") == 0) continue; // 跳过 loopback
+        if (strcmp(entry->d_name, "lo") == 0) continue; // 跳过回环网卡
 
         unsigned int ifindex = if_nametoindex(entry->d_name);
         if (ifindex > 0) indexes.push_back(ifindex);
@@ -65,7 +65,7 @@ int main() {
 
     printf("Loading eBPF TC hook program...\n");
 
-    // 打开 BPF skeleton
+    // 打开 BPF 骨架对象
     skel = net_stats_bpf__open();
     if (!skel) {
         fprintf(stderr, "Failed to open BPF skeleton\n");
@@ -95,18 +95,15 @@ int main() {
 
         // 先创建 clsact qdisc
         char cmd[256];
-        snprintf(cmd, sizeof(cmd), "tc qdisc add dev %s clsact 2>/dev/null",
-                 ifname);
+        snprintf(cmd, sizeof(cmd), "tc qdisc add dev %s clsact 2>/dev/null", ifname);
         system(cmd);
 
         // 创建 TC hook
-        LIBBPF_OPTS(bpf_tc_hook, hook, .ifindex = static_cast<int>(ifindex),
-                    .attach_point = BPF_TC_INGRESS, );
+        LIBBPF_OPTS(bpf_tc_hook, hook, .ifindex = static_cast<int>(ifindex), .attach_point = BPF_TC_INGRESS, );
 
         err = bpf_tc_hook_create(&hook);
         if (err && err != -EEXIST) {
-            fprintf(stderr, "Failed to create TC hook for %s: %s\n", ifname,
-                    strerror(-err));
+            fprintf(stderr, "Failed to create TC hook for %s: %s\n", ifname, strerror(-err));
             continue;
         }
 
@@ -114,8 +111,7 @@ int main() {
         LIBBPF_OPTS(bpf_tc_opts, opts_in, .prog_fd = ingress_fd, );
         err = bpf_tc_attach(&hook, &opts_in);
         if (err) {
-            fprintf(stderr, "Failed to attach ingress for %s: %s\n", ifname,
-                    strerror(-err));
+            fprintf(stderr, "Failed to attach ingress for %s: %s\n", ifname, strerror(-err));
         } else {
             printf("Attached TC ingress to %s (ifindex=%u)\n", ifname, ifindex);
             attached_ifindexes.push_back(ifindex);
@@ -126,8 +122,7 @@ int main() {
         LIBBPF_OPTS(bpf_tc_opts, opts_eg, .prog_fd = egress_fd, );
         err = bpf_tc_attach(&hook, &opts_eg);
         if (err) {
-            fprintf(stderr, "Failed to attach egress for %s: %s\n", ifname,
-                    strerror(-err));
+            fprintf(stderr, "Failed to attach egress for %s: %s\n", ifname, strerror(-err));
         } else {
             printf("Attached TC egress to %s\n", ifname);
         }
@@ -154,8 +149,7 @@ int main() {
         sleep(2);
 
         printf("\n--- Network Statistics (TC Hook) ---\n");
-        printf("%-12s %15s %15s %15s %15s\n", "Interface", "RX bytes/s",
-               "TX bytes/s", "RX pkts", "TX pkts");
+        printf("%-12s %15s %15s %15s %15s\n", "Interface", "RX bytes/s", "TX bytes/s", "RX pkts", "TX pkts");
 
         uint32_t key = 0, next_key;
         struct net_stats stats;
@@ -165,13 +159,11 @@ int main() {
                 char ifname[IF_NAMESIZE];
                 if (if_indextoname(next_key, ifname) != nullptr) {
                     // 计算速率 (2秒间隔)
-                    uint64_t rx_rate =
-                        (stats.rcv_bytes - prev_stats[next_key].rcv_bytes) / 2;
-                    uint64_t tx_rate =
-                        (stats.snd_bytes - prev_stats[next_key].snd_bytes) / 2;
+                    uint64_t rx_rate = (stats.rcv_bytes - prev_stats[next_key].rcv_bytes) / 2;
+                    uint64_t tx_rate = (stats.snd_bytes - prev_stats[next_key].snd_bytes) / 2;
 
-                    printf("%-12s %15lu %15lu %15lu %15lu\n", ifname, rx_rate,
-                           tx_rate, stats.rcv_packets, stats.snd_packets);
+                    printf("%-12s %15lu %15lu %15lu %15lu\n", ifname, rx_rate, tx_rate, stats.rcv_packets,
+                           stats.snd_packets);
 
                     prev_stats[next_key].rcv_bytes = stats.rcv_bytes;
                     prev_stats[next_key].snd_bytes = stats.snd_bytes;
@@ -185,8 +177,7 @@ int main() {
 
     // 分离 TC hook
     for (uint32_t ifindex : attached_ifindexes) {
-        LIBBPF_OPTS(bpf_tc_hook, hook, .ifindex = static_cast<int>(ifindex),
-                    .attach_point = BPF_TC_INGRESS, );
+        LIBBPF_OPTS(bpf_tc_hook, hook, .ifindex = static_cast<int>(ifindex), .attach_point = BPF_TC_INGRESS, );
         LIBBPF_OPTS(bpf_tc_opts, opts);
         bpf_tc_detach(&hook, &opts);
 
@@ -194,8 +185,7 @@ int main() {
         bpf_tc_detach(&hook, &opts);
 
         char ifname[IF_NAMESIZE];
-        if (if_indextoname(ifindex, ifname) != nullptr)
-            printf("Detached TC hooks from %s\n", ifname);
+        if (if_indextoname(ifindex, ifname) != nullptr) printf("Detached TC hooks from %s\n", ifname);
     }
 
     net_stats_bpf__destroy(skel);

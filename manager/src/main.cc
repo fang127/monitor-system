@@ -66,7 +66,7 @@ int main(int argc, char *argv[]) {
     monitor::GrpcServerImpl service;
     service.setDispatcher(&dispatcher);
 
-    // create host manager
+    // 创建主机管理器
     monitor::HostManager hostManager;
     hostManager.configure(managerConfig, &metrics,
 #ifdef ENABLE_MYSQL

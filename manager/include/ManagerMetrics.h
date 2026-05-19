@@ -7,8 +7,7 @@
 namespace monitor {
 
 /**
- * @brief         ManagerMetrics
- * 结构体用于跟踪和记录管理器的各种性能指标和错误统计信息。这些指标包括工作请求数量、查询请求数量、队列拒绝次数、监控样本丢失次数、任务超时次数、任务错误次数、MySQL错误次数、Redis错误次数、连接池超时次数和连接池重连次数。通过这些指标，管理器可以监控其运行状态并进行性能分析和故障排除。
+ * @brief         管理器指标结构体，用于跟踪和记录管理器的性能指标和错误统计信息
  *
  */
 struct ManagerMetrics {
@@ -24,14 +23,13 @@ struct ManagerMetrics {
     std::atomic<uint64_t> pool_reconnects{0};         // 连接池重连次数
 
     /**
-     * @brief         print
-     * 打印当前的管理器性能指标和错误统计信息。这些信息包括工作请求数量、查询请求数量、队列大小、业务线程数量、MySQL写操作可用性、MySQL查询可用性、Redis可用性、队列拒绝次数、监控样本丢失次数、任务超时次数、任务错误次数、MySQL错误次数、Redis错误次数、连接池超时次数和连接池重连次数。通过这些信息，用户可以了解管理器的当前状态和性能表现。
+     * @brief         打印当前的管理器性能指标和错误统计信息
      *
-     * @param         queueSize
-     * @param         businessThreads
-     * @param         mysqlWriteAvailable
-     * @param         mysqlQueryAvailable
-     * @param         redisAvailable
+     * @param         queueSize 当前队列长度
+     * @param         businessThreads 当前业务线程数量
+     * @param         mysqlWriteAvailable MySQL 写连接池可用连接数
+     * @param         mysqlQueryAvailable MySQL 查询连接池可用连接数
+     * @param         redisAvailable Redis 连接池可用连接数
      */
     void print(std::size_t queueSize, int businessThreads, int mysqlWriteAvailable, int mysqlQueryAvailable,
                int redisAvailable) const {

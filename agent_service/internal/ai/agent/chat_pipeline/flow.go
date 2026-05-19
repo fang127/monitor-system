@@ -10,7 +10,7 @@ import (
 
 // 创建 ReAct Agent，并包装成 Graph 的 Lambda 节点
 
-// newReactAgentLambda 创建一个基于React Agent的Lambda函数，配置了工具和模型。
+// newReactAgentLambda 创建一个基于 ReAct 智能体的 Lambda 函数，配置工具和模型。
 func newReactAgentLambda(ctx context.Context) (lba *compose.Lambda, err error) {
 	config := &react.AgentConfig{
 		MaxStep:            25,                    // 最大步骤数，防止无限循环

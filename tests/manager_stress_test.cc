@@ -80,8 +80,7 @@ std::string workerName(int id) {
 }
 
 std::string workerIp(int id) {
-    return "10.250." + std::to_string((id / 200) % 200) + "." +
-           std::to_string(10 + (id % 200));
+    return "10.250." + std::to_string((id / 200) % 200) + "." + std::to_string(10 + (id % 200));
 }
 
 bool parsePositiveInt(const std::string &value, int *out) {
@@ -108,12 +107,9 @@ bool parseNonNegativeDouble(const std::string &value, double *out) {
     return true;
 }
 
-google::protobuf::Timestamp timestampFromSystem(
-    std::chrono::system_clock::time_point tp) {
-    const auto seconds =
-        std::chrono::time_point_cast<std::chrono::seconds>(tp);
-    const auto nanos =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(tp - seconds);
+google::protobuf::Timestamp timestampFromSystem(std::chrono::system_clock::time_point tp) {
+    const auto seconds = std::chrono::time_point_cast<std::chrono::seconds>(tp);
+    const auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(tp - seconds);
     google::protobuf::Timestamp ts;
     ts.set_seconds(seconds.time_since_epoch().count());
     ts.set_nanos(static_cast<int>(nanos.count()));
@@ -217,20 +213,16 @@ monitor::proto::MonitorInfo makeMonitorInfo(int worker_id, uint64_t sequence) {
 }
 
 void setDeadline(grpc::ClientContext *context, int timeout_ms) {
-    context->set_deadline(std::chrono::system_clock::now() +
-                          std::chrono::milliseconds(timeout_ms));
+    context->set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(timeout_ms));
 }
 
-void fillTimeRange(monitor::proto::TimeRange *time_range,
-                   int query_window_seconds) {
+void fillTimeRange(monitor::proto::TimeRange *time_range, int query_window_seconds) {
     const auto now = std::chrono::system_clock::now();
-    *time_range->mutable_start_time() =
-        timestampFromSystem(now - std::chrono::seconds(query_window_seconds));
+    *time_range->mutable_start_time() = timestampFromSystem(now - std::chrono::seconds(query_window_seconds));
     *time_range->mutable_end_time() = timestampFromSystem(now);
 }
 
-grpc::Status runQueryOnce(monitor::proto::QueryService::Stub *stub,
-                          const Options &options) {
+grpc::Status runQueryOnce(monitor::proto::QueryService::Stub *stub, const Options &options) {
     grpc::ClientContext context;
     setDeadline(&context, options.request_timeout_ms);
 
@@ -283,15 +275,12 @@ double rps(const SideStats &stats, double seconds) {
 void mergeSideStats(SideStats *dst, const SideStats &src) {
     dst->success += src.success;
     dst->failure += src.failure;
-    dst->success_latencies_ms.insert(dst->success_latencies_ms.end(),
-                                     src.success_latencies_ms.begin(),
+    dst->success_latencies_ms.insert(dst->success_latencies_ms.end(), src.success_latencies_ms.begin(),
                                      src.success_latencies_ms.end());
     for (const auto &entry : src.grpc_codes) dst->grpc_codes[entry.first] += entry.second;
 }
 
-void sleepUntilNextRequest(const Clock::time_point request_begin,
-                           int interval_ms,
-                           const Clock::time_point end_at) {
+void sleepUntilNextRequest(const Clock::time_point request_begin, int interval_ms, const Clock::time_point end_at) {
     if (interval_ms <= 0) return;
     const auto next_at = request_begin + std::chrono::milliseconds(interval_ms);
     const auto now = Clock::now();
@@ -299,11 +288,9 @@ void sleepUntilNextRequest(const Clock::time_point request_begin,
     std::this_thread::sleep_until(std::min(next_at, end_at));
 }
 
-void workerLoop(const Options &options, int id, const RunWindow *window,
-                std::atomic<int> *ready, std::atomic<bool> *start,
-                SideStats *result) {
-    auto channel =
-        grpc::CreateChannel(options.manager_address, grpc::InsecureChannelCredentials());
+void workerLoop(const Options &options, int id, const RunWindow *window, std::atomic<int> *ready,
+                std::atomic<bool> *start, SideStats *result) {
+    auto channel = grpc::CreateChannel(options.manager_address, grpc::InsecureChannelCredentials());
     auto stub = monitor::proto::GrpcManager::NewStub(channel);
     ++(*ready);
     while (!start->load(std::memory_order_acquire)) std::this_thread::yield();
@@ -317,8 +304,7 @@ void workerLoop(const Options &options, int id, const RunWindow *window,
 
         const auto begin = Clock::now();
         grpc::Status status = stub->SetMonitorInfo(&context, request, &response);
-        const auto elapsed =
-            std::chrono::duration<double, std::milli>(Clock::now() - begin).count();
+        const auto elapsed = std::chrono::duration<double, std::milli>(Clock::now() - begin).count();
 
         if (begin >= window->measure_from) {
             if (status.ok()) {
@@ -334,12 +320,10 @@ void workerLoop(const Options &options, int id, const RunWindow *window,
     }
 }
 
-void queryLoop(const Options &options, int id, const RunWindow *window,
-               std::atomic<int> *ready, std::atomic<bool> *start,
-               SideStats *result) {
+void queryLoop(const Options &options, int id, const RunWindow *window, std::atomic<int> *ready,
+               std::atomic<bool> *start, SideStats *result) {
     (void)id;
-    auto channel =
-        grpc::CreateChannel(options.manager_address, grpc::InsecureChannelCredentials());
+    auto channel = grpc::CreateChannel(options.manager_address, grpc::InsecureChannelCredentials());
     auto stub = monitor::proto::QueryService::NewStub(channel);
     ++(*ready);
     while (!start->load(std::memory_order_acquire)) std::this_thread::yield();
@@ -347,8 +331,7 @@ void queryLoop(const Options &options, int id, const RunWindow *window,
     while (Clock::now() < window->end_at) {
         const auto begin = Clock::now();
         grpc::Status status = runQueryOnce(stub.get(), options);
-        const auto elapsed =
-            std::chrono::duration<double, std::milli>(Clock::now() - begin).count();
+        const auto elapsed = std::chrono::duration<double, std::milli>(Clock::now() - begin).count();
 
         if (begin >= window->measure_from) {
             if (status.ok()) {
@@ -364,15 +347,13 @@ void queryLoop(const Options &options, int id, const RunWindow *window,
     }
 }
 
-RunStats runLoad(const Options &options, int worker_concurrency,
-                 int query_concurrency, bool quiet) {
+RunStats runLoad(const Options &options, int worker_concurrency, int query_concurrency, bool quiet) {
     if (!quiet) {
-        std::cout << "\n[run] workers=" << worker_concurrency
-                  << " queries=" << query_concurrency
+        std::cout << "\n[run] workers=" << worker_concurrency << " queries=" << query_concurrency
                   << " duration=" << options.duration_seconds << "s"
                   << " worker_interval_ms=" << options.worker_interval_ms
-                  << " query_interval_ms=" << options.query_interval_ms
-                  << " query_kind=" << options.query_kind << std::endl;
+                  << " query_interval_ms=" << options.query_interval_ms << " query_kind=" << options.query_kind
+                  << std::endl;
     }
 
     const int total_threads = worker_concurrency + query_concurrency;
@@ -385,12 +366,10 @@ RunStats runLoad(const Options &options, int worker_concurrency,
     RunWindow window;
 
     for (int i = 0; i < worker_concurrency; ++i) {
-        threads.emplace_back(workerLoop, std::cref(options), i + 1, &window,
-                             &ready, &start, &worker_results[i]);
+        threads.emplace_back(workerLoop, std::cref(options), i + 1, &window, &ready, &start, &worker_results[i]);
     }
     for (int i = 0; i < query_concurrency; ++i) {
-        threads.emplace_back(queryLoop, std::cref(options), i + 1, &window,
-                             &ready, &start, &query_results[i]);
+        threads.emplace_back(queryLoop, std::cref(options), i + 1, &window, &ready, &start, &query_results[i]);
     }
 
     while (ready.load(std::memory_order_acquire) < total_threads) {
@@ -402,8 +381,7 @@ RunStats runLoad(const Options &options, int worker_concurrency,
     window.end_at = window.measure_from + std::chrono::seconds(options.duration_seconds);
     start.store(true, std::memory_order_release);
     for (auto &thread : threads) thread.join();
-    const double elapsed =
-        std::chrono::duration<double>(Clock::now() - window.measure_from).count();
+    const double elapsed = std::chrono::duration<double>(Clock::now() - window.measure_from).count();
 
     RunStats stats;
     stats.seconds = elapsed;
@@ -412,26 +390,21 @@ RunStats runLoad(const Options &options, int worker_concurrency,
     return stats;
 }
 
-Verdict judge(const Options &options, const RunStats &stats,
-              int worker_concurrency, int query_concurrency) {
+Verdict judge(const Options &options, const RunStats &stats, int worker_concurrency, int query_concurrency) {
     Verdict verdict;
     verdict.worker_success_rate = successRate(stats.worker);
     verdict.query_success_rate = successRate(stats.query);
     verdict.worker_p95_ms = percentile(stats.worker.success_latencies_ms, 0.95);
     verdict.query_p95_ms = percentile(stats.query.success_latencies_ms, 0.95);
 
-    const bool worker_has_requests =
-        worker_concurrency == 0 || (stats.worker.success + stats.worker.failure) > 0;
-    const bool query_has_requests =
-        query_concurrency == 0 || (stats.query.success + stats.query.failure) > 0;
+    const bool worker_has_requests = worker_concurrency == 0 || (stats.worker.success + stats.worker.failure) > 0;
+    const bool query_has_requests = query_concurrency == 0 || (stats.query.success + stats.query.failure) > 0;
     const bool worker_ok =
-        worker_concurrency == 0 ||
-        (worker_has_requests && verdict.worker_success_rate >= options.min_success_rate &&
-         (options.max_p95_ms <= 0.0 || verdict.worker_p95_ms <= options.max_p95_ms));
+        worker_concurrency == 0 || (worker_has_requests && verdict.worker_success_rate >= options.min_success_rate &&
+                                    (options.max_p95_ms <= 0.0 || verdict.worker_p95_ms <= options.max_p95_ms));
     const bool query_ok =
-        query_concurrency == 0 ||
-        (query_has_requests && verdict.query_success_rate >= options.min_success_rate &&
-         (options.max_p95_ms <= 0.0 || verdict.query_p95_ms <= options.max_p95_ms));
+        query_concurrency == 0 || (query_has_requests && verdict.query_success_rate >= options.min_success_rate &&
+                                   (options.max_p95_ms <= 0.0 || verdict.query_p95_ms <= options.max_p95_ms));
     verdict.passed = worker_ok && query_ok;
     return verdict;
 }
@@ -450,12 +423,9 @@ void printGrpcCodes(const std::map<int, uint64_t> &codes) {
 
 void printSide(const char *name, const SideStats &stats, double seconds) {
     const uint64_t total = stats.success + stats.failure;
-    std::cout << "  " << name << ": total=" << total
-              << " success=" << stats.success << " failure=" << stats.failure
-              << " success_rate=" << std::fixed << std::setprecision(4)
-              << successRate(stats)
-              << " rps=" << std::setprecision(1) << rps(stats, seconds)
-              << " p50_ms=" << std::setprecision(2)
+    std::cout << "  " << name << ": total=" << total << " success=" << stats.success << " failure=" << stats.failure
+              << " success_rate=" << std::fixed << std::setprecision(4) << successRate(stats)
+              << " rps=" << std::setprecision(1) << rps(stats, seconds) << " p50_ms=" << std::setprecision(2)
               << percentile(stats.success_latencies_ms, 0.50)
               << " p95_ms=" << percentile(stats.success_latencies_ms, 0.95)
               << " p99_ms=" << percentile(stats.success_latencies_ms, 0.99);
@@ -463,19 +433,15 @@ void printSide(const char *name, const SideStats &stats, double seconds) {
     std::cout << std::endl;
 }
 
-void printRunResult(const Options &options, const RunStats &stats,
-                    int worker_concurrency, int query_concurrency) {
-    const Verdict verdict =
-        judge(options, stats, worker_concurrency, query_concurrency);
-    std::cout << "  verdict=" << (verdict.passed ? "PASS" : "FAIL")
-              << " elapsed=" << std::fixed << std::setprecision(2)
+void printRunResult(const Options &options, const RunStats &stats, int worker_concurrency, int query_concurrency) {
+    const Verdict verdict = judge(options, stats, worker_concurrency, query_concurrency);
+    std::cout << "  verdict=" << (verdict.passed ? "PASS" : "FAIL") << " elapsed=" << std::fixed << std::setprecision(2)
               << stats.seconds << "s" << std::endl;
     if (worker_concurrency > 0) printSide("worker", stats.worker, stats.seconds);
     if (query_concurrency > 0) printSide("query ", stats.query, stats.seconds);
 }
 
-bool runAndPrint(const Options &options, int worker_concurrency,
-                 int query_concurrency) {
+bool runAndPrint(const Options &options, int worker_concurrency, int query_concurrency) {
     RunStats stats = runLoad(options, worker_concurrency, query_concurrency, false);
     printRunResult(options, stats, worker_concurrency, query_concurrency);
     return judge(options, stats, worker_concurrency, query_concurrency).passed;
@@ -487,20 +453,17 @@ std::vector<int> buildRamp(int max_concurrency) {
         values.push_back(value);
         if (value > max_concurrency / 2) break;
     }
-    if (values.empty() || values.back() != max_concurrency)
-        values.push_back(max_concurrency);
+    if (values.empty() || values.back() != max_concurrency) values.push_back(max_concurrency);
     return values;
 }
 
-int binaryRefine(const Options &options, int low_pass, int high_fail,
-                 bool worker_side) {
+int binaryRefine(const Options &options, int low_pass, int high_fail, bool worker_side) {
     int best = low_pass;
     int left = low_pass + 1;
     int right = high_fail - 1;
     while (left <= right) {
         const int mid = left + (right - left) / 2;
-        const bool passed =
-            worker_side ? runAndPrint(options, mid, 0) : runAndPrint(options, 0, mid);
+        const bool passed = worker_side ? runAndPrint(options, mid, 0) : runAndPrint(options, 0, mid);
         if (passed) {
             best = mid;
             left = mid + 1;
@@ -512,13 +475,11 @@ int binaryRefine(const Options &options, int low_pass, int high_fail,
 }
 
 int findMaxSingle(const Options &options, bool worker_side) {
-    const int cap =
-        worker_side ? options.max_worker_concurrency : options.max_query_concurrency;
+    const int cap = worker_side ? options.max_worker_concurrency : options.max_query_concurrency;
     int best = 0;
     int previous = 0;
     for (int value : buildRamp(cap)) {
-        const bool passed =
-            worker_side ? runAndPrint(options, value, 0) : runAndPrint(options, 0, value);
+        const bool passed = worker_side ? runAndPrint(options, value, 0) : runAndPrint(options, 0, value);
         if (passed) {
             best = value;
             previous = value;
@@ -536,8 +497,7 @@ std::pair<int, int> scaledPair(int worker_max, int query_max, double scale) {
     return {worker, query};
 }
 
-std::pair<int, int> findMaxMixed(const Options &options, int worker_max,
-                                 int query_max) {
+std::pair<int, int> findMaxMixed(const Options &options, int worker_max, int query_max) {
     if (worker_max <= 0 || query_max <= 0) return {0, 0};
 
     double best_scale = 0.0;
@@ -558,33 +518,32 @@ std::pair<int, int> findMaxMixed(const Options &options, int worker_max,
 }
 
 void printUsage(const char *program) {
-    std::cout
-        << "Usage: " << program << " [options]\n"
-        << "\n"
-        << "Modes:\n"
-        << "  --mode auto|worker|query|mixed   default: auto\n"
-        << "\n"
-        << "Connection and request options:\n"
-        << "  --manager ADDRESS                default: localhost:50051\n"
-        << "  --query-kind latest|rank|performance   default: latest\n"
-        << "  --query-server NAME              default: stress-worker-0001\n"
-        << "  --duration-seconds N             default: 10\n"
-        << "  --warmup-seconds N               default: 1\n"
-        << "  --request-timeout-ms N           default: 3000\n"
-        << "  --worker-interval-ms N           per worker start interval, default: 0(unlimited)\n"
-        << "  --query-interval-ms N            per query thread start interval, default: 0(unlimited)\n"
-        << "  --page-size N                    default: 100\n"
-        << "  --query-window-seconds N         default: 3600\n"
-        << "\n"
-        << "Concurrency options:\n"
-        << "  --worker-concurrency N           used by worker/mixed mode\n"
-        << "  --query-concurrency N            used by query/mixed mode\n"
-        << "  --max-worker-concurrency N       auto search cap, default: 256\n"
-        << "  --max-query-concurrency N        auto search cap, default: 256\n"
-        << "\n"
-        << "Pass criteria:\n"
-        << "  --min-success-rate FLOAT         default: 0.99\n"
-        << "  --max-p95-ms FLOAT               default: 2000, 0 disables p95 limit\n";
+    std::cout << "Usage: " << program << " [options]\n"
+              << "\n"
+              << "Modes:\n"
+              << "  --mode auto|worker|query|mixed   default: auto\n"
+              << "\n"
+              << "Connection and request options:\n"
+              << "  --manager ADDRESS                default: localhost:50051\n"
+              << "  --query-kind latest|rank|performance   default: latest\n"
+              << "  --query-server NAME              default: stress-worker-0001\n"
+              << "  --duration-seconds N             default: 10\n"
+              << "  --warmup-seconds N               default: 1\n"
+              << "  --request-timeout-ms N           default: 3000\n"
+              << "  --worker-interval-ms N           per worker start interval, default: 0(unlimited)\n"
+              << "  --query-interval-ms N            per query thread start interval, default: 0(unlimited)\n"
+              << "  --page-size N                    default: 100\n"
+              << "  --query-window-seconds N         default: 3600\n"
+              << "\n"
+              << "Concurrency options:\n"
+              << "  --worker-concurrency N           used by worker/mixed mode\n"
+              << "  --query-concurrency N            used by query/mixed mode\n"
+              << "  --max-worker-concurrency N       auto search cap, default: 256\n"
+              << "  --max-query-concurrency N        auto search cap, default: 256\n"
+              << "\n"
+              << "Pass criteria:\n"
+              << "  --min-success-rate FLOAT         default: 0.99\n"
+              << "  --max-p95-ms FLOAT               default: 2000, 0 disables p95 limit\n";
 }
 
 bool parseArgs(int argc, char **argv, Options *options) {
@@ -611,69 +570,42 @@ bool parseArgs(int argc, char **argv, Options *options) {
         } else if (key == "--query-server") {
             if (!requireValue(&options->query_server)) return false;
         } else if (key == "--worker-concurrency") {
-            if (!requireValue(&value) ||
-                !parsePositiveInt(value, &options->worker_concurrency))
-                return false;
+            if (!requireValue(&value) || !parsePositiveInt(value, &options->worker_concurrency)) return false;
         } else if (key == "--query-concurrency") {
-            if (!requireValue(&value) ||
-                !parsePositiveInt(value, &options->query_concurrency))
-                return false;
+            if (!requireValue(&value) || !parsePositiveInt(value, &options->query_concurrency)) return false;
         } else if (key == "--max-worker-concurrency") {
-            if (!requireValue(&value) ||
-                !parsePositiveInt(value, &options->max_worker_concurrency))
-                return false;
+            if (!requireValue(&value) || !parsePositiveInt(value, &options->max_worker_concurrency)) return false;
         } else if (key == "--max-query-concurrency") {
-            if (!requireValue(&value) ||
-                !parsePositiveInt(value, &options->max_query_concurrency))
-                return false;
+            if (!requireValue(&value) || !parsePositiveInt(value, &options->max_query_concurrency)) return false;
         } else if (key == "--duration-seconds") {
-            if (!requireValue(&value) ||
-                !parsePositiveInt(value, &options->duration_seconds))
-                return false;
+            if (!requireValue(&value) || !parsePositiveInt(value, &options->duration_seconds)) return false;
         } else if (key == "--warmup-seconds") {
-            if (!requireValue(&value) ||
-                !parseNonNegativeInt(value, &options->warmup_seconds))
-                return false;
+            if (!requireValue(&value) || !parseNonNegativeInt(value, &options->warmup_seconds)) return false;
         } else if (key == "--request-timeout-ms") {
-            if (!requireValue(&value) ||
-                !parsePositiveInt(value, &options->request_timeout_ms))
-                return false;
+            if (!requireValue(&value) || !parsePositiveInt(value, &options->request_timeout_ms)) return false;
         } else if (key == "--worker-interval-ms") {
-            if (!requireValue(&value) ||
-                !parseNonNegativeInt(value, &options->worker_interval_ms))
-                return false;
+            if (!requireValue(&value) || !parseNonNegativeInt(value, &options->worker_interval_ms)) return false;
         } else if (key == "--query-interval-ms") {
-            if (!requireValue(&value) ||
-                !parseNonNegativeInt(value, &options->query_interval_ms))
-                return false;
+            if (!requireValue(&value) || !parseNonNegativeInt(value, &options->query_interval_ms)) return false;
         } else if (key == "--page-size") {
-            if (!requireValue(&value) || !parsePositiveInt(value, &options->page_size))
-                return false;
+            if (!requireValue(&value) || !parsePositiveInt(value, &options->page_size)) return false;
         } else if (key == "--query-window-seconds") {
-            if (!requireValue(&value) ||
-                !parsePositiveInt(value, &options->query_window_seconds))
-                return false;
+            if (!requireValue(&value) || !parsePositiveInt(value, &options->query_window_seconds)) return false;
         } else if (key == "--min-success-rate") {
-            if (!requireValue(&value) ||
-                !parseNonNegativeDouble(value, &options->min_success_rate))
-                return false;
+            if (!requireValue(&value) || !parseNonNegativeDouble(value, &options->min_success_rate)) return false;
         } else if (key == "--max-p95-ms") {
-            if (!requireValue(&value) ||
-                !parseNonNegativeDouble(value, &options->max_p95_ms))
-                return false;
+            if (!requireValue(&value) || !parseNonNegativeDouble(value, &options->max_p95_ms)) return false;
         } else {
             std::cerr << "Unknown option: " << key << std::endl;
             return false;
         }
     }
 
-    if (options->mode != "auto" && options->mode != "worker" &&
-        options->mode != "query" && options->mode != "mixed") {
+    if (options->mode != "auto" && options->mode != "worker" && options->mode != "query" && options->mode != "mixed") {
         std::cerr << "Invalid --mode: " << options->mode << std::endl;
         return false;
     }
-    if (options->query_kind != "latest" && options->query_kind != "rank" &&
-        options->query_kind != "performance") {
+    if (options->query_kind != "latest" && options->query_kind != "rank" && options->query_kind != "performance") {
         std::cerr << "Invalid --query-kind: " << options->query_kind << std::endl;
         return false;
     }
@@ -692,12 +624,10 @@ void printConfig(const Options &options) {
               << "  duration=" << options.duration_seconds << "s"
               << " warmup=" << options.warmup_seconds << "s"
               << " timeout=" << options.request_timeout_ms << "ms\n"
-              << "  intervals: worker=" << options.worker_interval_ms
-              << "ms query=" << options.query_interval_ms << "ms\n"
-              << "  pass: success_rate>=" << options.min_success_rate
-              << " p95<="
-              << (options.max_p95_ms <= 0.0 ? std::string("disabled")
-                                            : std::to_string(options.max_p95_ms) + "ms")
+              << "  intervals: worker=" << options.worker_interval_ms << "ms query=" << options.query_interval_ms
+              << "ms\n"
+              << "  pass: success_rate>=" << options.min_success_rate << " p95<="
+              << (options.max_p95_ms <= 0.0 ? std::string("disabled") : std::to_string(options.max_p95_ms) + "ms")
               << std::endl;
 }
 
@@ -719,10 +649,7 @@ int main(int argc, char **argv) {
         return runAndPrint(options, 0, options.query_concurrency) ? 0 : 1;
     }
     if (options.mode == "mixed") {
-        return runAndPrint(options, options.worker_concurrency,
-                           options.query_concurrency)
-                   ? 0
-                   : 1;
+        return runAndPrint(options, options.worker_concurrency, options.query_concurrency) ? 0 : 1;
     }
 
     std::cout << "\n=== worker-only max concurrency ===" << std::endl;
@@ -739,11 +666,7 @@ int main(int argc, char **argv) {
               << "  query_only_max_concurrency=" << query_max << "\n"
               << "  mixed_max_worker_concurrency=" << mixed_max.first << "\n"
               << "  mixed_max_query_concurrency=" << mixed_max.second << "\n"
-              << "  mixed_max_total_concurrency="
-              << (mixed_max.first + mixed_max.second) << std::endl;
+              << "  mixed_max_total_concurrency=" << (mixed_max.first + mixed_max.second) << std::endl;
 
-    return worker_max > 0 && query_max > 0 &&
-                   mixed_max.first > 0 && mixed_max.second > 0
-               ? 0
-               : 1;
+    return worker_max > 0 && query_max > 0 && mixed_max.first > 0 && mixed_max.second > 0 ? 0 : 1;
 }

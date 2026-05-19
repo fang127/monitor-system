@@ -25,6 +25,10 @@
 #endif
 
 namespace monitor {
+/**
+ * @brief         构造指标采集器并初始化所有子监控器
+ *
+ */
 MetricCollector::MetricCollector() {
     // 获取主机名
     char hostname[256];
@@ -50,10 +54,19 @@ MetricCollector::MetricCollector() {
     monitors_.push_back(std::make_unique<HostInfoMonitor>());
 }
 
+/**
+ * @brief         析构指标采集器并停止所有子监控器
+ *
+ */
 MetricCollector::~MetricCollector() {
     for (auto &monitor : monitors_) monitor->stop();
 }
 
+/**
+ * @brief         调用所有子监控器采集指标并填充 MonitorInfo
+ *
+ * @param         monitorInfo 监控数据输出对象
+ */
 void MetricCollector::collectAll(monitor::proto::MonitorInfo *monitorInfo) {
     if (!monitorInfo) return;
 

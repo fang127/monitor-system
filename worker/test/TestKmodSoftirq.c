@@ -1,6 +1,5 @@
 /**
- * @brief         TestKmodSoftirq.c - Test program for SoftirqCollector kernel
- * module
+ * @brief         SoftirqCollector 内核模块测试程序
  * @file          TestKmodSoftirq.c
  * @author        harry
  * @date          2026-02-14
@@ -17,7 +16,7 @@
 #define MAX_CPUS    256
 
 /**
- * @brief         softirq_stat
+ * @brief         软中断统计结构体，必须与内核模块中的定义保持一致
  *
  */
 struct softirq_stat

@@ -41,21 +41,18 @@ float nextFloat(std::mt19937 &rng, float min, float max) {
     return dist(rng);
 }
 
-void fillCpuStat(monitor::proto::MonitorInfo *info, std::mt19937 &rng,
-                 int worker_id, int round) {
+void fillCpuStat(monitor::proto::MonitorInfo *info, std::mt19937 &rng, int worker_id, int round) {
     auto add_cpu = [&](const std::string &name, float base) {
         auto *cpu = info->add_cpu_stat();
         // CPU 使用率在 1% 到 98% 之间，受 worker_id 和 round
         // 的影响，并有一定随机波动
-        const float cpu_percent =
-            std::min(98.0f, std::max(1.0f, base + nextFloat(rng, -5.0f, 5.0f)));
+        const float cpu_percent = std::min(98.0f, std::max(1.0f, base + nextFloat(rng, -5.0f, 5.0f)));
         const float usr = cpu_percent * nextFloat(rng, 0.45f, 0.60f);
         const float system = cpu_percent * nextFloat(rng, 0.20f, 0.35f);
         const float nice = cpu_percent * nextFloat(rng, 0.00f, 0.03f);
         const float irq = cpu_percent * nextFloat(rng, 0.00f, 0.02f);
         const float soft_irq = cpu_percent * nextFloat(rng, 0.01f, 0.04f);
-        const float io_wait =
-            std::max(0.0f, cpu_percent - usr - system - nice - irq - soft_irq);
+        const float io_wait = std::max(0.0f, cpu_percent - usr - system - nice - irq - soft_irq);
 
         cpu->set_cpu_name(name);
         cpu->set_cpu_percent(cpu_percent);
@@ -73,12 +70,10 @@ void fillCpuStat(monitor::proto::MonitorInfo *info, std::mt19937 &rng,
     const float base = 18.0f + worker_id * 8.0f + (round % 4) * 3.0f;
     add_cpu("cpu", base);
     // 假设每个 worker 有 4 个 CPU 核心，核心的使用率在 base 的基础上有一定差异
-    for (int core = 0; core < 4; ++core)
-        add_cpu("cpu" + std::to_string(core), base + core * 1.5f);
+    for (int core = 0; core < 4; ++core) add_cpu("cpu" + std::to_string(core), base + core * 1.5f);
 }
 
-void fillCpuLoad(monitor::proto::MonitorInfo *info, std::mt19937 &rng,
-                 int worker_id, int round) {
+void fillCpuLoad(monitor::proto::MonitorInfo *info, std::mt19937 &rng, int worker_id, int round) {
     auto *load = info->mutable_cpu_load();
     const float base = 0.4f + worker_id * 0.25f + (round % 3) * 0.15f;
     load->set_load_avg_1(base + nextFloat(rng, 0.0f, 0.25f));
@@ -86,15 +81,12 @@ void fillCpuLoad(monitor::proto::MonitorInfo *info, std::mt19937 &rng,
     load->set_load_avg_15(base + nextFloat(rng, 0.0f, 0.15f));
 }
 
-void fillMemory(monitor::proto::MonitorInfo *info, std::mt19937 &rng,
-                int worker_id, int round) {
+void fillMemory(monitor::proto::MonitorInfo *info, std::mt19937 &rng, int worker_id, int round) {
     auto *mem = info->mutable_mem_info();
     // 总内存固定为 32GB，使用率根据 worker_id 和 round 生成一个在 25% 到 92%
     // 之间的值，并有一定随机波动
     const float total = 32768.0f;
-    const float used_percent =
-        std::min(92.0f, 25.0f + worker_id * 8.0f + round * 1.2f +
-                            nextFloat(rng, -2.0f, 2.0f));
+    const float used_percent = std::min(92.0f, 25.0f + worker_id * 8.0f + round * 1.2f + nextFloat(rng, -2.0f, 2.0f));
     const float used = total * used_percent / 100.0f;
     const float free = total - used;
     const float cached = total * nextFloat(rng, 0.12f, 0.20f);
@@ -122,20 +114,15 @@ void fillMemory(monitor::proto::MonitorInfo *info, std::mt19937 &rng,
     mem->set_used_percent(used_percent);
 }
 
-void fillNet(monitor::proto::MonitorInfo *info, std::mt19937 &rng,
-             int worker_id, int round) {
+void fillNet(monitor::proto::MonitorInfo *info, std::mt19937 &rng, int worker_id, int round) {
     auto *net = info->add_net_info();
     // 假设每个 worker 有一个名为 eth0 的网卡，发送速率和接收速率根据 worker_id
     // 和 round 生成一个在 600Mbps 到 1200Mbps 之间的值，并有一定随机波动
     net->set_name("eth0");
-    net->set_send_rate(600.0f + worker_id * 95.0f + round * 20.0f +
-                       nextFloat(rng, 0.0f, 80.0f));
-    net->set_rcv_rate(900.0f + worker_id * 130.0f + round * 35.0f +
-                      nextFloat(rng, 0.0f, 120.0f));
-    net->set_send_packets_rate(500.0f + worker_id * 20.0f +
-                               nextFloat(rng, 0.0f, 50.0f));
-    net->set_rcv_packets_rate(700.0f + worker_id * 30.0f +
-                              nextFloat(rng, 0.0f, 70.0f));
+    net->set_send_rate(600.0f + worker_id * 95.0f + round * 20.0f + nextFloat(rng, 0.0f, 80.0f));
+    net->set_rcv_rate(900.0f + worker_id * 130.0f + round * 35.0f + nextFloat(rng, 0.0f, 120.0f));
+    net->set_send_packets_rate(500.0f + worker_id * 20.0f + nextFloat(rng, 0.0f, 50.0f));
+    net->set_rcv_packets_rate(700.0f + worker_id * 30.0f + nextFloat(rng, 0.0f, 70.0f));
     // 每隔几轮模拟一次错误和丢包，worker_id 5 的发送偶尔出错，worker_id 4
     // 的接收偶尔丢包
     net->set_err_in(worker_id == 5 && round % 4 == 0 ? 1 : 0);
@@ -144,8 +131,7 @@ void fillNet(monitor::proto::MonitorInfo *info, std::mt19937 &rng,
     net->set_drop_out(0);
 }
 
-void fillDisk(monitor::proto::MonitorInfo *info, std::mt19937 &rng,
-              int worker_id, int round) {
+void fillDisk(monitor::proto::MonitorInfo *info, std::mt19937 &rng, int worker_id, int round) {
     auto *disk = info->add_disk_info();
     disk->set_name("sda");
     disk->set_reads(100000 + worker_id * 1000 + round * 80);
@@ -157,18 +143,13 @@ void fillDisk(monitor::proto::MonitorInfo *info, std::mt19937 &rng,
     disk->set_io_in_progress(static_cast<uint64_t>(round % 3));
     disk->set_io_time_ms(30000 + worker_id * 300 + round * 20);
     disk->set_weighted_io_time_ms(45000 + worker_id * 500 + round * 40);
-    disk->set_read_bytes_per_sec(2.0 * 1024 * 1024 + worker_id * 128 * 1024 +
-                                 nextFloat(rng, 0.0f, 256.0f * 1024));
-    disk->set_write_bytes_per_sec(1.5 * 1024 * 1024 + worker_id * 96 * 1024 +
-                                  nextFloat(rng, 0.0f, 200.0f * 1024));
+    disk->set_read_bytes_per_sec(2.0 * 1024 * 1024 + worker_id * 128 * 1024 + nextFloat(rng, 0.0f, 256.0f * 1024));
+    disk->set_write_bytes_per_sec(1.5 * 1024 * 1024 + worker_id * 96 * 1024 + nextFloat(rng, 0.0f, 200.0f * 1024));
     disk->set_read_iops(100.0 + worker_id * 8.0 + nextFloat(rng, 0.0f, 20.0f));
     disk->set_write_iops(80.0 + worker_id * 7.0 + nextFloat(rng, 0.0f, 15.0f));
-    disk->set_avg_read_latency_ms(1.0 + worker_id * 0.2 +
-                                  nextFloat(rng, 0.0f, 0.8f));
-    disk->set_avg_write_latency_ms(1.4 + worker_id * 0.25 +
-                                   nextFloat(rng, 0.0f, 1.0f));
-    disk->set_util_percent(std::min(95.0, 10.0 + worker_id * 7.0 + round * 1.5 +
-                                              nextFloat(rng, 0.0f, 6.0f)));
+    disk->set_avg_read_latency_ms(1.0 + worker_id * 0.2 + nextFloat(rng, 0.0f, 0.8f));
+    disk->set_avg_write_latency_ms(1.4 + worker_id * 0.25 + nextFloat(rng, 0.0f, 1.0f));
+    disk->set_util_percent(std::min(95.0, 10.0 + worker_id * 7.0 + round * 1.5 + nextFloat(rng, 0.0f, 6.0f)));
 }
 
 void fillSoftIrq(monitor::proto::MonitorInfo *info, std::mt19937 &rng) {
@@ -211,28 +192,25 @@ monitor::proto::MonitorInfo makeMonitorInfo(int worker_id, int round) {
 }
 
 // 执行一次 push，返回是否成功
-bool pushOnce(monitor::proto::GrpcManager::Stub *stub, int worker_id,
-              int round) {
+bool pushOnce(monitor::proto::GrpcManager::Stub *stub, int worker_id, int round) {
     grpc::ClientContext context;
     google::protobuf::Empty response;
     monitor::proto::MonitorInfo info = makeMonitorInfo(worker_id, round);
     grpc::Status status = stub->SetMonitorInfo(&context, info, &response);
 
     if (!status.ok()) {
-        std::cerr << "[" << workerName(worker_id) << "] round " << round
-                  << " push failed: " << status.error_message() << std::endl;
+        std::cerr << "[" << workerName(worker_id) << "] round " << round << " push failed: " << status.error_message()
+                  << std::endl;
         return false;
     }
 
-    std::cout << "[" << workerName(worker_id) << "] round " << round
-              << " pushed as " << info.host_info().ip_address() << std::endl;
+    std::cout << "[" << workerName(worker_id) << "] round " << round << " pushed as " << info.host_info().ip_address()
+              << std::endl;
     return true;
 }
 
-void runWorker(const WorkerConfig &config, std::atomic<int> *success_count,
-               std::atomic<int> *failure_count) {
-    auto channel = grpc::CreateChannel(config.manager_address,
-                                       grpc::InsecureChannelCredentials());
+void runWorker(const WorkerConfig &config, std::atomic<int> *success_count, std::atomic<int> *failure_count) {
+    auto channel = grpc::CreateChannel(config.manager_address, grpc::InsecureChannelCredentials());
     auto stub = monitor::proto::GrpcManager::NewStub(channel);
 
     for (int round = 1; config.rounds == 0 || round <= config.rounds; ++round) {
@@ -242,12 +220,11 @@ void runWorker(const WorkerConfig &config, std::atomic<int> *success_count,
             ++(*failure_count);
 
         if (config.rounds != 0 && round == config.rounds) break;
-        std::this_thread::sleep_for(
-            std::chrono::seconds(config.interval_seconds));
+        std::this_thread::sleep_for(std::chrono::seconds(config.interval_seconds));
     }
 }
 
-// 解析一个正整数，失败时返回 fallback
+// 解析一个正整数，失败时返回回退默认值
 int parsePositiveInt(const char *value, int fallback) {
     char *end = nullptr;
     long parsed = std::strtol(value, &end, 10);
@@ -255,7 +232,7 @@ int parsePositiveInt(const char *value, int fallback) {
     return static_cast<int>(parsed);
 }
 
-// 解析一个非负整数，失败时返回 fallback
+// 解析一个非负整数，失败时返回回退默认值
 int parseNonNegativeInt(const char *value, int fallback) {
     char *end = nullptr;
     long parsed = std::strtol(value, &end, 10);
@@ -264,11 +241,9 @@ int parseNonNegativeInt(const char *value, int fallback) {
 }
 
 void printUsage(const char *program) {
-    std::cout
-        << "Usage: " << program
-        << " [manager_address] [worker_count] [interval_seconds] [rounds]\n"
-        << "Defaults: localhost:50051 5 2 5\n"
-        << "Set rounds to 0 to push forever.\n";
+    std::cout << "Usage: " << program << " [manager_address] [worker_count] [interval_seconds] [rounds]\n"
+              << "Defaults: localhost:50051 5 2 5\n"
+              << "Set rounds to 0 to push forever.\n";
 }
 
 } // namespace
@@ -288,9 +263,7 @@ int main(int argc, char *argv[]) {
               << "  manager: " << manager_address << "\n"
               << "  workers: " << worker_count << "\n"
               << "  interval: " << interval_seconds << "s\n"
-              << "  rounds: "
-              << (rounds == 0 ? std::string("forever") : std::to_string(rounds))
-              << std::endl;
+              << "  rounds: " << (rounds == 0 ? std::string("forever") : std::to_string(rounds)) << std::endl;
 
     std::atomic<int> success_count{0};
     std::atomic<int> failure_count{0};
@@ -304,7 +277,7 @@ int main(int argc, char *argv[]) {
 
     for (auto &worker : workers) worker.join();
 
-    std::cout << "Finished simulated push: success=" << success_count.load()
-              << ", failure=" << failure_count.load() << std::endl;
+    std::cout << "Finished simulated push: success=" << success_count.load() << ", failure=" << failure_count.load()
+              << std::endl;
     return failure_count.load() == 0 ? 0 : 1;
 }

@@ -16,7 +16,7 @@
 
 #include "monitor_info.pb.h"
 
-// 包含生成的 skeleton 头文件
+// 包含生成的骨架头文件
 #include "net_stats.skel.h"
 
 // 共享数据结构
@@ -31,7 +31,11 @@ struct net_stats {
 
 namespace monitor {
 
-// 获取系统所有网卡的 ifindex
+/**
+ * @brief         获取系统所有网卡的 ifindex
+ *
+ * @return        网卡 ifindex 列表
+ */
 static std::vector<uint32_t> GetAllIfIndexes() {
     std::vector<uint32_t> indexes;
     DIR *dir = opendir("/sys/class/net");
@@ -48,38 +52,50 @@ static std::vector<uint32_t> GetAllIfIndexes() {
     return indexes;
 }
 
-// TC qdisc 操作辅助函数
+/**
+ * @brief         为指定网卡创建 clsact qdisc
+ *
+ * @param         ifindex 网卡索引
+ * @return        命令执行状态码
+ */
 static int TCQdiscCreateClsact(int ifindex) {
     // 使用 system 调用 tc 命令创建 clsact qdisc
     // 这是最简单可靠的方式
     char cmd[256];
-    snprintf(
-        cmd, sizeof(cmd),
-        "tc qdisc add dev $(cat /sys/class/net/*/ifindex | "
-        "while read idx; do [ \"$idx\" = \"%d\" ] && "
-        "basename $(dirname $(grep -l $idx /sys/class/net/*/ifindex)); done) "
-        "clsact 2>/dev/null || true",
-        ifindex);
+    snprintf(cmd, sizeof(cmd),
+             "tc qdisc add dev $(cat /sys/class/net/*/ifindex | "
+             "while read idx; do [ \"$idx\" = \"%d\" ] && "
+             "basename $(dirname $(grep -l $idx /sys/class/net/*/ifindex)); done) "
+             "clsact 2>/dev/null || true",
+             ifindex);
 
     // 更简单的方式：通过 ifindex 获取设备名
     char ifname[IF_NAMESIZE];
     if (if_indextoname(ifindex, ifname) == nullptr) return -1;
 
-    snprintf(cmd, sizeof(cmd), "tc qdisc add dev %s clsact 2>/dev/null",
-             ifname);
+    snprintf(cmd, sizeof(cmd), "tc qdisc add dev %s clsact 2>/dev/null", ifname);
     return system(cmd);
 }
 
+/**
+ * @brief         删除指定网卡的 clsact qdisc
+ *
+ * @param         ifindex 网卡索引
+ * @return        命令执行状态码
+ */
 static int TCQdiscDeleteClsact(int ifindex) {
     char ifname[IF_NAMESIZE];
     if (if_indextoname(ifindex, ifname) == nullptr) return -1;
 
     char cmd[256];
-    snprintf(cmd, sizeof(cmd), "tc qdisc del dev %s clsact 2>/dev/null",
-             ifname);
+    snprintf(cmd, sizeof(cmd), "tc qdisc del dev %s clsact 2>/dev/null", ifname);
     return system(cmd);
 }
 
+/**
+ * @brief         构造 eBPF 网络监控器并尝试加载 eBPF 程序
+ *
+ */
 NetEbpfMonitor::NetEbpfMonitor() {
     lastUpdate_ = std::chrono::steady_clock::now();
     loaded_ = initEbpf();
@@ -89,8 +105,17 @@ NetEbpfMonitor::NetEbpfMonitor() {
     }
 }
 
+/**
+ * @brief         析构 eBPF 网络监控器并清理 eBPF 资源
+ *
+ */
 NetEbpfMonitor::~NetEbpfMonitor() { cleanupEbpf(); }
 
+/**
+ * @brief         初始化 eBPF 程序、map 和 TC hook
+ *
+ * @return        初始化成功返回 true，否则返回 false
+ */
 bool NetEbpfMonitor::initEbpf() {
     struct net_stats_bpf *skel = nullptr;
     int err;
@@ -104,13 +129,12 @@ bool NetEbpfMonitor::initEbpf() {
 
     err = net_stats_bpf__load(skel);
     if (err) {
-        std::cerr << "Failed to load BPF program: " << strerror(-err)
-                  << std::endl;
+        std::cerr << "Failed to load BPF program: " << strerror(-err) << std::endl;
         net_stats_bpf__destroy(skel);
         return false;
     }
 
-    // 获取 map fd
+    // 获取 map 文件描述符
     mapFd_ = bpf_map__fd(skel->maps.net_stats_map);
     if (mapFd_ < 0) {
         std::cerr << "Failed to get map fd" << std::endl;
@@ -127,21 +151,19 @@ bool NetEbpfMonitor::initEbpf() {
         char ifname[IF_NAMESIZE];
         if (if_indextoname(ifindex, ifname) == nullptr) continue;
 
-        // 跳过 loopback
+        // 跳过回环网卡
         if (strcmp(ifname, "lo") == 0) continue;
 
         // 创建 clsact qdisc
         TCQdiscCreateClsact(ifindex);
 
-        // 使用 libbpf 的 TC attach API
-        LIBBPF_OPTS(bpf_tc_hook, hook, .ifindex = static_cast<int>(ifindex),
-                    .attach_point = BPF_TC_INGRESS, );
+        // 使用 libbpf 的 TC 挂载 API
+        LIBBPF_OPTS(bpf_tc_hook, hook, .ifindex = static_cast<int>(ifindex), .attach_point = BPF_TC_INGRESS, );
 
         // 创建 hook
         err = bpf_tc_hook_create(&hook);
         if (err && err != -EEXIST) {
-            std::cerr << "Failed to create TC hook for " << ifname << ": "
-                      << strerror(-err) << std::endl;
+            std::cerr << "Failed to create TC hook for " << ifname << ": " << strerror(-err) << std::endl;
             continue;
         }
 
@@ -149,8 +171,7 @@ bool NetEbpfMonitor::initEbpf() {
         LIBBPF_OPTS(bpf_tc_opts, opts_in, .prog_fd = ingress_fd, );
         err = bpf_tc_attach(&hook, &opts_in);
         if (err) {
-            std::cerr << "Failed to attach TC ingress for " << ifname << ": "
-                      << strerror(-err) << std::endl;
+            std::cerr << "Failed to attach TC ingress for " << ifname << ": " << strerror(-err) << std::endl;
         } else {
             attachedIfindexes_.push_back(ifindex);
             std::cout << "Attached TC ingress to " << ifname << std::endl;
@@ -161,14 +182,13 @@ bool NetEbpfMonitor::initEbpf() {
         LIBBPF_OPTS(bpf_tc_opts, opts_eg, .prog_fd = egress_fd, );
         err = bpf_tc_attach(&hook, &opts_eg);
         if (err) {
-            std::cerr << "Failed to attach TC egress for " << ifname << ": "
-                      << strerror(-err) << std::endl;
+            std::cerr << "Failed to attach TC egress for " << ifname << ": " << strerror(-err) << std::endl;
         } else {
             std::cout << "Attached TC egress to " << ifname << std::endl;
         }
     }
 
-    // 保存 skeleton 指针
+    // 保存骨架对象指针
     bpfObj_ = reinterpret_cast<struct bpf_object *>(skel);
 
     if (attachedIfindexes_.empty()) {
@@ -178,16 +198,18 @@ bool NetEbpfMonitor::initEbpf() {
         return false;
     }
 
-    std::cout << "NetEbpfMonitor: eBPF TC hook loaded successfully"
-              << std::endl;
+    std::cout << "NetEbpfMonitor: eBPF TC hook loaded successfully" << std::endl;
     return true;
 }
 
+/**
+ * @brief         分离 TC hook 并释放 eBPF 资源
+ *
+ */
 void NetEbpfMonitor::cleanupEbpf() {
     // 分离 TC hook
     for (uint32_t ifindex : attachedIfindexes_) {
-        LIBBPF_OPTS(bpf_tc_hook, hook, .ifindex = static_cast<int>(ifindex),
-                    .attach_point = BPF_TC_INGRESS, );
+        LIBBPF_OPTS(bpf_tc_hook, hook, .ifindex = static_cast<int>(ifindex), .attach_point = BPF_TC_INGRESS, );
 
         LIBBPF_OPTS(bpf_tc_opts, opts);
         bpf_tc_detach(&hook, &opts);
@@ -201,14 +223,19 @@ void NetEbpfMonitor::cleanupEbpf() {
     attachedIfindexes_.clear();
 
     if (bpfObj_) {
-        net_stats_bpf__destroy(
-            reinterpret_cast<struct net_stats_bpf *>(bpfObj_));
+        net_stats_bpf__destroy(reinterpret_cast<struct net_stats_bpf *>(bpfObj_));
         bpfObj_ = nullptr;
     }
     mapFd_ = -1;
     loaded_ = false;
 }
 
+/**
+ * @brief         根据 ifindex 获取网卡名，优先使用缓存
+ *
+ * @param         ifindex 网卡索引
+ * @return        网卡名称，失败时返回空字符串
+ */
 std::string NetEbpfMonitor::getIfName(uint32_t ifindex) {
     // 先查缓存
     auto it = ifnameCache_.find(ifindex);
@@ -225,13 +252,16 @@ std::string NetEbpfMonitor::getIfName(uint32_t ifindex) {
     return "";
 }
 
+/**
+ * @brief         从 eBPF map 采集一次网络指标并写入 MonitorInfo
+ *
+ * @param         monitor_info 监控数据输出对象
+ */
 void NetEbpfMonitor::updateOnce(monitor::proto::MonitorInfo *monitor_info) {
     if (!monitor_info || !loaded_ || mapFd_ < 0) return;
 
     auto now = std::chrono::steady_clock::now();
-    auto duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(now - lastUpdate_)
-            .count();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastUpdate_).count();
 
     // 避免除零
     if (duration == 0) duration = 1;
@@ -244,7 +274,7 @@ void NetEbpfMonitor::updateOnce(monitor::proto::MonitorInfo *monitor_info) {
         if (bpf_map_lookup_elem(mapFd_, &next_key, &stats) == 0) {
             std::string ifname = getIfName(next_key);
             if (ifname.empty() || ifname == "lo") {
-                // 跳过未知网卡和 loopback
+                // 跳过未知网卡和回环网卡
                 key = next_key;
                 continue;
             }
@@ -256,13 +286,10 @@ void NetEbpfMonitor::updateOnce(monitor::proto::MonitorInfo *monitor_info) {
             auto cache_it = cache_.find(next_key);
             if (cache_it != cache_.end()) {
                 const auto &old = cache_it->second;
-                auto old_duration =
-                    std::chrono::duration_cast<std::chrono::milliseconds>(
-                        now - old.timestamp)
-                        .count();
+                auto old_duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - old.timestamp).count();
 
                 if (old_duration > 0) {
-                    // 计算速率 (bytes/sec)
+                    // 计算速率，单位 bytes/sec
                     int64_t rcv_diff = stats.rcv_bytes - old.rcv_bytes;
                     int64_t snd_diff = stats.snd_bytes - old.snd_bytes;
                     int64_t rcv_pkt_diff = stats.rcv_packets - old.rcv_packets;
@@ -277,10 +304,8 @@ void NetEbpfMonitor::updateOnce(monitor::proto::MonitorInfo *monitor_info) {
                     // 转换为每秒速率
                     net_info->set_rcv_rate(rcv_diff * 1000 / old_duration);
                     net_info->set_send_rate(snd_diff * 1000 / old_duration);
-                    net_info->set_rcv_packets_rate(rcv_pkt_diff * 1000 /
-                                                   old_duration);
-                    net_info->set_send_packets_rate(snd_pkt_diff * 1000 /
-                                                    old_duration);
+                    net_info->set_rcv_packets_rate(rcv_pkt_diff * 1000 / old_duration);
+                    net_info->set_send_packets_rate(snd_pkt_diff * 1000 / old_duration);
                 }
             } else {
                 // 首次采集，速率为 0
@@ -291,8 +316,7 @@ void NetEbpfMonitor::updateOnce(monitor::proto::MonitorInfo *monitor_info) {
             }
 
             // 更新缓存
-            cache_[next_key] = {stats.rcv_bytes, stats.rcv_packets,
-                                stats.snd_bytes, stats.snd_packets, now};
+            cache_[next_key] = {stats.rcv_bytes, stats.rcv_packets, stats.snd_bytes, stats.snd_packets, now};
         }
         key = next_key;
     }
@@ -300,6 +324,10 @@ void NetEbpfMonitor::updateOnce(monitor::proto::MonitorInfo *monitor_info) {
     lastUpdate_ = now;
 }
 
+/**
+ * @brief         停止 eBPF 网络监控器并清理资源
+ *
+ */
 void NetEbpfMonitor::stop() { cleanupEbpf(); }
 
 } // namespace monitor

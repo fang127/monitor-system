@@ -6,7 +6,7 @@
 namespace monitor {
 
 /**
- * @brief         mysql 环境变量配置结构体
+ * @brief         MySQL 环境变量配置结构体
  *
  */
 struct MysqlConfig {
@@ -20,9 +20,9 @@ struct MysqlConfig {
 /**
  * @brief         从环境变量获取配置，如果环境变量不存在或为空，则使用默认值
  *
- * @param         name
- * @param         defaultValue
- * @return
+ * @param         name 环境变量名称
+ * @param         defaultValue 默认值
+ * @return        环境变量值或默认值
  */
 inline std::string getEnvOrDefault(const char *name, const char *defaultValue) {
     const char *value = std::getenv(name);
@@ -32,19 +32,17 @@ inline std::string getEnvOrDefault(const char *name, const char *defaultValue) {
 /**
  * @brief 从环境变量获取端口配置，如果环境变量不存在、为空或无效，则使用默认值
  *
- * @param         name
- * @param         defaultValue
- * @return
+ * @param         name 环境变量名称
+ * @param         defaultValue 默认端口
+ * @return        合法端口值或默认端口
  */
-inline unsigned int getEnvPortOrDefault(const char *name,
-                                        unsigned int defaultValue) {
+inline unsigned int getEnvPortOrDefault(const char *name, unsigned int defaultValue) {
     const char *value = std::getenv(name);
     if (!value || value[0] == '\0') return defaultValue;
 
     char *end = nullptr;
     unsigned long port = std::strtoul(value, &end, 10);
-    if (end == value || *end != '\0' || port == 0 || port > 65535)
-        return defaultValue;
+    if (end == value || *end != '\0' || port == 0 || port > 65535) return defaultValue;
 
     return static_cast<unsigned int>(port);
 }
@@ -52,7 +50,7 @@ inline unsigned int getEnvPortOrDefault(const char *name,
 /**
  * @brief         从环境变量加载 MySQL 配置，提供默认值以确保配置的完整性
  *
- * @return
+ * @return        MySQL 配置对象
  */
 inline MysqlConfig loadMysqlConfigFromEnv() {
     const char *password = std::getenv("MYSQL_PASSWORD");

@@ -11,13 +11,19 @@
 
 namespace monitor {
 
+/**
+ * @brief         根据 UID 从 /etc/passwd 查找用户名
+ *
+ * @param         uid 用户 ID
+ * @return        用户名，未找到时返回空字符串
+ */
 std::string UserMonitor::getUsernameByUid(uid_t uid) {
     std::ifstream file("/etc/passwd");
     if (!file.is_open()) return "";
 
     std::string line;
     while (std::getline(file, line)) {
-        // /etc/passwd 格式: username:password:uid:gid:gecos:home:shell
+        // /etc/passwd 格式：用户名:密码:UID:GID:GECOS:主目录:shell
         // 字段以冒号分隔
         std::istringstream iss(line);
         std::string username, password, uidStr;
@@ -44,10 +50,15 @@ std::string UserMonitor::getUsernameByUid(uid_t uid) {
     return "";
 }
 
+/**
+ * @brief         采集一次当前进程用户信息并写入 MonitorInfo
+ *
+ * @param         monitorInfo 监控数据输出对象
+ */
 void UserMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo) {
     if (!monitorInfo) return;
 
-    // 使用系统调用获取当前进程的实际用户ID
+    // 使用系统调用获取当前进程的实际用户 ID
     uid_t uid = getuid();
 
     // 根据 UID 查找用户名

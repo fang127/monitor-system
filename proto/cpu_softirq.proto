@@ -1,17 +1,17 @@
 syntax = "proto3";
 package monitor.proto;
 
-// SoftIrq represents the soft interrupt statistics for a CPU.
+// SoftIrq 表示单个 CPU 的软中断统计。
 message SoftIrq {
-    string cpu = 1; // CPU identifier, example: "cpu0"
-    float hi = 2; // High priority softirq time percentage
-    float timer = 3; // Timer softirq time percentage
-    float net_tx = 4; // Network transmit softirq time percentage
-    float net_rx = 5; // Network receive softirq time percentage
-    float block = 6; // Block I/O softirq time percentage
-    float irq_poll = 7; // IRQ polling softirq time percentage
-    float tasklet = 8; // Tasklet softirq time percentage
-    float sched = 9; // Scheduler softirq time percentage
-    float hrtimer = 10; // High-resolution timer softirq time percentage
-    float rcu = 11; // RCU softirq time percentage
+    string cpu = 1; // CPU 标识，例如 "cpu0"
+    float hi = 2; // 高优先级软中断时间占比
+    float timer = 3; // 定时器软中断时间占比
+    float net_tx = 4; // 网络发送软中断时间占比
+    float net_rx = 5; // 网络接收软中断时间占比
+    float block = 6; // 块设备 I/O 软中断时间占比
+    float irq_poll = 7; // 中断轮询软中断时间占比
+    float tasklet = 8; // tasklet 软中断时间占比
+    float sched = 9; // 调度软中断时间占比
+    float hrtimer = 10; // 高精度定时器软中断时间占比
+    float rcu = 11; // RCU 软中断时间占比
 }

@@ -23,14 +23,14 @@ public:
 /**
  * @brief         通用的查询调度函数，接受请求和响应对象，以及实际处理查询的成员函数指针，在调度器线程中执行查询逻辑
  *
- * @tparam        Request
- * @tparam        Response
- * @tparam        Method
- * @param         dispatcher
- * @param         request
- * @param         response
- * @param         method
- * @return
+ * @tparam        Request 请求类型
+ * @tparam        Response 响应类型
+ * @tparam        Method 查询处理函数类型
+ * @param         dispatcher 管理器调度器
+ * @param         request 查询请求
+ * @param         response 查询响应
+ * @param         method 实际查询处理函数
+ * @return        gRPC 调用状态
  */
 template <typename Request, typename Response, typename Method>
 grpc::Status dispatchQuery(ManagerDispatcher *dispatcher, const Request *request, Response *response, Method method) {
@@ -51,8 +51,8 @@ grpc::Status dispatchQuery(ManagerDispatcher *dispatcher, const Request *request
 /**
  * @brief         将查询错误转换为 gRPC 状态码，区分未初始化和其他内部错误
  *
- * @param         error
- * @return
+ * @param         error 错误信息
+ * @return        gRPC 错误状态
  */
 grpc::Status queryErrorStatus(const std::string &error) {
     if (error.find("not initialized") != std::string::npos ||
@@ -70,8 +70,8 @@ QueryServiceImpl::QueryServiceImpl(QueryManager *queryManager, ManagerDispatcher
 /**
  * @brief         将 Protobuf 定义的时间范围转换为内部使用的 TimeRange 结构，方便后续查询逻辑处理
  *
- * @param         range
- * @return
+ * @param         range protobuf 时间范围
+ * @return        内部时间范围
  */
 TimeRange QueryServiceImpl::convertTimeRange(const ::monitor::proto::TimeRange &range) {
     TimeRange timeRange;
@@ -80,6 +80,12 @@ TimeRange QueryServiceImpl::convertTimeRange(const ::monitor::proto::TimeRange &
     return timeRange;
 }
 
+/**
+ * @brief         设置 protobuf 时间戳
+ *
+ * @param         ts 待写入的 protobuf 时间戳
+ * @param         tp 系统时间点
+ */
 void QueryServiceImpl::setTimestamp(::google::protobuf::Timestamp *ts,
                                     const std::chrono::system_clock::time_point &tp) {
     auto seconds = std::chrono::duration_cast<std::chrono::seconds>(tp.time_since_epoch()).count();

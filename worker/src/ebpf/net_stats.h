@@ -6,11 +6,11 @@ extern "C" {
 #endif
 #include <stdint.h>
 
-#define NET_STATS_MAP_NAME "net_stats_map" // map name in ebpf
-#define MAX_NET_DEVICES    64              // max network devices
+#define NET_STATS_MAP_NAME "net_stats_map" // eBPF map 名称
+#define MAX_NET_DEVICES    64              // 最大网卡数量
 
 /**
- * @brief         net statistics, this is using for ebpf
+ * @brief         网络统计结构体，供 eBPF 程序和用户态共享
  *
  */
 struct net_stat {

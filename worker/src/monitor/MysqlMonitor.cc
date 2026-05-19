@@ -15,11 +15,11 @@ namespace monitor {
 namespace {
 
 /**
- * @brief         Get the Env object
+ * @brief         获取环境变量值，缺失时返回默认值
  *
- * @param         name
- * @param         fallback
- * @return
+ * @param         name 环境变量名称
+ * @param         fallback 回退默认值
+ * @return        环境变量值或默认值
  */
 std::string getEnv(const char *name, const std::string &fallback = "") {
     const char *value = std::getenv(name);
@@ -27,11 +27,10 @@ std::string getEnv(const char *name, const std::string &fallback = "") {
 }
 
 /**
- * @brief         Is the value truthy (e.g., "1", "true", "yes", "on")?
+ * @brief         判断字符串是否表示启用状态，例如 "1"、"true"、"yes"、"on"
  *
- * @param         value
- * @return
- * @return
+ * @param         value 待判断字符串
+ * @return        表示启用返回 true，否则返回 false
  */
 bool isTruthy(const std::string &value) {
     std::string normalized = value;
@@ -41,11 +40,11 @@ bool isTruthy(const std::string &value) {
 }
 
 /**
- * @brief         Parse a port number from a string, with a fallback default value.
+ * @brief         从字符串解析端口号，解析失败时返回默认值
  *
- * @param         value
- * @param         fallback
- * @return
+ * @param         value 端口字符串
+ * @param         fallback 回退默认端口
+ * @return        合法端口或默认端口
  */
 uint32_t parsePort(const std::string &value, uint32_t fallback) {
     if (value.empty()) return fallback;
@@ -58,11 +57,11 @@ uint32_t parsePort(const std::string &value, uint32_t fallback) {
 }
 
 /**
- * @brief         Parse a timeout value in seconds from a string, with a fallback default value.
+ * @brief         从字符串解析秒级超时时间，解析失败时返回默认值
  *
- * @param         value
- * @param         fallback
- * @return
+ * @param         value 超时时间字符串
+ * @param         fallback 回退默认超时时间
+ * @return        合法超时时间或默认值
  */
 unsigned int parseTimeout(const std::string &value, unsigned int fallback) {
     if (value.empty()) return fallback;
@@ -75,10 +74,10 @@ unsigned int parseTimeout(const std::string &value, unsigned int fallback) {
 }
 
 /**
- * @brief         Convert a string to uint64_t, returning 0 on failure or if the string is empty.
+ * @brief         将字符串转换为 uint64_t，失败或为空时返回 0
  *
- * @param         value
- * @return
+ * @param         value 待转换字符串
+ * @return        转换后的整数
  */
 uint64_t toUInt64(const std::string &value) {
     if (value.empty()) return 0;
@@ -90,10 +89,10 @@ uint64_t toUInt64(const std::string &value) {
 }
 
 /**
- * @brief         Convert a string to double, returning 0.0 on failure or if the string is empty.
+ * @brief         将字符串转换为 double，失败或为空时返回 0.0
  *
- * @param         value
- * @return
+ * @param         value 待转换字符串
+ * @return        转换后的浮点数
  */
 double toDouble(const std::string &value) {
     if (value.empty()) return 0.0;
@@ -105,11 +104,10 @@ double toDouble(const std::string &value) {
 }
 
 /**
- * @brief         Check if a string value represents an "on" state (e.g., "on", "1", "true", "yes").
+ * @brief         判断字符串是否表示开启状态，例如 "on"、"1"、"true"、"yes"
  *
- * @param         value
- * @return
- * @return
+ * @param         value 待判断字符串
+ * @return        表示开启返回 true，否则返回 false
  */
 bool isOn(const std::string &value) {
     std::string normalized = value;
@@ -119,11 +117,11 @@ bool isOn(const std::string &value) {
 }
 
 /**
- * @brief         Split a string by a delimiter into a vector of strings.
+ * @brief         按指定分隔符拆分字符串
  *
- * @param         value
- * @param         delimiter
- * @return
+ * @param         value 待拆分字符串
+ * @param         delimiter 分隔符
+ * @return        拆分后的字符串列表
  */
 std::vector<std::string> split(const std::string &value, char delimiter) {
     std::vector<std::string> parts;
@@ -136,9 +134,9 @@ std::vector<std::string> split(const std::string &value, char delimiter) {
 /**
  * @brief         查询MySQL服务器的变量或状态，返回一个键值对映射。查询结果必须包含两列，第一列作为键，第二列作为值。
  *
- * @param         conn
- * @param         sql
- * @return
+ * @param         conn MySQL 连接
+ * @param         sql 查询语句
+ * @return        查询结果键值映射
  */
 std::map<std::string, std::string> queryNameValue(MYSQL *conn, const std::string &sql) {
     std::map<std::string, std::string> values;
@@ -169,8 +167,8 @@ struct ReplicationStatus {
 /**
  * @brief         查询MySQL复制状态，支持SHOW REPLICA STATUS和SHOW SLAVE STATUS两种语法，适用于不同版本的MySQL服务器。
  *
- * @param         conn
- * @return
+ * @param         conn MySQL 连接
+ * @return        复制状态
  */
 ReplicationStatus queryReplicationStatus(MYSQL *conn) {
     auto parseResult = [](MYSQL_RES *result) {
@@ -220,9 +218,9 @@ ReplicationStatus queryReplicationStatus(MYSQL *conn) {
  * @brief
  * 根据MySQL服务器的变量信息和可选的角色提示，推断服务器的角色（primary或replica）。如果read_only或super_read_only变量为ON，则认为是replica，否则默认为primary。角色提示优先于变量信息，但如果提示为"unknown"或为空，则会根据变量进行推断。
  *
- * @param         variables
- * @param         roleHint
- * @return
+ * @param         variables MySQL 系统变量映射
+ * @param         roleHint 配置中的角色提示
+ * @return        推断出的实例角色
  */
 std::string inferRole(const std::map<std::string, std::string> &variables, const std::string &roleHint) {
     if (!roleHint.empty() && roleHint != "unknown") return roleHint;

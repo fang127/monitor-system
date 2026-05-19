@@ -56,10 +56,9 @@ public:
     /**
      * @brief 提交监控推送任务，根据分区键将任务分发到对应的分片队列中，保证同一分区的任务由同一线程处理，避免锁竞争
      *
-     * @param         partitionKey
-     * @param         task
-     * @return
-     * @return
+     * @param         partitionKey 分区键
+     * @param         task 待执行任务
+     * @return        入队成功返回 true，否则返回 false
      */
     bool submitMonitorTask(const std::string &partitionKey, std::function<void()> task);
 
@@ -67,19 +66,18 @@ public:
      * @brief
      * 提交监控推送任务的重载版本，不指定分区键，默认使用空字符串作为分区键，所有不指定分区键的任务将被分发到同一分片队列中处理
      *
-     * @param         task
-     * @return
-     * @return
+     * @param         task 待执行任务
+     * @return        入队成功返回 true，否则返回 false
      */
     bool submitMonitorTask(std::function<void()> task) { return submitMonitorTask(std::string(), std::move(task)); }
 
     /**
      * @brief         提交查询任务，将任务放入查询队列中，由查询工作线程处理，支持任务超时和结果返回
      *
-     * @tparam        Response
-     * @param         task
-     * @param         response
-     * @return
+     * @tparam        Response 查询响应类型
+     * @param         task 查询任务
+     * @param         response 查询响应输出对象
+     * @return        gRPC 调用状态
      */
     template <typename Response>
     grpc::Status submitQueryTask(std::function<grpc::Status(Response *)> task, Response *response) {
@@ -130,28 +128,28 @@ public:
     /**
      * @brief         获取当前队列长度，包括监控推送任务队列和查询任务队列，用于监控和调度决策
      *
-     * @return
+     * @return        总队列长度
      */
     std::size_t queueSize() const;
 
     /**
      * @brief         获取监控推送任务队列长度，返回所有分片队列的总长度，用于监控和调度决策
      *
-     * @return
+     * @return        监控推送任务队列总长度
      */
     std::size_t ingestQueueSize() const;
 
     /**
      * @brief         获取查询任务队列长度，返回查询队列的长度，用于监控和调度决策
      *
-     * @return
+     * @return        查询队列长度
      */
     std::size_t queryQueueSize() const;
 
     /**
      * @brief         获取当前查询工作线程数量，用于监控和调度决策
      *
-     * @return
+     * @return        查询工作线程数量
      */
     int workerCount() const;
 
@@ -169,19 +167,17 @@ private:
     /**
      * @brief 将监控推送任务放入对应分片的队列中，根据分区键计算分片索引，保证同一分区的任务由同一线程处理，避免锁竞争
      *
-     * @param         partitionKey
-     * @param         task
-     * @return
-     * @return
+     * @param         partitionKey 分区键
+     * @param         task 待入队任务
+     * @return        入队成功返回 true，否则返回 false
      */
     bool enqueueIngest(const std::string &partitionKey, ManagerTask task);
 
     /**
      * @brief         将查询任务放入查询队列中，由查询工作线程处理，支持任务超时和结果返回
      *
-     * @param         task
-     * @return
-     * @return
+     * @param         task 待入队任务
+     * @return        入队成功返回 true，否则返回 false
      */
     bool enqueueQuery(ManagerTask task);
 
@@ -189,22 +185,22 @@ private:
      * @brief
      * 根据分区键计算分片索引，使用std::hash对分区键进行哈希计算，然后取模分片数量，保证同一分区的任务由同一线程处理，避免锁竞争
      *
-     * @param         partitionKey
-     * @return
+     * @param         partitionKey 分区键
+     * @return        分片索引
      */
     std::size_t shardIndexFor(const std::string &partitionKey) const;
 
     /**
      * @brief 监控推送任务工作循环，每个分片一个线程，负责从对应分片的队列中取出任务并执行，处理任务异常和线程退出逻辑
      *
-     * @param         shardIndex
+     * @param         shardIndex 分片索引
      */
     void ingestWorkerLoop(std::size_t shardIndex);
 
     /**
      * @brief         查询任务工作循环，每个查询工作线程一个，负责从查询队列中取出任务并执行，处理任务异常和线程退出逻辑
      *
-     * @param         workerId
+     * @param         workerId 查询工作线程 ID
      */
     void queryWorkerLoop(int workerId);
 

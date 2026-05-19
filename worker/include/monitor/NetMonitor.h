@@ -13,7 +13,15 @@
 #include "monitor_info.pb.h"
 
 namespace monitor {
+/**
+ * @brief         网络监控器，从 /proc/net/dev 采集网卡吞吐、包速率、错误和丢包指标
+ *
+ */
 class NetMonitor : public MonitorInter {
+    /**
+     * @brief         网卡累计统计缓存，用于计算两次采样间的速率
+     *
+     */
     struct NetInfo {
         std::string name;
         uint64_t rcv_bytes;
@@ -29,11 +37,22 @@ class NetMonitor : public MonitorInter {
 
 public:
     NetMonitor() {}
+
+    /**
+     * @brief         采集一次网络指标并写入 MonitorInfo
+     *
+     * @param         monitorInfo 监控数据输出对象
+     */
     void updateOnce(monitor::proto::MonitorInfo *monitorInfo) override;
+
+    /**
+     * @brief         停止网络监控器，当前实现无额外资源需要释放
+     *
+     */
     void stop() override {}
 
 private:
-    std::unordered_map<std::string, NetInfo> lastNetInfo_;
+    std::unordered_map<std::string, NetInfo> lastNetInfo_; // 上一次网卡采样缓存
 };
 
 } // namespace monitor

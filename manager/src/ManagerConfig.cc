@@ -11,10 +11,10 @@ namespace {
 /**
  * @brief         从环境变量中读取整数值，支持指定默认值和最小值。
  *
- * @param         name
- * @param         fallback
- * @param         minValue
- * @return
+ * @param         name 环境变量名称
+ * @param         fallback 回退默认值
+ * @param         minValue 最小允许值
+ * @return        环境变量整数值或默认值
  */
 int envInt(const char *name, int fallback, int minValue = 0) {
     const char *value = std::getenv(name);
@@ -30,10 +30,10 @@ int envInt(const char *name, int fallback, int minValue = 0) {
 /**
  * @brief         从环境变量中读取大小值（以字节为单位），支持指定默认值和最小值。
  *
- * @param         name
- * @param         fallback
- * @param         minValue
- * @return
+ * @param         name 环境变量名称
+ * @param         fallback 回退默认值
+ * @param         minValue 最小允许值
+ * @return        环境变量大小值或默认值
  */
 std::size_t envSize(const char *name, std::size_t fallback, std::size_t minValue = 0) {
     return static_cast<std::size_t>(envInt(name, static_cast<int>(fallback), static_cast<int>(minValue)));
@@ -42,10 +42,9 @@ std::size_t envSize(const char *name, std::size_t fallback, std::size_t minValue
 /**
  * @brief         从环境变量中读取布尔值，支持指定默认值。解析时忽略大小写，接受 "1", "true", "yes", "on" 作为 true。
  *
- * @param         name
- * @param         fallback
- * @return
- * @return
+ * @param         name 环境变量名称
+ * @param         fallback 回退默认值
+ * @return        环境变量布尔值或默认值
  */
 bool envBool(const char *name, bool fallback) {
     const char *value = std::getenv(name);
@@ -58,9 +57,9 @@ bool envBool(const char *name, bool fallback) {
 /**
  * @brief         从环境变量中读取字符串值，支持指定默认值。
  *
- * @param         name
- * @param         fallback
- * @return
+ * @param         name 环境变量名称
+ * @param         fallback 回退默认值
+ * @return        环境变量字符串值或默认值
  */
 std::string envString(const char *name, const std::string &fallback) {
     const char *value = std::getenv(name);
@@ -74,7 +73,7 @@ std::string envString(const char *name, const std::string &fallback) {
  * 配置，支持指定默认值和合理的最小值。对于线程数和连接池大小等参数，默认值会根据系统 CPU
  * 核心数进行调整，以适应不同的运行环境。
  *
- * @return
+ * @return        ManagerConfig 配置对象
  */
 ManagerConfig loadManagerConfigFromEnv() {
     ManagerConfig cfg;
@@ -101,8 +100,7 @@ ManagerConfig loadManagerConfigFromEnv() {
     cfg.query_queue_capacity = envSize("MANAGER_QUERY_QUEUE_CAPACITY", cfg.query_queue_capacity, 1);
     cfg.query_queue_high_watermark =
         envSize("MANAGER_QUERY_QUEUE_HIGH_WATERMARK", cfg.query_queue_capacity * 8 / 10, 1);
-    cfg.query_queue_low_watermark =
-        envSize("MANAGER_QUERY_QUEUE_LOW_WATERMARK", cfg.query_queue_capacity * 3 / 10, 0);
+    cfg.query_queue_low_watermark = envSize("MANAGER_QUERY_QUEUE_LOW_WATERMARK", cfg.query_queue_capacity * 3 / 10, 0);
     if (cfg.query_queue_high_watermark > cfg.query_queue_capacity)
         cfg.query_queue_high_watermark = cfg.query_queue_capacity;
     if (cfg.query_queue_low_watermark > cfg.query_queue_high_watermark)
@@ -110,8 +108,8 @@ ManagerConfig loadManagerConfigFromEnv() {
     cfg.query_threads_min = envInt("MANAGER_QUERY_THREADS_MIN", std::max(4, cpu), 1);
     cfg.query_threads_max =
         envInt("MANAGER_QUERY_THREADS_MAX", std::max(cfg.query_threads_min, cpu * 2), cfg.query_threads_min);
-    cfg.query_idle_shrink =
-        std::chrono::seconds(envInt("MANAGER_QUERY_IDLE_SHRINK_SECONDS", static_cast<int>(cfg.query_idle_shrink.count()), 1));
+    cfg.query_idle_shrink = std::chrono::seconds(
+        envInt("MANAGER_QUERY_IDLE_SHRINK_SECONDS", static_cast<int>(cfg.query_idle_shrink.count()), 1));
 
     cfg.business_threads_min = envInt("MANAGER_BUSINESS_THREADS_MIN", std::max(4, cpu), 1);
     cfg.business_threads_max =

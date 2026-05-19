@@ -12,7 +12,15 @@
 #include "monitor_info.pb.h"
 
 namespace monitor {
+/**
+ * @brief         内存监控器，从 /proc/meminfo 采集内存容量、缓存、活跃页和脏页等指标
+ *
+ */
 class MemMonitor : public MonitorInter {
+    /**
+     * @brief         /proc/meminfo 中使用到的内存字段集合
+     *
+     */
     struct MenInfo {
         int64_t total;
         int64_t free;
@@ -37,7 +45,18 @@ class MemMonitor : public MonitorInter {
 
 public:
     MemMonitor() {}
+
+    /**
+     * @brief         采集一次内存指标并写入 MonitorInfo
+     *
+     * @param         monitorInfo 监控数据输出对象
+     */
     void updateOnce(monitor::proto::MonitorInfo *monitorInfo) override;
+
+    /**
+     * @brief         停止内存监控器，当前实现无额外资源需要释放
+     *
+     */
     void stop() override {}
 };
 

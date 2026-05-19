@@ -2,23 +2,23 @@ syntax = "proto3";
 package monitor.proto;
 
 message DiskInfo {
-  string name = 1; // disk name, e.g., "sda"
-  uint64 reads = 2; // number of read operations
-  uint64 writes = 3; // number of write operations
-  uint64 sectors_read = 4; // number of sectors read
-  uint64 sectors_written = 5; // number of sectors written
-  uint64 read_time_ms = 6; // time spent reading (in milliseconds)
-  uint64 write_time_ms = 7; // time spent writing (in milliseconds)
-  uint64 io_in_progress = 8; // number of I/O operations in progress
-  uint64 io_time_ms = 9; // time spent doing I/O (in milliseconds)
-  uint64 weighted_io_time_ms = 10; // weighted time spent doing I/O (in milliseconds)
+  string name = 1; // 磁盘名称，例如 "sda"
+  uint64 reads = 2; // 读操作次数
+  uint64 writes = 3; // 写操作次数
+  uint64 sectors_read = 4; // 读取扇区数
+  uint64 sectors_written = 5; // 写入扇区数
+  uint64 read_time_ms = 6; // 读操作耗时，单位毫秒
+  uint64 write_time_ms = 7; // 写操作耗时，单位毫秒
+  uint64 io_in_progress = 8; // 当前正在进行的 I/O 操作数量
+  uint64 io_time_ms = 9; // I/O 操作总耗时，单位毫秒
+  uint64 weighted_io_time_ms = 10; // 加权 I/O 操作耗时，单位毫秒
 
   // 速率/变化率字段
-  double read_bytes_per_sec = 20; // read bytes per second
-  double write_bytes_per_sec = 21; // write bytes per second
-  double read_iops = 22; // read I/O operations per second
-  double write_iops = 23; // write I/O operations per second
-  double avg_read_latency_ms = 24; // average read latency in milliseconds
-  double avg_write_latency_ms = 25; // average write latency in milliseconds
-  double util_percent = 26; // percentage of time the disk was busy
+  double read_bytes_per_sec = 20; // 每秒读取字节数
+  double write_bytes_per_sec = 21; // 每秒写入字节数
+  double read_iops = 22; // 每秒读 I/O 操作次数
+  double write_iops = 23; // 每秒写 I/O 操作次数
+  double avg_read_latency_ms = 24; // 平均读延迟，单位毫秒
+  double avg_write_latency_ms = 25; // 平均写延迟，单位毫秒
+  double util_percent = 26; // 磁盘忙碌时间占比
 }

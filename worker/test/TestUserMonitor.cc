@@ -1,5 +1,5 @@
 /**
- * @brief         Test User Monitor
+ * @brief         用户信息监控测试程序
  * @file          TestUserMonitor.cc
  * @author        harry
  * @date          2026-02-10
@@ -12,10 +12,10 @@
 #include <unistd.h>
 #include <sys/types.h>
 /*!
- * @brief         Get the User Name object
+ * @brief         根据 UID 获取用户名
  *
- * @param         uid
- * @return        std::string
+ * @param         uid 用户 ID
+ * @return        用户名字符串
  */
 std::string getUserName(uid_t uid) {
     std::ifstream passwdFile("/etc/passwd", std::ios::in);
@@ -27,8 +27,7 @@ std::string getUserName(uid_t uid) {
     std::string line;
     while (std::getline(passwdFile, line)) {
         std::istringstream ss(line);
-        std::string userName, password, uidStr, gidStr, userInfo, homeDir,
-            shell;
+        std::string userName, password, uidStr, gidStr, userInfo, homeDir, shell;
         if (!std::getline(ss, userName, ':')) continue;
         if (!std::getline(ss, password, ':')) continue;
         if (!std::getline(ss, uidStr, ':')) continue;

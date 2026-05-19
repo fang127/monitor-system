@@ -5,10 +5,8 @@
 
 namespace monitor {
 
-RpcClient::RpcClient(const std::string &hostAddress)
-    : hostAddress_(hostAddress) {
-    auto channel =
-        grpc::CreateChannel(hostAddress, grpc::InsecureChannelCredentials());
+RpcClient::RpcClient(const std::string &hostAddress) : hostAddress_(hostAddress) {
+    auto channel = grpc::CreateChannel(hostAddress, grpc::InsecureChannelCredentials());
     stub_ = monitor::proto::GrpcManager::NewStub(channel);
 }
 
@@ -23,8 +21,7 @@ bool RpcClient::getMonitorInfo(monitor::proto::MonitorInfo *info) {
     if (status.ok()) {
         return true;
     } else {
-        std::cerr << "Failed to get monitor info from " << hostAddress_ << ": "
-                  << status.error_message() << std::endl;
+        std::cerr << "Failed to get monitor info from " << hostAddress_ << ": " << status.error_message() << std::endl;
         return false;
     }
 }

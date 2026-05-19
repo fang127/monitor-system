@@ -7,6 +7,11 @@
 namespace monitor {
 static constexpr float KBToGB = 1000 * 1000;
 
+/**
+ * @brief         从 /proc/meminfo 采集一次内存指标并写入 MonitorInfo
+ *
+ * @param         monitorInfo 监控数据输出对象
+ */
 void MemMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo) {
     ReadFile memFile("/proc/meminfo");
     struct MenInfo memInfo;
@@ -55,8 +60,7 @@ void MemMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo) {
 
     auto memDetail = monitorInfo->mutable_mem_info();
 
-    memDetail->set_used_percent((memInfo.total - memInfo.avail) * 1.0 /
-                                memInfo.total * 100.0);
+    memDetail->set_used_percent((memInfo.total - memInfo.avail) * 1.0 / memInfo.total * 100.0);
     memDetail->set_total(memInfo.total / KBToGB);
     memDetail->set_free(memInfo.free / KBToGB);
     memDetail->set_avail(memInfo.avail / KBToGB);

@@ -31,20 +31,39 @@ public:
     void updateOnce(monitor::proto::MonitorInfo *monitorInfo) override;
     void stop() override;
 
-    // 检查 eBPF 是否成功加载
+    /**
+     * @brief         检查 eBPF 程序是否已经成功加载
+     *
+     * @return        已加载返回 true，否则返回 false
+     */
     bool isLoaded() const { return loaded_; }
 
 private:
-    // 初始化 eBPF 程序
+    /**
+     * @brief         初始化 eBPF 程序并附加到网卡 TC hook
+     *
+     * @return        初始化成功返回 true，否则返回 false
+     */
     bool initEbpf();
 
-    // 清理 eBPF 资源
+    /**
+     * @brief         清理 eBPF 程序、map 和 TC hook 相关资源
+     *
+     */
     void cleanupEbpf();
 
-    // 根据 ifindex 获取网卡名称
+    /**
+     * @brief         根据 ifindex 获取网卡名称
+     *
+     * @param         ifindex 网卡索引
+     * @return        网卡名称
+     */
     std::string getIfName(uint32_t ifindex);
 
-    // 上一次采集的数据，用于计算速率
+    /**
+     * @brief         上一次采集的数据，用于计算速率
+     *
+     */
     struct NetStatCache {
         uint64_t rcv_bytes;
         uint64_t rcv_packets;
@@ -53,9 +72,9 @@ private:
         std::chrono::steady_clock::time_point timestamp;
     };
 
-    std::unordered_map<uint32_t, NetStatCache> cache_;      // key: ifindex
-    std::unordered_map<uint32_t, std::string> ifnameCache_; // ifindex -> name
-    std::vector<uint32_t> attachedIfindexes_; // 已附加 TC hook 的网卡
+    std::unordered_map<uint32_t, NetStatCache> cache_;      // 键为 ifindex
+    std::unordered_map<uint32_t, std::string> ifnameCache_; // ifindex 到网卡名称的缓存
+    std::vector<uint32_t> attachedIfindexes_;               // 已附加 TC hook 的网卡
 
     struct bpf_object *bpfObj_ = nullptr;
     int mapFd_ = -1;

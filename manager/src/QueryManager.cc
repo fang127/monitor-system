@@ -19,10 +19,10 @@ namespace monitor {
 namespace {
 
 /**
- * @brief         Set the Error object
+ * @brief         设置错误信息
  *
- * @param         error
- * @param         message
+ * @param         error 错误信息输出指针
+ * @param         message 错误消息
  */
 void setError(std::string *error, const std::string &message) {
     if (error) *error = message;
@@ -366,14 +366,14 @@ std::vector<PerformanceRecord> QueryManager::queryPerformanceRecords(const std::
     auto lease = acquireConnection(error);
     MYSQL *conn = lease.conn;
     if (!conn) return records;
-    // Validate time range
+    // 校验时间范围
     if (!validateTimeRange(range)) {
         setError(error, "Invalid time range: start_time > end_time");
         return records;
     }
-    // Validate pagination parameters
+    // 校验分页参数
     if (page < 1) page = 1;
-    // modify pageSize to greeter than 0, otherwise set to default value 100
+    // 修正 pageSize，确保它大于 0；否则使用默认值 100
     if (pageSize <= 0) pageSize = 100;
 
     std::string startTimeStr = formatTimePoint(range.start_time);
@@ -390,7 +390,7 @@ std::vector<PerformanceRecord> QueryManager::queryPerformanceRecords(const std::
     }
 
     // page是从1开始的页码，因此计算offset时需要减1，pageSize是每页记录数
-    // query performance records with pagination
+    // 按分页条件查询性能记录
     int offset = (page - 1) * pageSize; // 计算分页偏移量
     std::vector<std::vector<std::string>> rows;
     if (!executePreparedRows(conn,
@@ -489,7 +489,7 @@ std::vector<PerformanceRecord> QueryManager::queryTrend(const std::string &serve
     auto lease = acquireConnection(error);
     MYSQL *conn = lease.conn;
     if (!conn) return records;
-    // Validate time range
+    // 校验时间范围
     if (!validateTimeRange(range)) {
         setError(error, "Invalid time range: start_time > end_time");
         return records;
@@ -526,7 +526,7 @@ std::vector<PerformanceRecord> QueryManager::queryTrend(const std::string &serve
             "GROUP BY server_name, time_bucket ORDER BY time_bucket";
         params = {intParam(intervalSeconds), intParam(intervalSeconds), stringParam(serverName),
                   stringParam(startTimeStr), stringParam(endTimeStr)};
-    } else // no aggregation, just return raw data
+    } else // 不进行聚合，直接返回原始数据
     {
         query =
             "SELECT server_name, timestamp, cpu_percent, usr_percent, "
@@ -603,12 +603,12 @@ std::vector<AnomalyRecord> QueryManager::queryAnomalyRecords(const std::string &
     auto lease = acquireConnection(error);
     MYSQL *conn = lease.conn;
     if (!conn) return records;
-    // Validate time range
+    // 校验时间范围
     if (!validateTimeRange(range)) {
         setError(error, "Invalid time range: start_time > end_time");
         return records;
     }
-    // Validate pagination parameters
+    // 校验分页参数
     if (page < 1) page = 1;
     if (pageSize < 1) pageSize = 100;
 
@@ -651,7 +651,7 @@ std::vector<AnomalyRecord> QueryManager::queryAnomalyRecords(const std::string &
         float cpu_rate = toFloat(row, 5);
         float mem_rate = toFloat(row, 6);
 
-        // Check each metric against thresholds and add anomalies
+        // 对每个指标执行阈值检查并添加异常记录
         auto add_anomaly = [&](const std::string &type, const std::string &metric, float value, float threshold) {
             AnomalyRecord rec;
             rec.server_name = name;
@@ -660,7 +660,7 @@ std::vector<AnomalyRecord> QueryManager::queryAnomalyRecords(const std::string &
             rec.metric_name = metric;
             rec.value = value;
             rec.threshold = threshold;
-            // Determine severity based on how much it exceeds the threshold
+            // 根据超过阈值的幅度判断异常级别
             if (type == "CPU_HIGH" && value > 95)
                 rec.severity = "CRITICAL";
             else if (type == "MEM_HIGH" && value > 95)
@@ -755,14 +755,12 @@ std::vector<AnomalyRecord> QueryManager::queryAnomalyRecords(const std::string &
         if (replicationLag > threshold.mysql_replication_lag_threshold) {
             add_mysql_anomaly("MYSQL_REPLICATION_LAG", "replication_lag_seconds", replicationLag,
                               threshold.mysql_replication_lag_threshold,
-                              replicationLag > threshold.mysql_replication_lag_threshold * 2 ? "CRITICAL"
-                                                                                             : "WARNING");
+                              replicationLag > threshold.mysql_replication_lag_threshold * 2 ? "CRITICAL" : "WARNING");
         }
         if (slowQueryRate > threshold.mysql_slow_query_rate_threshold) {
             add_mysql_anomaly("MYSQL_SLOW_QUERY_SPIKE", "slow_queries_rate", slowQueryRate,
                               threshold.mysql_slow_query_rate_threshold,
-                              slowQueryRate > threshold.mysql_slow_query_rate_threshold * 5 ? "CRITICAL"
-                                                                                            : "WARNING");
+                              slowQueryRate > threshold.mysql_slow_query_rate_threshold * 5 ? "CRITICAL" : "WARNING");
         }
         if (lockWaitRate > threshold.mysql_lock_wait_rate_threshold) {
             add_mysql_anomaly("MYSQL_LOCK_WAIT_SPIKE", "innodb_row_lock_waits_rate", lockWaitRate,
@@ -771,14 +769,13 @@ std::vector<AnomalyRecord> QueryManager::queryAnomalyRecords(const std::string &
         }
         if (bufferPoolHit > 0 && bufferPoolHit < threshold.mysql_buffer_pool_hit_threshold) {
             add_mysql_anomaly("MYSQL_BUFFER_POOL_LOW", "innodb_buffer_pool_hit_percent", bufferPoolHit,
-                              threshold.mysql_buffer_pool_hit_threshold, bufferPoolHit < 90.0f ? "CRITICAL"
-                                                                                               : "WARNING");
+                              threshold.mysql_buffer_pool_hit_threshold,
+                              bufferPoolHit < 90.0f ? "CRITICAL" : "WARNING");
         }
     }
 
-    std::sort(records.begin(), records.end(), [](const AnomalyRecord &lhs, const AnomalyRecord &rhs) {
-        return lhs.timestamp > rhs.timestamp;
-    });
+    std::sort(records.begin(), records.end(),
+              [](const AnomalyRecord &lhs, const AnomalyRecord &rhs) { return lhs.timestamp > rhs.timestamp; });
 
     if (totalCount) *totalCount = static_cast<int>(records.size());
     int offset = (page - 1) * pageSize;
@@ -809,7 +806,7 @@ std::vector<ServerScoreSummary> QueryManager::queryServerScoreRank(SortOrder ord
     auto lease = acquireConnection(error);
     MYSQL *conn = lease.conn;
     if (!conn) return records;
-    // Validate pagination parameters
+    // 校验分页参数
     if (page < 1) page = 1;
     if (pageSize < 1) pageSize = 100;
 
@@ -820,7 +817,7 @@ std::vector<ServerScoreSummary> QueryManager::queryServerScoreRank(SortOrder ord
         }
     }
 
-    // query total score per server and order by score
+    // 查询每台服务器的最新总分并按分数排序
     int offset = (page - 1) * pageSize;
     std::string orderBy = (order == SortOrder::ASC) ? "ASC" : "DESC";
     std::string query =
@@ -850,8 +847,7 @@ std::vector<ServerScoreSummary> QueryManager::queryServerScoreRank(SortOrder ord
         rec.disk_util_percent = toFloat(row, 5);
         rec.load_avg_1 = toFloat(row, 6);
 
-        // Determine server status based on last update time (e.g., if no update
-        // for more than 60 seconds, consider it offline)
+        // 根据最近更新时间判断服务器状态；超过 60 秒没有更新则视为离线
         auto age = std::chrono::duration_cast<std::chrono::seconds>(now - rec.last_updated).count();
         rec.status = (age > 60) ? ServerStatus::OFFLINE : ServerStatus::ONLINE;
 
@@ -874,7 +870,7 @@ std::vector<ServerScoreSummary> QueryManager::queryLatestServerScores(ClusterSta
     auto lease = acquireConnection(error);
     MYSQL *conn = lease.conn;
     if (!conn) return records;
-    // query latest score for each server
+    // 查询每台服务器的最新评分
     std::string query =
         "SELECT p1.server_name, p1.score, p1.timestamp, p1.cpu_percent, "
         "p1.mem_used_percent, p1.disk_util_percent, p1.load_avg_1 "
@@ -904,8 +900,7 @@ std::vector<ServerScoreSummary> QueryManager::queryLatestServerScores(ClusterSta
         rec.disk_util_percent = toFloat(row, 5);
         rec.load_avg_1 = toFloat(row, 6);
 
-        // Determine server status based on last update time (e.g., if no update
-        // for more than 60 seconds, consider it offline)
+        // 根据最近更新时间判断服务器状态；超过 60 秒没有更新则视为离线
         auto age = std::chrono::duration_cast<std::chrono::seconds>(now - rec.last_updated).count();
         rec.status = (age > 60) ? ServerStatus::OFFLINE : ServerStatus::ONLINE;
 
@@ -977,7 +972,7 @@ std::vector<NetDetailRecord> QueryManager::queryNetDetailRecords(const std::stri
         }
     }
 
-    // query net detail records with pagination
+    // 按分页条件查询网络明细记录
     int offset = (page - 1) * pageSize;
     std::vector<std::vector<std::string>> rows;
     if (!executePreparedRows(conn,

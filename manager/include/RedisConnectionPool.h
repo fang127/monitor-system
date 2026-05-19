@@ -40,7 +40,7 @@ public:
          * @brief         获取 Redis 连接对象，使用前请检查 Guard 是否有效（operator bool()），如果连接不健康请调用
          * markUnhealthy() 标记连接为不健康，Guard 会在析构时自动释放连接回池中
          *
-         * @return
+         * @return        Redis 连接指针
          */
         sw::redis::Redis *get() const { return conn_; }
 
@@ -48,8 +48,7 @@ public:
          * @brief         检查 Guard 是否持有有效的连接对象，如果连接不健康请调用 markUnhealthy()
          * 标记连接为不健康，Guard 会在析构时自动释放连接回池中
          *
-         * @return
-         * @return
+         * @return        持有有效连接返回 true，否则返回 false
          */
         explicit operator bool() const { return conn_ != nullptr; }
 
@@ -82,8 +81,7 @@ public:
     /**
      * @brief         启动连接池，创建初始连接并启动健康检查线程
      *
-     * @return
-     * @return
+     * @return        启动成功返回 true，否则返回 false
      */
     bool start();
 
@@ -98,15 +96,15 @@ public:
      * markUnhealthy() 标记连接为不健康，Guard
      * 会在析构时自动释放连接回池中，并且连接池会在下次获取连接时进行健康检查，必要时关闭连接并创建新连接替代
      *
-     * @param         timeout
-     * @return
+     * @param         timeout 获取连接的等待超时时间
+     * @return        连接守护对象
      */
     Guard acquire(std::chrono::milliseconds timeout);
 
     /**
      * @brief         获取当前可用连接数，供监控使用
      *
-     * @return
+     * @return        当前可用连接数
      */
     int availableCount() const;
 
@@ -128,16 +126,15 @@ private:
     /**
      * @brief         创建新的 Redis 连接对象，连接池内部使用，成功创建连接后会将对应 Entry 标记为健康状态
      *
-     * @return
+     * @return        新建的 Redis 连接对象
      */
     std::unique_ptr<sw::redis::Redis> connect();
 
     /**
      * @brief         确保指定索引的连接条目处于健康状态，如果连接不健康会被关闭并替换掉，返回是否成功获取到健康连接
      *
-     * @param         index
-     * @return
-     * @return
+     * @param         index 连接条目索引
+     * @return        连接健康或重建成功返回 true，否则返回 false
      */
     bool ensureHealthy(std::size_t index);
 
@@ -192,25 +189,24 @@ public:
     /**
      * @brief         设置 Redis 键值对
      *
-     * @param         key
-     * @param         value
-     * @return
-     * @return
+     * @param         key Redis 键
+     * @param         value Redis 值
+     * @return        设置成功返回 true，否则返回 false
      */
     bool set(const std::string &key, const std::string &value);
 
     /**
      * @brief         获取 Redis 键值对
      *
-     * @param         key
-     * @return
+     * @param         key Redis 键
+     * @return        查询到的值，未命中或失败时返回空
      */
     std::optional<std::string> get(const std::string &key);
 
     /**
      * @brief         获取当前连接池中可用连接数
      *
-     * @return
+     * @return        当前可用连接数
      */
     int availableCount() const;
 

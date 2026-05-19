@@ -15,7 +15,7 @@ namespace monitor {
  *
  * 采集服务器的标识信息，用于调度服务器识别和定位：
  * - hostname: 主机名，通过 gethostname() 获取
- * - ip_address: IP 地址，遍历网卡获取非 loopback 的 IP
+ * - ip_address: IP 地址，遍历网卡获取非回环网卡的 IP
  *
  * 这些信息对于分布式负载均衡场景至关重要：
  * 调度服务器根据性能指标选出最优服务器后，

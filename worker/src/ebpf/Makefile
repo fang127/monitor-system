@@ -39,7 +39,7 @@ vmlinux.h:
 $(OUTPUT_DIR)/%.bpf.o: %.bpf.c vmlinux.h | $(OUTPUT_DIR)
 	$(CLANG) $(BPF_CFLAGS) -c $< -o $@
 
-# 生成 skeleton 头文件
+# 生成骨架头文件
 $(SKEL_DIR)/%.skel.h: $(OUTPUT_DIR)/%.bpf.o | $(OUTPUT_DIR)
 	@tmp="$@.tmp"; \
 	rm -f "$$tmp"; \

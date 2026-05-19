@@ -9,6 +9,10 @@
 
 namespace monitor {
 
+/**
+ * @brief         单个网卡的原始网络统计
+ *
+ */
 struct NetStat {
     std::string name;
     uint64_t rcv_bytes;
@@ -21,7 +25,11 @@ struct NetStat {
     uint64_t drop_out;
 };
 
-// 从 /proc/net/dev 读取网络统计信息
+/**
+ * @brief         从 /proc/net/dev 读取网络统计信息
+ *
+ * @return        网卡统计列表
+ */
 static std::vector<NetStat> GetNetStatsFromProc() {
     std::vector<NetStat> stats;
     std::ifstream file("/proc/net/dev");
@@ -49,16 +57,13 @@ static std::vector<NetStat> GetNetStatsFromProc() {
 
         stat.name = iface;
 
-        // 解析接收统计: bytes packets errs drop fifo frame compressed multicast
-        iss >> stat.rcv_bytes >> stat.rcv_packets >> stat.err_in >>
-            stat.drop_in;
+        // 解析接收统计：字节数、包数、错误数、丢包数、fifo、帧错误、压缩包、多播包
+        iss >> stat.rcv_bytes >> stat.rcv_packets >> stat.err_in >> stat.drop_in;
         uint64_t dummy;
-        iss >> dummy >> dummy >> dummy >>
-            dummy; // fifo frame compressed multicast
+        iss >> dummy >> dummy >> dummy >> dummy; // fifo、帧错误、压缩包、多播包
 
-        // 解析发送统计: bytes packets errs drop fifo colls carrier compressed
-        iss >> stat.snd_bytes >> stat.snd_packets >> stat.err_out >>
-            stat.drop_out;
+        // 解析发送统计：字节数、包数、错误数、丢包数、fifo、冲突、载波错误、压缩包
+        iss >> stat.snd_bytes >> stat.snd_packets >> stat.err_out >> stat.drop_out;
 
         stats.push_back(stat);
     }
@@ -66,25 +71,26 @@ static std::vector<NetStat> GetNetStatsFromProc() {
     return stats;
 }
 
+/**
+ * @brief         采集一次网络指标并写入 MonitorInfo
+ *
+ * @param         monitorInfo 监控数据输出对象
+ */
 void NetMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo) {
     auto now = std::chrono::steady_clock::now();
     auto stats = GetNetStatsFromProc();
 
     for (const auto &stat : stats) {
         auto it = lastNetInfo_.find(stat.name);
-        double rcv_rate = 0, rcv_packets_rate = 0, send_rate = 0,
-               send_packets_rate = 0;
+        double rcv_rate = 0, rcv_packets_rate = 0, send_rate = 0, send_packets_rate = 0;
 
         if (it != lastNetInfo_.end()) {
             const NetInfo &last = it->second;
-            double dt =
-                std::chrono::duration<double>(now - last.timepoint).count();
+            double dt = std::chrono::duration<double>(now - last.timepoint).count();
             if (dt > 0) {
-                rcv_rate =
-                    (stat.rcv_bytes - last.rcv_bytes) / 1024.0 / dt; // KB/s
+                rcv_rate = (stat.rcv_bytes - last.rcv_bytes) / 1024.0 / dt; // KB/s
                 rcv_packets_rate = (stat.rcv_packets - last.rcv_packets) / dt;
-                send_rate =
-                    (stat.snd_bytes - last.snd_bytes) / 1024.0 / dt; // KB/s
+                send_rate = (stat.snd_bytes - last.snd_bytes) / 1024.0 / dt; // KB/s
                 send_packets_rate = (stat.snd_packets - last.snd_packets) / dt;
             }
         }
@@ -103,11 +109,9 @@ void NetMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo) {
         net_info->set_drop_out(stat.drop_out);
 
         // 更新缓存
-        lastNetInfo_[stat.name] = NetInfo{stat.name,        stat.rcv_bytes,
-                                          stat.rcv_packets, stat.snd_bytes,
-                                          stat.snd_packets, stat.err_in,
-                                          stat.err_out,     stat.drop_in,
-                                          stat.drop_out,    now};
+        lastNetInfo_[stat.name] =
+            NetInfo{stat.name,   stat.rcv_bytes, stat.rcv_packets, stat.snd_bytes, stat.snd_packets,
+                    stat.err_in, stat.err_out,   stat.drop_in,     stat.drop_out,  now};
     }
 }
 

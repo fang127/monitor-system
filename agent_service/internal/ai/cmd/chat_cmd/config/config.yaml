@@ -1,10 +1,10 @@
-# Gin HTTP server configuration.
+# Gin HTTP 服务配置。
 server:
   address: ":6872"
   openapiPath: "/api.json"
   swaggerPath: "/swagger"
 
-# Application logger configuration.
+# 应用日志配置。
 logger:
   level: "all"
   stdout: true

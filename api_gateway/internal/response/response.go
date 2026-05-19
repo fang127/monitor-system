@@ -17,7 +17,7 @@ type Body struct {
 //	  "message": "ok",
 //	  "data": {
 //	    "id": 1,
-//	    "name": "Alice"
+//	    "name": "示例用户"
 //	  }
 //	}
 func OK(c *gin.Context, status int, data interface{}) {
@@ -33,7 +33,7 @@ func OK(c *gin.Context, status int, data interface{}) {
 //
 //	{
 //	  "code": 400,
-//	  "message": "bad request"
+//	  "message": "错误请求"
 //	}
 func Error(c *gin.Context, status int, message string) {
 	c.JSON(status, Body{

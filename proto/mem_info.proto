@@ -1,26 +1,26 @@
 syntax = "proto3";
 package monitor.proto;
 
-// Memory Information
+// 内存信息
 message MemInfo {
-    float total = 1; // total in MB
-    float free = 2; // free in MB
-    float avail= 3; // available in MB
-    float buffers = 4; // buffers in MB
-    float cached = 5; // cached in MB
-    float swap_cached = 6; // swap cached in MB
-    float active = 7; // active in MB
-    float inactive = 8; // inactive in MB
-    float active_anon = 9; // active anon in MB
-    float inactive_anon = 10; // inactive anon in MB
-    float active_file = 11; // active file in MB
-    float inactive_file = 12; // inactive file in MB
-    float dirty = 13; // dirty in MB
-    float writeback = 14; // writeback in MB
-    float anon_pages = 15; // anon pages in MB
-    float mapped = 16; // mapped in MB
-    float kReclaimable = 17; // kernel reclaimable in MB
-    float sReclaimable = 18; // slab reclaimable in MB
-    float sUnreclaim = 19; // slab unreclaimable in MB
-    float used_percent = 31; // used percent %
+    float total = 1; // 总内存，单位 MB
+    float free = 2; // 空闲内存，单位 MB
+    float avail= 3; // 可用内存，单位 MB
+    float buffers = 4; // buffer 内存，单位 MB
+    float cached = 5; // cache 内存，单位 MB
+    float swap_cached = 6; // swap cache 内存，单位 MB
+    float active = 7; // 活跃内存，单位 MB
+    float inactive = 8; // 非活跃内存，单位 MB
+    float active_anon = 9; // 活跃匿名页内存，单位 MB
+    float inactive_anon = 10; // 非活跃匿名页内存，单位 MB
+    float active_file = 11; // 活跃文件页内存，单位 MB
+    float inactive_file = 12; // 非活跃文件页内存，单位 MB
+    float dirty = 13; // 脏页内存，单位 MB
+    float writeback = 14; // 正在回写的内存，单位 MB
+    float anon_pages = 15; // 匿名页内存，单位 MB
+    float mapped = 16; // 已映射内存，单位 MB
+    float kReclaimable = 17; // 内核可回收内存，单位 MB
+    float sReclaimable = 18; // slab 可回收内存，单位 MB
+    float sUnreclaim = 19; // slab 不可回收内存，单位 MB
+    float used_percent = 31; // 内存使用率百分比
 }

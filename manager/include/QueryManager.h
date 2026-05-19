@@ -14,7 +14,7 @@
 
 namespace monitor {
 /**
- * @brief         sort order
+ * @brief         排序方向
  *
  */
 enum class SortOrder {
@@ -23,7 +23,7 @@ enum class SortOrder {
 };
 
 /**
- * @brief         service status
+ * @brief         服务状态
  *
  */
 enum class ServerStatus {
@@ -32,14 +32,14 @@ enum class ServerStatus {
 };
 
 /**
- * @brief         anomaly detection thresholds
+ * @brief         异常检测阈值配置
  *
  */
 struct AnomalyThreshold {
     float cpu_threshold = 80.0f;
     float memory_threshold = 90.0f;
     float disk_threshold = 85.0f;
-    float change_rate_threshold = 0.5f; // 50% change rate
+    float change_rate_threshold = 0.5f; // 50% 变化率
     float mysql_connection_threshold = 90.0f;
     float mysql_replication_lag_threshold = 30.0f;
     float mysql_slow_query_rate_threshold = 1.0f;
@@ -48,7 +48,7 @@ struct AnomalyThreshold {
 };
 
 /**
- * @brief         time range for querying metrics
+ * @brief         指标查询时间范围
  *
  */
 struct TimeRange {
@@ -57,112 +57,110 @@ struct TimeRange {
 };
 
 /**
- * @brief         performance record for a server at a specific timestamp
+ * @brief         指定时间点的服务器性能记录
  *
  */
 struct PerformanceRecord {
-    std::string server_name;                         // name of the server
-    std::chrono::system_clock::time_point timestamp; // timestamp of the record
-    // cpu usage metrics
-    float cpu_percent = 0.0f;      // CPU usage percentage
-    float usr_percent = 0.0f;      // user CPU usage percentage
-    float sys_percent = 0.0f;      // system CPU usage percentage
-    float nice_percent = 0.0f;     // nice CPU usage percentage
-    float idle_percent = 0.0f;     // idle CPU usage percentage
-    float io_wait_percent = 0.0f;  // I/O wait CPU usage percentage
-    float irq_percent = 0.0f;      // IRQ CPU usage percentage
-    float soft_irq_percent = 0.0f; // soft IRQ CPU usage percentage
-    // cpu load
-    float load_avg_1 = 0.0f;  // 1-minute load average
-    float load_avg_3 = 0.0f;  // 5-minute load average
-    float load_avg_15 = 0.0f; // 15-minute load average
-    // memory usage metrics
-    float mem_used_percent = 0.0f; // memory usage percentage
-    float mem_total = 0.0f;        // total memory in bytes
-    float mem_free = 0.0f;         // free memory in bytes
-    float mem_avail = 0.0f;        // available memory in bytes
-    // disk usage metrics
-    float disk_util_percent = 0.0f; // disk utilization percentage
-    // network usage metrics
-    float net_recv_bytes = 0.0f; // network received bytes per second
-    float net_sent_bytes = 0.0f; // network sent bytes per second
-    // score
-    float score = 0.0f; // overall performance score
-    // rate of change
-    float cpu_percent_rate = 0.0f;       // rate of change of CPU usage percentage
-    float mem_used_percent_rate = 0.0f;  // rate of change of memory usage percentage
-    float disk_util_percent_rate = 0.0f; // rate of change of disk utilization percentage
-    float load_avg_1_rate = 0.0f;        // rate of change of 1-minute load average
-    float net_recv_bytes_rate = 0.0f;    // rate of change of network received bytes per second
-    float net_sent_bytes_rate = 0.0f;    // rate of change of network sent bytes per second
+    std::string server_name;                         // 服务器名称
+    std::chrono::system_clock::time_point timestamp; // 记录时间戳
+    // CPU 使用率指标
+    float cpu_percent = 0.0f;      // CPU 使用率百分比
+    float usr_percent = 0.0f;      // 用户态 CPU 使用率百分比
+    float sys_percent = 0.0f;      // 系统态 CPU 使用率百分比
+    float nice_percent = 0.0f;     // nice CPU 使用率百分比
+    float idle_percent = 0.0f;     // 空闲 CPU 百分比
+    float io_wait_percent = 0.0f;  // I/O 等待 CPU 百分比
+    float irq_percent = 0.0f;      // 硬中断 CPU 百分比
+    float soft_irq_percent = 0.0f; // 软中断 CPU 百分比
+    // CPU 负载
+    float load_avg_1 = 0.0f;  // 1 分钟平均负载
+    float load_avg_3 = 0.0f;  // 3 分钟平均负载
+    float load_avg_15 = 0.0f; // 15 分钟平均负载
+    // 内存使用指标
+    float mem_used_percent = 0.0f; // 内存使用率百分比
+    float mem_total = 0.0f;        // 内存总量，单位字节
+    float mem_free = 0.0f;         // 空闲内存，单位字节
+    float mem_avail = 0.0f;        // 可用内存，单位字节
+    // 磁盘使用指标
+    float disk_util_percent = 0.0f; // 磁盘利用率百分比
+    // 网络使用指标
+    float net_recv_bytes = 0.0f; // 网络接收字节速率
+    float net_sent_bytes = 0.0f; // 网络发送字节速率
+    // 综合评分
+    float score = 0.0f; // 综合性能评分
+    // 变化率
+    float cpu_percent_rate = 0.0f;       // CPU 使用率变化率
+    float mem_used_percent_rate = 0.0f;  // 内存使用率变化率
+    float disk_util_percent_rate = 0.0f; // 磁盘利用率变化率
+    float load_avg_1_rate = 0.0f;        // 1 分钟平均负载变化率
+    float net_recv_bytes_rate = 0.0f;    // 网络接收字节速率变化率
+    float net_sent_bytes_rate = 0.0f;    // 网络发送字节速率变化率
 };
 
 /**
- * @brief         anomaly record for a server at a specific timestamp
+ * @brief         指定时间点的服务器异常记录
  *
  */
 struct AnomalyRecord {
-    std::string server_name;                         // name of the server
-    std::chrono::system_clock::time_point timestamp; // timestamp of the anomaly
-    std::string anomaly_type;                        // type of anomaly (e.g., "CPU", "Memory", "Disk")
-    std::string severity;                            // severity of the anomaly (e.g., "Critical", "Warning")
-    float value = 0.0f;                              // value that triggered the anomaly
-    float threshold = 0.0f;                          // threshold that was exceeded
-    std::string metric_name;                         // name of the metric that triggered the anomaly
+    std::string server_name;                         // 服务器名称
+    std::chrono::system_clock::time_point timestamp; // 异常时间戳
+    std::string anomaly_type;                        // 异常类型，例如 "CPU"、"Memory"、"Disk"
+    std::string severity;                            // 异常级别，例如 "Critical"、"Warning"
+    float value = 0.0f;                              // 触发异常的指标值
+    float threshold = 0.0f;                          // 被超过的阈值
+    std::string metric_name;                         // 触发异常的指标名称
 };
 
 /**
- * @brief         summary of server performance and status
+ * @brief         服务器性能和状态摘要
  *
  */
 struct ServerScoreSummary {
-    std::string server_name;                            // name of the server
-    float score = 0.0f;                                 // overall performance score
-    std::chrono::system_clock::time_point last_updated; // timestamp of the last update
-    ServerStatus status = ServerStatus::ONLINE;         // current status of the server
-    float cpu_percent = 0.0f;                           // current CPU usage percentage
-    float mem_used_percent = 0.0f;                      // current memory usage percentage
-    float disk_util_percent = 0.0f;                     // current disk utilization percentage
-    float load_avg_1 = 0.0f;                            // current 1-minute load average
+    std::string server_name;                            // 服务器名称
+    float score = 0.0f;                                 // 综合性能评分
+    std::chrono::system_clock::time_point last_updated; // 最近更新时间戳
+    ServerStatus status = ServerStatus::ONLINE;         // 当前服务器状态
+    float cpu_percent = 0.0f;                           // 当前 CPU 使用率百分比
+    float mem_used_percent = 0.0f;                      // 当前内存使用率百分比
+    float disk_util_percent = 0.0f;                     // 当前磁盘利用率百分比
+    float load_avg_1 = 0.0f;                            // 当前 1 分钟平均负载
 };
 
 /**
- * @brief         summary of cluster performance and status
+ * @brief         集群性能和状态摘要
  *
  */
 struct ClusterStats {
-    int total_servers = 0;    // total number of servers in the cluster
-    int online_servers = 0;   // number of online servers
-    int offline_servers = 0;  // number of offline servers
-    float avg_score = 0.0f;   // average performance score across the cluster
-    float max_score = 0.0f;   // maximum performance score in the cluster
-    float min_score = 0.0f;   // minimum performance score in the cluster
-    std::string best_server;  // name of the server with the highest score
-    std::string worst_server; // name of the server with the lowest score
+    int total_servers = 0;    // 集群服务器总数
+    int online_servers = 0;   // 在线服务器数量
+    int offline_servers = 0;  // 离线服务器数量
+    float avg_score = 0.0f;   // 集群平均性能评分
+    float max_score = 0.0f;   // 集群最高性能评分
+    float min_score = 0.0f;   // 集群最低性能评分
+    std::string best_server;  // 评分最高的服务器名称
+    std::string worst_server; // 评分最低的服务器名称
 };
 
 /**
- * @brief         detailed network performance record for a server at a specific
- * timestamp
+ * @brief         指定时间点的服务器网络性能明细记录
  *
  */
 struct NetDetailRecord {
-    std::string server_name;                         // name of the server
-    std::string net_name;                            // name of the network interface
-    std::chrono::system_clock::time_point timestamp; // timestamp of the record
-    uint64_t err_in = 0;                             // number of input errors per second
-    uint64_t err_out = 0;                            // number of output errors per second
-    uint64_t drop_in = 0;                            // number of input packets dropped per second
-    uint64_t drop_out = 0;                           // number of output packets dropped per second
-    float recv_bytes_rate = 0.0f;                    // rate of change of network received bytes per second
-    float sent_bytes_rate = 0.0f;                    // rate of change of network sent bytes per second
-    float recv_packets_rate = 0.0f;                  // rate of change of network received packets per second
-    float sent_packets_rate = 0.0f;                  // rate of change of network sent packets per second
+    std::string server_name;                         // 服务器名称
+    std::string net_name;                            // 网络接口名称
+    std::chrono::system_clock::time_point timestamp; // 记录时间戳
+    uint64_t err_in = 0;                             // 每秒接收错误数
+    uint64_t err_out = 0;                            // 每秒发送错误数
+    uint64_t drop_in = 0;                            // 每秒接收丢包数
+    uint64_t drop_out = 0;                           // 每秒发送丢包数
+    float recv_bytes_rate = 0.0f;                    // 网络接收字节速率变化率
+    float sent_bytes_rate = 0.0f;                    // 网络发送字节速率变化率
+    float recv_packets_rate = 0.0f;                  // 网络接收包速率变化率
+    float sent_packets_rate = 0.0f;                  // 网络发送包速率变化率
 };
 
 /**
- * @brief         detailed disk performance record for a server at a specific
- * timestamp
+ * @brief         指定时间点的服务器磁盘性能明细记录
  *
  */
 struct DiskDetailRecord {
@@ -179,42 +177,40 @@ struct DiskDetailRecord {
 };
 
 /**
- * @brief         detailed memory performance record for a server at a specific
- * timestamp
+ * @brief         指定时间点的服务器内存性能明细记录
  *
  */
 struct MemDetailRecord {
     std::string server_name;
     std::chrono::system_clock::time_point timestamp;
-    float mem_total = 0.0f; // total memory in bytes
-    float mem_free = 0.0f;  // free memory in bytes
-    float mem_avail = 0.0f; // available memory in bytes
-    float buffers = 0.0f;   // memory used for buffers in bytes
-    float cached = 0.0f;    // memory used for cache in bytes
-    float active = 0.0f;    // active memory in bytes
-    float inactive = 0.0f;  // inactive memory in bytes
-    float dirty = 0.0f;     // dirty memory in bytes
+    float mem_total = 0.0f; // 内存总量，单位字节
+    float mem_free = 0.0f;  // 空闲内存，单位字节
+    float mem_avail = 0.0f; // 可用内存，单位字节
+    float buffers = 0.0f;   // buffer 占用内存，单位字节
+    float cached = 0.0f;    // cache 占用内存，单位字节
+    float active = 0.0f;    // 活跃内存，单位字节
+    float inactive = 0.0f;  // 非活跃内存，单位字节
+    float dirty = 0.0f;     // 脏页内存，单位字节
 };
 
 /**
- * @brief         detailed soft IRQ performance record for a server at a
- * specific timestamp
+ * @brief         指定时间点的服务器软中断性能明细记录
  *
  */
 struct SoftIrqDetailRecord {
     std::string server_name;
-    std::string cpu_name; // e.g., "all" for total, or "cpu0", "cpu1", etc. for per-CPU
+    std::string cpu_name; // CPU 名称，"all" 表示汇总，"cpu0"、"cpu1" 等表示单核
     std::chrono::system_clock::time_point timestamp;
-    int64_t hi = 0;     // high priority softirqs per second
-    int64_t timer = 0;  // timer softirqs per second
-    int64_t net_tx = 0; // network transmit softirqs per second
-    int64_t net_rx = 0; // network receive softirqs per second
-    int64_t block = 0;  // block softirqs per second
-    int64_t sched = 0;  // scheduler softirqs per second
+    int64_t hi = 0;     // 每秒高优先级软中断数
+    int64_t timer = 0;  // 每秒定时器软中断数
+    int64_t net_tx = 0; // 每秒网络发送软中断数
+    int64_t net_rx = 0; // 每秒网络接收软中断数
+    int64_t block = 0;  // 每秒块设备软中断数
+    int64_t sched = 0;  // 每秒调度软中断数
 };
 
 /**
- * @brief         detailed mysql performance record for a server at a specific timestamp
+ * @brief         指定时间点的服务器 MySQL 性能明细记录
  *
  */
 struct MysqlDetailRecord {
@@ -259,165 +255,170 @@ public:
     ~QueryManager() { close(); }
 
     /**
-     * @brief         initialize the QueryManager with a MySQL connection pool, configuration, and metrics
+     * @brief         使用 MySQL 连接池、配置和指标对象初始化 QueryManager
      *
-     * @param         queryPool
-     * @param         config
-     * @param         metrics
-     * @return
-     * @return
+     * @param         queryPool MySQL 查询连接池
+     * @param         config 管理器配置
+     * @param         metrics 监控指标
+     * @return        初始化成功返回 true，否则返回 false
      */
     bool init(MysqlConnectionPool *queryPool = nullptr, const ManagerConfig *config = nullptr,
               ManagerMetrics *metrics = nullptr);
 
     /**
-     * @brief         close the database connection and clean up resources
+     * @brief         关闭数据库连接并清理资源
      *
      */
     void close();
 
     /**
-     * @brief         check whether the database connection is ready
+     * @brief         检查数据库查询组件是否已经完成初始化
      *
-     * @return        true if initialized, false otherwise
+     * @return        已初始化返回 true，否则返回 false
      */
     bool isInitialized() const;
 
     /**
-     * @brief         validate the given time range for querying metrics
+     * @brief         校验指标查询时间范围是否合法
      *
-     * @param         range time range to validate
-     * @return        true if the time range is valid, false otherwise
+     * @param         range 待校验的时间范围
+     * @return        时间范围合法返回 true，否则返回 false
      */
     bool validateTimeRange(const TimeRange &range) const;
 
     /**
-     * @brief         query performance records for a specific server within a
-     * given time
+     * @brief         查询指定服务器在给定时间范围内的性能记录
      *
-     * @param         serverName server name
-     * @param         range time range for querying
-     * @param         page mysql page number
-     * @param         pageSize number of records per page
-     * @param         totalCount pointer to store total count of records
-     * @return        std::vector<PerformanceRecord>
+     * @param         serverName 服务器名称
+     * @param         range 查询时间范围
+     * @param         page 页码
+     * @param         pageSize 每页记录数
+     * @param         totalCount 输出参数，保存总记录数
+     * @param         error 输出参数，保存错误信息
+     * @return        性能记录列表
      */
     std::vector<PerformanceRecord> queryPerformanceRecords(const std::string &serverName, const TimeRange &range,
                                                            int page, int pageSize, int *totalCount,
                                                            std::string *error = nullptr);
 
     /**
-     * @brief         query trend data for a specific server over a given time
-     * range
+     * @brief         查询指定服务器在给定时间范围内的趋势数据
      *
-     * @param         serverName
-     * @param         range
-     * @param         intervalSeconds
-     * @return        trend data as a vector of PerformanceRecord
+     * @param         serverName 服务器名称
+     * @param         range 查询时间范围
+     * @param         intervalSeconds 聚合间隔，单位秒
+     * @param         error 输出参数，保存错误信息
+     * @return        趋势性能记录列表
      */
     std::vector<PerformanceRecord> queryTrend(const std::string &serverName, const TimeRange &range,
                                               int intervalSeconds, std::string *error = nullptr);
 
     /**
-     * @brief         query anomaly records for a specific server within a given
-     * time
+     * @brief         查询指定服务器在给定时间范围内的异常记录
      *
-     * @param         serverName
-     * @param         range
-     * @param         threshold
-     * @param         page
-     * @param         pageSize
-     * @param         totalCount
-     * @return
+     * @param         serverName 服务器名称
+     * @param         range 查询时间范围
+     * @param         threshold 异常阈值
+     * @param         page 页码
+     * @param         pageSize 每页记录数
+     * @param         totalCount 输出参数，保存总记录数
+     * @param         error 输出参数，保存错误信息
+     * @return        异常记录列表
      */
     std::vector<AnomalyRecord> queryAnomalyRecords(const std::string &serverName, const TimeRange &range,
                                                    const AnomalyThreshold &threshold, int page, int pageSize,
                                                    int *totalCount, std::string *error = nullptr);
 
     /**
-     * @brief         query server score summaries with pagination and sorting
+     * @brief         按分页和排序条件查询服务器评分摘要
      *
-     * @param         order
-     * @param         page
-     * @param         pageSize
-     * @param         totalCount
-     * @return
+     * @param         order 排序方向
+     * @param         page 页码
+     * @param         pageSize 每页记录数
+     * @param         totalCount 输出参数，保存总记录数
+     * @param         error 输出参数，保存错误信息
+     * @return        服务器评分摘要列表
      */
     std::vector<ServerScoreSummary> queryServerScoreRank(SortOrder order, int page, int pageSize, int *totalCount,
                                                          std::string *error = nullptr);
 
     /**
-     * @brief         query latest server scores and cluster statistics
+     * @brief         查询最新服务器评分和集群统计信息
      *
-     * @param         clusterStats
-     * @return
+     * @param         clusterStats 输出参数，保存集群统计信息
+     * @param         error 输出参数，保存错误信息
+     * @return        最新服务器评分摘要列表
      */
     std::vector<ServerScoreSummary> queryLatestServerScores(ClusterStats *clusterStats, std::string *error = nullptr);
 
     /**
-     * @brief         query net statistics
+     * @brief         查询网络明细统计
      *
-     * @param         serverName
-     * @param         range
-     * @param         page
-     * @param         pageSize
-     * @param         totalCount
-     * @return
+     * @param         serverName 服务器名称
+     * @param         range 查询时间范围
+     * @param         page 页码
+     * @param         pageSize 每页记录数
+     * @param         totalCount 输出参数，保存总记录数
+     * @param         error 输出参数，保存错误信息
+     * @return        网络明细记录列表
      */
     std::vector<NetDetailRecord> queryNetDetailRecords(const std::string &serverName, const TimeRange &range, int page,
                                                        int pageSize, int *totalCount, std::string *error = nullptr);
 
     /**
-     * @brief         query disk statistics
+     * @brief         查询磁盘明细统计
      *
-     * @param         serverName
-     * @param         range
-     * @param         page
-     * @param         pageSize
-     * @param         totalCount
-     * @return
+     * @param         serverName 服务器名称
+     * @param         range 查询时间范围
+     * @param         page 页码
+     * @param         pageSize 每页记录数
+     * @param         totalCount 输出参数，保存总记录数
+     * @param         error 输出参数，保存错误信息
+     * @return        磁盘明细记录列表
      */
     std::vector<DiskDetailRecord> queryDiskDetailRecords(const std::string &serverName, const TimeRange &range,
                                                          int page, int pageSize, int *totalCount,
                                                          std::string *error = nullptr);
 
     /**
-     * @brief         query memory statistics
+     * @brief         查询内存明细统计
      *
-     * @param         serverName
-     * @param         range
-     * @param         page
-     * @param         pageSize
-     * @param         totalCount
-     * @return
+     * @param         serverName 服务器名称
+     * @param         range 查询时间范围
+     * @param         page 页码
+     * @param         pageSize 每页记录数
+     * @param         totalCount 输出参数，保存总记录数
+     * @param         error 输出参数，保存错误信息
+     * @return        内存明细记录列表
      */
     std::vector<MemDetailRecord> queryMemDetailRecords(const std::string &serverName, const TimeRange &range, int page,
                                                        int pageSize, int *totalCount, std::string *error = nullptr);
 
     /**
-     * @brief         query soft IRQ statistics
+     * @brief         查询软中断明细统计
      *
-     * @param         serverName
-     * @param         range
-     * @param         page
-     * @param         pageSize
-     * @param         totalCount
-     * @return
+     * @param         serverName 服务器名称
+     * @param         range 查询时间范围
+     * @param         page 页码
+     * @param         pageSize 每页记录数
+     * @param         totalCount 输出参数，保存总记录数
+     * @param         error 输出参数，保存错误信息
+     * @return        软中断明细记录列表
      */
     std::vector<SoftIrqDetailRecord> querySoftIrqDetailRecords(const std::string &serverName, const TimeRange &range,
                                                                int page, int pageSize, int *totalCount,
                                                                std::string *error = nullptr);
 
     /**
-     * @brief         query MySQL statistics
+     * @brief         查询 MySQL 明细统计
      *
-     * @param         serverName
-     * @param         range
-     * @param         page
-     * @param         pageSize
-     * @param         totalCount
-     * @param         error
-     * @return
+     * @param         serverName 服务器名称
+     * @param         range 查询时间范围
+     * @param         page 页码
+     * @param         pageSize 每页记录数
+     * @param         totalCount 输出参数，保存总记录数
+     * @param         error 输出参数，保存错误信息
+     * @return        MySQL 明细记录列表
      */
     std::vector<MysqlDetailRecord> queryMysqlDetailRecords(const std::string &serverName, const TimeRange &range,
                                                            int page, int pageSize, int *totalCount,
@@ -426,7 +427,7 @@ public:
 private:
 #ifdef ENABLE_MYSQL
     /**
-     * @brief      RAII wrapper for MySQL connection lease from the connection pool
+     * @brief      MySQL 连接池租约的 RAII 包装，离开作用域时自动释放连接
      *
      */
     struct MysqlConnectionLease {
@@ -434,32 +435,38 @@ private:
         MYSQL *conn = nullptr;
     };
 
+    /**
+     * @brief         从连接池获取一个 MySQL 查询连接
+     *
+     * @param         error 输出参数，保存错误信息
+     * @return        MySQL 连接租约
+     */
     MysqlConnectionLease acquireConnection(std::string *error);
 #endif
 
     /**
-     * @brief         format a time_point to a string suitable for SQL queries
+     * @brief         将 time_point 格式化为适合 SQL 查询的时间字符串
      *
-     * @param         tp
-     * @return
+     * @param         tp 时间点
+     * @return        SQL 时间字符串
      */
     std::string formatTimePoint(const std::chrono::system_clock::time_point &tp) const;
 
     /**
-     * @brief         parse a time string from SQL query results to a time_point
+     * @brief         将 SQL 查询结果中的时间字符串解析为 time_point
      *
-     * @param         timeStr
-     * @return
+     * @param         timeStr SQL 时间字符串
+     * @return        系统时间点
      */
     std::chrono::system_clock::time_point parseTimeString(const std::string &timeStr) const;
 
 #ifdef ENABLE_MYSQL
-    MysqlConnectionPool *queryPool_ = nullptr; // MySQL connection pool for executing queries
+    MysqlConnectionPool *queryPool_ = nullptr; // 用于执行查询的 MySQL 连接池
 #endif
-    ManagerConfig config_;              // configuration parameters for the QueryManager
-    ManagerMetrics *metrics_ = nullptr; // pointer to ManagerMetrics for recording query performance metrics
-    std::mutex mutex_;                  // mutex for synchronizing access to shared resources
-    bool initialized_ = false;          // flag indicating whether the QueryManager has been initialized
+    ManagerConfig config_;              // QueryManager 配置参数
+    ManagerMetrics *metrics_ = nullptr; // 记录查询性能指标的 ManagerMetrics 指针
+    std::mutex mutex_;                  // 同步共享资源访问的互斥锁
+    bool initialized_ = false;          // 标记 QueryManager 是否已经初始化
 };
 
 } // namespace monitor

@@ -1,5 +1,5 @@
 /**
- * @brief         MonitorPusher class definition
+ * @brief         MonitorPusher 类定义
  * @file          MonitorPusher.h
  * @author        harry
  * @date          2026-02-11
@@ -18,66 +18,55 @@ namespace monitor {
 class MonitorPusher {
 public:
     /**
-     * @brief         Construct a new Monitor Pusher object
+     * @brief         构造监控数据推送器
      *
-     * @param         managerAddress The gRPC address of the manager to which
-     * metrics will be pushed
-     * @param         intervalSeconds The interval in seconds at which metrics
-     * will be pushed to the manager (default is 10 seconds)
+     * @param         managerAddress manager 的 gRPC 地址
+     * @param         intervalSeconds 推送间隔，单位秒，默认 10 秒
      */
     explicit MonitorPusher(const std::string &managerAddress,
                            int intervalSeconds = 10);
     ~MonitorPusher();
 
     /**
-     * @brief         Start the monitor pusher thread to periodically push
-     * metrics to the manager
+     * @brief         启动监控推送线程，定期向 manager 推送指标
      *
      */
     void start();
 
     /**
-     * @brief         Stop the monitor pusher thread
+     * @brief         停止监控推送线程
      *
      */
     void stop();
 
     /**
-     * @brief         Get the Manager Address object
+     * @brief         获取 manager 的 gRPC 地址
      *
-     * @return        const std::string&
+     * @return        manager 地址引用
      */
     const std::string &getManagerAddress() const { return managerAddress_; }
 
 private:
     /**
-     * @brief         The main loop for pushing metrics to the manager. This
-     * function will be run in a separate thread and will continuously push
-     * metrics at the specified interval until the pusher is stopped. It will
-     * call the pushOnce function to perform the actual metric collection and
-     * pushing to the manager.
+     * @brief         监控推送主循环，在线程中按固定间隔采集并推送指标，直到推送器停止
      *
      */
     void pushLoop();
 
     /**
-     * @brief         Push metrics to the manager once. This function will
-     * collect metrics and send them to the manager using gRPC. It will be
-     * called periodically by the pushLoop function based on the specified
-     * interval.
+     * @brief         执行一次指标采集和 gRPC 推送
      *
-     * @return        bool True if the metrics were successfully pushed to the
-     * manager, false otherwise.
+     * @return        推送成功返回 true，否则返回 false
      */
     bool pushOnce();
 
-    std::string managerAddress_; // gRPC manager address
-    int intervalSeconds_;        // Interval in seconds for pushing metrics
+    std::string managerAddress_; // manager 的 gRPC 地址
+    int intervalSeconds_;        // 指标推送间隔，单位秒
     std::atomic<bool>
-        running_; // Flag to control the running state of the pusher
-    std::unique_ptr<std::thread> thread_;        // Thread for pushing metrics
-    std::unique_ptr<MetricCollector> collector_; // Metric collector instance
+        running_; // 控制推送器运行状态的标记
+    std::unique_ptr<std::thread> thread_;        // 指标推送线程
+    std::unique_ptr<MetricCollector> collector_; // 指标采集器实例
     std::unique_ptr<monitor::proto::GrpcManager::Stub>
-        stub_; // gRPC stub for communication with the manager
+        stub_; // 与 manager 通信的 gRPC stub
 };
 } // namespace monitor

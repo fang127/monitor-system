@@ -2,21 +2,21 @@ syntax = "proto3";
 package monitor.proto;
 
 message MysqlInfo {
-  // Instance identity.
-  string instance = 1; // logical instance id, usually "host:port"
+  // 实例身份信息。
+  string instance = 1; // 逻辑实例 ID，通常为 "host:port"
   string host = 2;
   uint32 port = 3;
-  bool up = 4; // true if the instance is up and responding to queries, false otherwise
+  bool up = 4; // 实例在线且能响应查询时为 true，否则为 false
   string version = 5;
-  string role = 6; // primary, replica, or unknown
+  string role = 6; // primary、replica 或 unknown
 
-  // Connection metrics.
+  // 连接指标。
   uint64 max_connections = 10; // 最大连接数，即服务器允许的最大客户端连接数
   uint64 threads_connected = 11; // 线程连接数，即当前连接到服务器的客户端数量
   uint64 threads_running = 12; // 正在运行的线程数，即当前正在执行查询的线程数量
   uint64 aborted_connects = 13; // 连接失败的次数，即客户端尝试连接服务器但失败的次数
 
-  // Query and transaction counters.
+  // 查询和事务计数器。
   uint64 questions = 20; // 从服务器启动以来，客户端发送的查询总数，包括成功和失败的查询
   uint64 com_select = 21; // 从服务器启动以来，执行的 SELECT 查询总数，即客户端发送的 SELECT 查询的数量
   uint64 com_insert = 22; // 从服务器启动以来，执行的 INSERT 查询总数，即客户端发送的 INSERT 查询的数量
@@ -26,14 +26,14 @@ message MysqlInfo {
   uint64 com_rollback = 26; // 从服务器启动以来，执行的 ROLLBACK 事务总数，即客户端发送的 ROLLBACK 事务的数量
   uint64 slow_queries = 27; // 从服务器启动以来，执行时间超过 long_query_time 秒的查询总数，即慢查询的数量
 
-  // InnoDB metrics.
+  // InnoDB 指标。
   uint64 innodb_buffer_pool_read_requests = 30; // 从服务器启动以来，InnoDB 存储引擎的缓冲池读取请求总数，即客户端查询需要从缓冲池中读取数据的次数
   uint64 innodb_buffer_pool_reads = 31; // 从服务器启动以来，InnoDB 存储引擎的缓冲池读取总数，即客户端查询需要从磁盘中读取数据的次数
   double innodb_buffer_pool_hit_percent = 32; // InnoDB 存储引擎的缓冲池命中率，即客户端查询需要从缓冲池中读取数据的次数占总读取请求的百分比
   uint64 innodb_row_lock_waits = 33; // 从服务器启动以来，InnoDB 存储引擎的行锁等待总数，即客户端查询需要等待行锁的次数
   double innodb_row_lock_time_avg_ms = 34; // InnoDB 存储引擎的行锁平均等待时间，单位为毫秒，即客户端查询需要等待行锁的平均时间
 
-  // Replication metrics.
+  // 复制指标。
   bool replication_configured = 40; // 如果服务器配置了复制（即它是一个复制主服务器或从服务器），则为 true，否则为 false
   bool replication_running = 41; // 如果服务器的复制线程正在运行（即它是一个复制主服务器或从服务器，并且复制线程正在运行），则为 true，否则为 false
   double replication_lag_seconds = 42; // 如果服务器是一个复制从服务器，则为主服务器的复制延迟时间，单位为秒；如果服务器不是一个复制从服务器，则为 0

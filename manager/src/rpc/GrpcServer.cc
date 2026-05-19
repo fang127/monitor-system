@@ -8,11 +8,10 @@ namespace monitor {
 namespace {
 
 /**
- * @brief         Resolve a unique host ID from the MonitorInfo message. It tries to use hostname and IP address if
- * available, otherwise falls back to the name field.
+ * @brief         从 MonitorInfo 中解析唯一主机 ID，优先使用主机名和 IP 地址，否则回退到 name 字段
  *
- * @param         info
- * @return
+ * @param         info 监控数据
+ * @return        主机唯一标识
  */
 std::string resolveHostID(const monitor::proto::MonitorInfo &info) {
     // 如果有主机信息，优先使用主机名和IP地址组合来生成唯一ID
@@ -34,7 +33,7 @@ std::string resolveHostID(const monitor::proto::MonitorInfo &info) {
 ::grpc::Status GrpcServerImpl::SetMonitorInfo(::grpc::ServerContext *context,
                                               const ::monitor::proto::MonitorInfo *request,
                                               ::google::protobuf::Empty *response) {
-    // Validate the request
+    // 校验请求
     if (!request) return ::grpc::Status(::grpc::StatusCode::INVALID_ARGUMENT, "Empty request");
 
     std::string hostname = resolveHostID(*request);
@@ -42,8 +41,8 @@ std::string resolveHostID(const monitor::proto::MonitorInfo &info) {
     // 主机名不能为空，否则无法唯一标识主机
     if (hostname.empty()) return ::grpc::Status(::grpc::StatusCode::INVALID_ARGUMENT, "Missing hostname");
 
-    // Store the monitor info with a timestamp
-    // to do ... Using lock-free structure for better performance if needed
+    // 保存带时间戳的监控数据
+    // 后续如有性能需要，可考虑使用无锁结构
     {
         std::lock_guard<std::mutex> lock(mutex_);
         hostDatas_[hostname] = {*request, std::chrono::system_clock::now()};

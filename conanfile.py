@@ -16,7 +16,7 @@ class MonitorSystemConan(ConanFile):
         self.requires("folly/2024.08.12.00")
         self.requires("redis-plus-plus/1.3.15")
 
-        # Resolve folly -> lz4/1.10.0 vs existing graph -> lz4/1.9.4.
+        # 解决 folly 依赖的 lz4/1.10.0 与现有依赖图中的 lz4/1.9.4 冲突。
         self.requires("lz4/1.10.0", override=True)
         self.requires("zstd/1.5.7", override=True)
 

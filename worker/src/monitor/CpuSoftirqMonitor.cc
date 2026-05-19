@@ -18,6 +18,11 @@ static const char *DEVICE_PATH = "/dev/SoftirqCollector";
 // 最大 CPU 数量（与内核模块一致）
 static const size_t MAX_CPUS = 256;
 
+/**
+ * @brief         从内核模块采集一次软中断数据并写入 MonitorInfo
+ *
+ * @param         monitorInfo 监控数据输出对象
+ */
 void CpuSoftIrqMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo) {
     // 打开设备文件
     int fd = open(DEVICE_PATH, O_RDONLY);
@@ -56,34 +61,21 @@ void CpuSoftIrqMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo) {
 
         if (it != cpuSoftIrqs_.end()) {
             // 计算时间差（秒）
-            auto duration =
-                std::chrono::duration_cast<std::chrono::milliseconds>(
-                    now - it->second.timepoint)
-                    .count();
+            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - it->second.timepoint).count();
             double seconds = duration / 1000.0;
 
             if (seconds > 0) {
                 // 计算每秒的软中断频率
-                softirq_msg->set_hi(static_cast<int64_t>(
-                    (stats[i].hi - it->second.hi) / seconds));
-                softirq_msg->set_timer(static_cast<int64_t>(
-                    (stats[i].timer - it->second.timer) / seconds));
-                softirq_msg->set_net_tx(static_cast<int64_t>(
-                    (stats[i].net_tx - it->second.net_tx) / seconds));
-                softirq_msg->set_net_rx(static_cast<int64_t>(
-                    (stats[i].net_rx - it->second.net_rx) / seconds));
-                softirq_msg->set_block(static_cast<int64_t>(
-                    (stats[i].block - it->second.block) / seconds));
-                softirq_msg->set_irq_poll(static_cast<int64_t>(
-                    (stats[i].irq_poll - it->second.irq_poll) / seconds));
-                softirq_msg->set_tasklet(static_cast<int64_t>(
-                    (stats[i].tasklet - it->second.tasklet) / seconds));
-                softirq_msg->set_sched(static_cast<int64_t>(
-                    (stats[i].sched - it->second.sched) / seconds));
-                softirq_msg->set_hrtimer(static_cast<int64_t>(
-                    (stats[i].hrtimer - it->second.hrtimer) / seconds));
-                softirq_msg->set_rcu(static_cast<int64_t>(
-                    (stats[i].rcu - it->second.rcu) / seconds));
+                softirq_msg->set_hi(static_cast<int64_t>((stats[i].hi - it->second.hi) / seconds));
+                softirq_msg->set_timer(static_cast<int64_t>((stats[i].timer - it->second.timer) / seconds));
+                softirq_msg->set_net_tx(static_cast<int64_t>((stats[i].net_tx - it->second.net_tx) / seconds));
+                softirq_msg->set_net_rx(static_cast<int64_t>((stats[i].net_rx - it->second.net_rx) / seconds));
+                softirq_msg->set_block(static_cast<int64_t>((stats[i].block - it->second.block) / seconds));
+                softirq_msg->set_irq_poll(static_cast<int64_t>((stats[i].irq_poll - it->second.irq_poll) / seconds));
+                softirq_msg->set_tasklet(static_cast<int64_t>((stats[i].tasklet - it->second.tasklet) / seconds));
+                softirq_msg->set_sched(static_cast<int64_t>((stats[i].sched - it->second.sched) / seconds));
+                softirq_msg->set_hrtimer(static_cast<int64_t>((stats[i].hrtimer - it->second.hrtimer) / seconds));
+                softirq_msg->set_rcu(static_cast<int64_t>((stats[i].rcu - it->second.rcu) / seconds));
             } else {
                 // 时间差为 0，使用原始值
                 softirq_msg->set_hi(stats[i].hi);

@@ -69,7 +69,7 @@ struct DiskDetailSample {
 };
 
 /**
- * @brief         MySQL instance counters used to calculate derived rates.
+ * @brief         MySQL 实例计数器采样，用于计算派生速率
  *
  */
 struct MysqlDetailSample {
@@ -82,8 +82,7 @@ struct MysqlDetailSample {
     bool initialized = false;
 };
 
-// store the last samples for each host, used to calculate the rate and
-// percentage
+// 保存每台主机的上一次采样，用于计算速率和变化率
 std::map<std::string, std::map<std::string, NetDetailedSample>> lastNetSamples;
 std::map<std::string, std::map<std::string, SoftIrqSample>> lastSoftirqSamples;
 std::map<std::string, MemDetailSample> lastMemSamples;
@@ -91,19 +90,17 @@ std::map<std::string, std::map<std::string, DiskDetailSample>> lastDiskSamples;
 std::map<std::string, std::map<std::string, MysqlDetailSample>> lastMysqlSamples;
 
 /**
- * @brief         Escape a string for safe insertion into MySQL queries,
- * preventing SQL injection. It uses mysql_real_escape_string to properly escape
- * special characters and wraps the result in single quotes.
+ * @brief         转义字符串并包裹单引号，确保可安全拼接到 MySQL 查询中，避免 SQL 注入
  *
- * @param         conn
- * @param         value
- * @return
+ * @param         conn MySQL 连接
+ * @param         value 待转义字符串
+ * @return        转义后的 SQL 字符串字面量
  */
 std::string quoteSqlString(MYSQL *conn, const std::string &value) {
     std::string escaped(value.size() * 2 + 1,
-                        '\0'); // allocate enough space for escaping
+                        '\0'); // 为转义结果预留足够空间
     unsigned long len = mysql_real_escape_string(conn, escaped.data(), value.data(),
-                                                 static_cast<unsigned long>(value.size())); // escape the string
+                                                 static_cast<unsigned long>(value.size())); // 执行字符串转义
     escaped.resize(len);
     return "'" + escaped + "'";
 }
@@ -116,8 +113,8 @@ namespace {
  * @brief
  * 选择用于计算分数的CPU统计数据，优先选择名为"all"的统计数据，如果没有则选择名为"cpu"的统计数据，如果仍然没有，则选择第一个CPU统计数据。
  *
- * @param         info
- * @return
+ * @param         info 监控数据
+ * @return        可用于评分的 CPU 统计数据指针，缺失时返回 nullptr
  */
 const monitor::proto::CpuStat *selectAggregateCpuStat(const monitor::proto::MonitorInfo &info) {
     const monitor::proto::CpuStat *legacyCpu = nullptr;
@@ -133,9 +130,8 @@ const monitor::proto::CpuStat *selectAggregateCpuStat(const monitor::proto::Moni
 /**
  * @brief         判断CPU统计数据的名称是否符合每核统计的命名规则，即以"cpu"开头，后面跟数字，例如"cpu0"、"cpu1"等。
  *
- * @param         name
- * @return
- * @return
+ * @param         name CPU 名称
+ * @return        是每核 CPU 名称返回 true，否则返回 false
  */
 bool isPerCoreCpuName(const std::string &name) {
     if (name.size() <= 3 || name.compare(0, 3, "cpu") != 0) return false;
@@ -146,8 +142,8 @@ bool isPerCoreCpuName(const std::string &name) {
  * @brief
  * 计算CPU核心数量的方法是遍历所有的CPU统计数据，检查每个统计数据的名称是否符合每核统计的命名规则，如果符合则计数器加1。最后返回计数器的值，如果没有找到任何符合条件的统计数据，则默认返回1，表示至少有一个CPU核心。
  *
- * @param         info
- * @return
+ * @param         info 监控数据
+ * @return        CPU 核心数量
  */
 int countCpuCores(const monitor::proto::MonitorInfo &info) {
     int cores = 0;
@@ -220,39 +216,39 @@ void HostManager::processLoop() {
 }
 
 double HostManager::calculateScore(const monitor::proto::MonitorInfo &info) {
-    // High coroutine background score weights
+    // 高并发后台场景的评分权重
     const double cpuWeight = 0.35;
     const double memWeight = 0.30;
     const double loadWeight = 0.15;
     const double diskWeight = 0.15;
     const double netWeight = 0.05;
 
-    const double loadCoefficient = 1.5;      // I/O intensive scenario coefficient
-    const double maxBandWidth = 125000000.0; // 1 Gbps in bytes per second
+    const double loadCoefficient = 1.5;      // I/O 密集场景系数
+    const double maxBandWidth = 125000000.0; // 1 Gbps，单位 bytes/s
 
     double cpuPercent = 0, loadAvg1 = 0, memPercent = 0;
     double netRecvRate = 0, netSendRate = 0, diskUtil = 0;
     int cpuCores = 1;
 
-    // Calculate CPU usage percentage and number of CPU cores
+    // 计算 CPU 使用率和 CPU 核心数量
     if (const auto *cpu = selectAggregateCpuStat(info)) {
         cpuPercent = cpu->cpu_percent();
         cpuCores = countCpuCores(info);
     }
 
-    // Calculate load average
+    // 计算平均负载
     if (info.has_cpu_load()) loadAvg1 = info.cpu_load().load_avg_1();
 
-    // Calculate memory usage percentage
+    // 计算内存使用率
     if (info.has_mem_info()) memPercent = info.mem_info().used_percent();
 
-    // Calculate network rates
+    // 计算网络速率
     if (info.net_info_size() > 0) {
         netRecvRate = info.net_info(0).rcv_rate();
         netSendRate = info.net_info(0).send_rate();
     }
 
-    // Calculate disk utilization
+    // 计算磁盘利用率
     if (info.disk_info_size() > 0) {
         for (int i = 0; i < info.disk_info_size(); ++i) {
             double util = info.disk_info(i).util_percent();
@@ -260,7 +256,7 @@ double HostManager::calculateScore(const monitor::proto::MonitorInfo &info) {
         }
     }
 
-    // Calculate the overall score using weighted sum
+    // 使用加权求和计算综合评分
     auto clamp = [](double value) { return value < 0 ? 0 : (value > 1 ? 1 : value); };
     double cpuScore = clamp(1.0 - cpuPercent / 100);
     double memScore = clamp(1.0 - memPercent / 100);
@@ -271,7 +267,7 @@ double HostManager::calculateScore(const monitor::proto::MonitorInfo &info) {
     double netScore = (netRecvScore + netSendScore) / 2;
     double score = cpuWeight * cpuScore + memWeight * memScore + loadWeight * loadScore + diskWeight * diskScore +
                    netWeight * netScore;
-    score *= 100; // Scale to 0-100
+    score *= 100; // 缩放到 0-100
     return score < 0 ? 0 : (score > 100 ? 100 : score);
 }
 
@@ -296,16 +292,16 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
     std::tm tm = *std::localtime(&t);
     char timeStr[32];
     std::strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", &tm);
-    const std::string hostNameSql = quoteSqlString(conn, data.host_name); // escape host name to prevent SQL injection
-    const std::string timestampSql = quoteSqlString(conn, timeStr); // escape timestamp string to prevent SQL injection
+    const std::string hostNameSql = quoteSqlString(conn, data.host_name); // 转义主机名以防 SQL 注入
+    const std::string timestampSql = quoteSqlString(conn, timeStr);       // 转义时间戳字符串以防 SQL 注入
 
     const auto &info = data.host_score.info;
     auto rate = [](float nowVal, float lastVal) {
         if (lastVal == 0) return 0.0f;
-        return (nowVal - lastVal) / lastVal; // calculate rate of change
+        return (nowVal - lastVal) / lastVal; // 计算变化率
     };
 
-    // Insert data into MySQL main table
+    // 向 MySQL 主表插入数据
     {
         float total = 0, freeMem = 0, avail = 0, sendRate = 0, rcvRate = 0;
         float cpuPercent = 0, usrPercent = 0, systemPercent = 0;
@@ -380,7 +376,7 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
             << data.mem_used_percent_rate << "," << data.mem_total_rate << "," << data.mem_free_rate << ","
             << data.mem_avail_rate << "," << diskUtilPercentRate << "," << data.net_in_rate_rate << ","
             << data.net_out_rate_rate << "," << timestampSql << ")";
-        // execute the query
+        // 执行写入语句
         mysql_query(conn, oss.str().c_str());
         // check for errors
         if (mysql_errno(conn)) {
@@ -612,7 +608,7 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
         }
     }
 
-    // insert MySQL instance detail data into mysql
+    // 向 MySQL 明细表插入 MySQL 实例指标数据
     {
         auto counterRate = [](uint64_t nowVal, uint64_t lastVal, double seconds) -> float {
             if (seconds <= 0.0 || nowVal < lastVal) return 0.0f;
@@ -694,7 +690,7 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
     }
 
 #else
-    (void)data; // avoid unused parameter warning
+    (void)data; // 避免未使用参数警告
 #endif
 }
 
@@ -717,7 +713,7 @@ void HostManager::stop() {
 }
 
 void HostManager::onDataReceived(const monitor::proto::MonitorInfo &info) {
-    // create unique host ID, can be replaced by real hostname in production
+    // 创建唯一主机 ID，生产环境可替换为真实主机名
     std::string hostID;
     if (info.has_host_info()) {
         const auto &hostInfo = info.host_info();

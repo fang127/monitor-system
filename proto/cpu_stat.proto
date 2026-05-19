@@ -1,15 +1,15 @@
 syntax = "proto3";
 package monitor.proto;
 
-// CPU usage statistics
+// CPU 使用率统计
 message CpuStat{
-    string cpu_name = 1; // e.g., "cpu0", "cpu1", or "all"
-    float cpu_percent = 2; // overall CPU usage percentage
-    float usr_percent = 3; // user mode CPU usage percentage
-    float system_percent = 4; // system mode CPU usage percentage
-    float nice_percent = 5; // nice mode CPU usage percentage
-    float idle_percent = 6; // idle CPU percentage
-    float io_wait_percent = 7; // I/O wait CPU percentage
-    float irq_percent = 8; // IRQ CPU usage percentage
-    float soft_irq_percent = 9; // soft IRQ CPU usage percentage
+    string cpu_name = 1; // 例如 "cpu0"、"cpu1" 或 "all"
+    float cpu_percent = 2; // CPU 总使用率百分比
+    float usr_percent = 3; // 用户态 CPU 使用率百分比
+    float system_percent = 4; // 系统态 CPU 使用率百分比
+    float nice_percent = 5; // nice CPU 使用率百分比
+    float idle_percent = 6; // 空闲 CPU 百分比
+    float io_wait_percent = 7; // I/O 等待 CPU 百分比
+    float irq_percent = 8; // 硬中断 CPU 使用率百分比
+    float soft_irq_percent = 9; // 软中断 CPU 使用率百分比
 }

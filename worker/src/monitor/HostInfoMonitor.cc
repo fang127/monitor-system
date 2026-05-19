@@ -19,13 +19,22 @@
 
 namespace monitor {
 
+/**
+ * @brief         获取本机主机名
+ *
+ * @return        主机名，失败时返回 "unknown"
+ */
 std::string HostInfoMonitor::getHostname() {
     char hostname[256];
-    if (gethostname(hostname, sizeof(hostname)) == 0)
-        return std::string(hostname);
+    if (gethostname(hostname, sizeof(hostname)) == 0) return std::string(hostname);
     return "unknown";
 }
 
+/**
+ * @brief         获取本机主要 IPv4 地址，跳过回环和常见虚拟网卡
+ *
+ * @return        主要 IP 地址，失败时返回空字符串
+ */
 std::string HostInfoMonitor::getPrimaryIpAddress() {
     struct ifaddrs *ifaddr = nullptr;
     struct ifaddrs *ifa = nullptr;
@@ -40,22 +49,20 @@ std::string HostInfoMonitor::getPrimaryIpAddress() {
         // 只处理 IPv4 地址
         if (ifa->ifa_addr->sa_family != AF_INET) continue;
 
-        // 跳过 loopback 接口
+        // 跳过回环接口
         if (strcmp(ifa->ifa_name, "lo") == 0) continue;
 
         // 跳过 docker/虚拟网卡（通常以 docker、veth、br- 开头）
         std::string ifname(ifa->ifa_name);
-        if (ifname.find("docker") == 0 || ifname.find("veth") == 0 ||
-            ifname.find("br-") == 0 || ifname.find("virbr") == 0) {
+        if (ifname.find("docker") == 0 || ifname.find("veth") == 0 || ifname.find("br-") == 0 ||
+            ifname.find("virbr") == 0) {
             continue;
         }
 
         // 获取 IP 地址
-        struct sockaddr_in *addr =
-            reinterpret_cast<struct sockaddr_in *>(ifa->ifa_addr);
+        struct sockaddr_in *addr = reinterpret_cast<struct sockaddr_in *>(ifa->ifa_addr);
         char ip_str[INET_ADDRSTRLEN];
-        if (inet_ntop(AF_INET, &(addr->sin_addr), ip_str, sizeof(ip_str)) !=
-            nullptr) {
+        if (inet_ntop(AF_INET, &(addr->sin_addr), ip_str, sizeof(ip_str)) != nullptr) {
             result = ip_str;
             break; // 找到第一个有效 IP 就返回
         }
@@ -65,6 +72,11 @@ std::string HostInfoMonitor::getPrimaryIpAddress() {
     return result;
 }
 
+/**
+ * @brief         采集一次主机标识信息并写入 MonitorInfo
+ *
+ * @param         monitorInfo 监控数据输出对象
+ */
 void HostInfoMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo) {
     if (!monitorInfo) return;
 

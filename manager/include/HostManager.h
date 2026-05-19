@@ -17,10 +17,7 @@
 
 namespace monitor {
 /**
- * @brief         HostScore is a structure that encapsulates the monitoring
- * information of a host along with its computed score and the last update time.
- * It is used to evaluate and compare the performance of different hosts based
- * on their monitoring data.
+ * @brief         主机评分结构体，保存主机监控数据、计算出的综合评分和最后更新时间
  */
 struct HostScore {
     monitor::proto::MonitorInfo info;
@@ -29,10 +26,7 @@ struct HostScore {
 };
 
 /**
- * @brief         HostMonitoringData is a structure that encapsulates the
- * monitoring data of a host along with its computed score. It is used to store
- * the monitoring data of a host for further analysis and persistence in a MySQL
- * database.
+ * @brief         主机监控落库数据结构体，保存主机指标、评分和各类变化率，供 MySQL 持久化和后续分析使用
  *
  */
 struct HostMonitoringData {
@@ -70,103 +64,97 @@ public:
     ~HostManager();
 
     /**
-     * @brief         configure HostManager with necessary parameters and dependencies
+     * @brief         配置 HostManager 所需参数和依赖组件
      *
-     * @param         config
-     * @param         metrics
-     * @param         mysqlWritePool
-     * @param         redisCache
+     * @param         config 管理器配置
+     * @param         metrics 监控指标
+     * @param         mysqlWritePool MySQL 写连接池
+     * @param         redisCache Redis 缓存
      */
     void configure(const ManagerConfig &config, ManagerMetrics *metrics, MysqlConnectionPool *mysqlWritePool,
                    RedisCache *redisCache);
 
     /**
-     * @brief         start HostManager thread
+     * @brief         启动 HostManager 后台处理线程
      *
      */
     void start();
 
     /**
-     * @brief         stop HostManager thread
+     * @brief         停止 HostManager 后台处理线程
      *
      */
     void stop();
 
     /**
-     * @brief         receive worker push monitoring data
+     * @brief         接收 worker 推送的监控数据并更新主机评分
      *
-     * @param         info
+     * @param         info 监控数据
      */
     void onDataReceived(const monitor::proto::MonitorInfo &info);
 
     /**
-     * @brief         Get the All Host Scores object
+     * @brief         获取所有主机评分快照
      *
-     * @return
+     * @return        主机名到评分数据的映射
      */
     std::unordered_map<std::string, HostScore> getAllHostScores();
 
     /**
-     * @brief         Get the Best Host object
+     * @brief         获取当前评分最高的主机名
      *
-     * @return
+     * @return        最优主机名
      */
     std::string getBestHost();
 
 private:
     /**
-     * @brief         running in a loop to process host scores
+     * @brief         后台循环处理主机评分和过期数据
      *
      */
     void processLoop();
 
     /**
-     * @brief         Calculate the score of a host based on its monitoring
-     * information.
+     * @brief         根据主机监控数据计算综合评分
      *
-     * @param         info
-     * @return
+     * @param         info 主机监控数据
+     * @return        综合评分
      */
     double calculateScore(const monitor::proto::MonitorInfo &info);
 
     /**
-     * @brief         Write the host score and monitoring data to MySQL database
-     * for persistence and further analysis.
+     * @brief         将主机评分和监控数据写入 MySQL，供持久化和后续分析使用
      *
      */
     void writeToMysql(HostMonitoringData &data);
 
     /**
-     * @brief         Enqueue the host monitoring data to the MySQL write queue for asynchronous processing.
+     * @brief         将主机监控数据加入 MySQL 写队列，等待后台线程异步写入
      *
-     * @param         data
+     * @param         data 主机监控落库数据
      */
     void enqueueMysqlWrite(HostMonitoringData data);
 
     /**
-     * @brief         Running in a loop to process the MySQL write queue and persist the host monitoring data to the
-     * MySQL database.
+     * @brief         后台循环处理 MySQL 写队列并持久化主机监控数据
      *
      */
     void mysqlWriteLoop();
 
-    std::unordered_map<std::string, HostScore> hostScores_; // key: host_name, value: HostScore
-    std::mutex mutex_;                                      // protects hostScores_
-    std::atomic<bool> running_;                             // flag to control the running state of the processing loop
-    std::unique_ptr<std::thread> thread_;                   // thread for processing host scores
-    ManagerConfig config_;                                  // configuration parameters for HostManager
-    ManagerMetrics *metrics_ = nullptr;                     // pointer to ManagerMetrics for recording metrics
-    MysqlConnectionPool *mysqlWritePool_ =
-        nullptr; // pointer to MysqlConnectionPool for writing host monitoring data to MySQL database
-    RedisCache *redisCache_ = nullptr; // pointer to RedisCache for caching host scores and related information
+    std::unordered_map<std::string, HostScore> hostScores_; // 键为主机名，值为主机评分数据
+    std::mutex mutex_;                                      // 保护 hostScores_ 的互斥锁
+    std::atomic<bool> running_;                             // 控制后台处理循环运行状态的标记
+    std::unique_ptr<std::thread> thread_;                   // 主机评分处理线程
+    ManagerConfig config_;                                  // HostManager 配置参数
+    ManagerMetrics *metrics_ = nullptr;                     // 监控指标对象指针
+    MysqlConnectionPool *mysqlWritePool_ = nullptr;         // MySQL 写连接池指针，用于写入主机监控数据
+    RedisCache *redisCache_ = nullptr;                      // Redis 缓存指针，用于缓存主机评分和相关信息
 
-    std::deque<HostMonitoringData>
-        mysqlWriteQueue_;             // queue for storing host monitoring data to be written to MySQL database
-    std::mutex mysqlWriteQueueMutex_; // mutex for protecting access to the MySQL write queue
-    std::condition_variable
-        mysqlWriteQueueCv_; // condition variable for signaling the MySQL write thread when new data is enqueued
-    std::vector<std::thread> mysqlWriteThreads_; // threads for processing the MySQL write queue
-    std::mutex mysqlWriteMutex_;                 // mutex for protecting access to the MySQL write threads
+    std::deque<HostMonitoringData> mysqlWriteQueue_; // 待写入 MySQL 的主机监控数据队列
+    std::mutex mysqlWriteQueueMutex_;                // 保护 MySQL 写队列的互斥锁
+    std::condition_variable mysqlWriteQueueCv_;      // 通知 MySQL 写线程有新数据入队的条件变量
+    std::vector<std::thread> mysqlWriteThreads_;     // 处理 MySQL 写队列的线程列表
+    std::mutex mysqlWriteMutex_;                     // 保护 MySQL 写线程列表的互斥锁
 };
 
 }; // namespace monitor

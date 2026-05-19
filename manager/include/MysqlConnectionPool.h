@@ -39,15 +39,14 @@ public:
         /**
          * @brief         获取 mysql 连接对象
          *
-         * @return
+         * @return        MySQL 连接指针
          */
         MYSQL *get() const { return conn_; }
 
         /**
          * @brief         判断连接是否有效（即是否成功获取到连接）
          *
-         * @return
-         * @return
+         * @return        连接有效返回 true，否则返回 false
          */
         explicit operator bool() const { return conn_ != nullptr; }
 
@@ -78,8 +77,7 @@ public:
     /**
      * @brief         启动连接池，预先创建最小数量的连接，并启动健康检查线程
      *
-     * @return
-     * @return
+     * @return        启动成功返回 true，否则返回 false
      */
     bool start();
 
@@ -92,15 +90,15 @@ public:
     /**
      * @brief         获取一个可用的 mysql 连接，如果没有可用连接，则等待直到有连接可用或超时
      *
-     * @param         timeout
-     * @return
+     * @param         timeout 获取连接的等待超时时间
+     * @return        连接守护对象
      */
     Guard acquire(std::chrono::milliseconds timeout);
 
     /**
      * @brief         获取当前连接池中可用连接的数量
      *
-     * @return
+     * @return        可用连接数量
      */
     int availableCount() const;
 
@@ -120,16 +118,15 @@ private:
     /**
      * @brief         创建一个新的 mysql 连接，并将其添加到连接池中
      *
-     * @return
+     * @return        新建的 MySQL 连接指针，失败时返回 nullptr
      */
     MYSQL *connect();
 
     /**
      * @brief         确保指定索引的连接是健康的，如果连接不可用或不健康，则尝试重新连接
      *
-     * @param         index
-     * @return
-     * @return
+     * @param         index 连接条目索引
+     * @return        连接健康或重连成功返回 true，否则返回 false
      */
     bool ensureHealthy(std::size_t index);
 

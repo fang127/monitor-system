@@ -1,5 +1,5 @@
 /**
- * @brief         test program for kmod cpu stat collector
+ * @brief         内核模块 CPU 使用率采集器测试程序
  * @file          TestKmodCpuStat.cc
  * @author        harry
  * @date          2026-02-14
@@ -17,8 +17,7 @@
 #define MAX_CPUS    256
 
 /**
- * @brief         cpu stat structure - must match the one defined in the
- * kernel module
+ * @brief         CPU 使用率结构体，必须与内核模块中的定义保持一致
  *
  */
 struct cpu_stat

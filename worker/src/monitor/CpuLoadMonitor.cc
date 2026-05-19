@@ -33,6 +33,11 @@ static bool readLoadFromProc(float *load1, float *load3, float *load15) {
     return ret == 3;
 }
 
+/**
+ * @brief         采集一次 CPU 负载信息并写入 MonitorInfo
+ *
+ * @param         monitorInfo 监控数据输出对象
+ */
 void CpuLoadMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo) {
     // 从/dev/cpu_load_monitor设备读取CPU负载信息
     int fd = open("/dev/CpuStatCollector", O_RDONLY);

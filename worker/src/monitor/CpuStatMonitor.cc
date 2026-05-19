@@ -9,11 +9,16 @@
 #include "monitor_info.pb.h"
 
 namespace monitor {
+/**
+ * @brief         从内核模块采集一次 CPU 使用率数据并写入 MonitorInfo
+ *
+ * @param         monitorInfo 监控数据输出对象
+ */
 void CpuStatMonitor::updateOnce(monitor::proto::MonitorInfo *monitorInfo) {
     int fd = open("/dev/CpuStatCollector", O_RDONLY);
     if (fd < 0) return;
 
-    size_t statCount = 128; // 假设最多128个CPU
+    size_t statCount = 128; // 假设最多 128 个 CPU
     size_t statSize = sizeof(struct cpu_stat) * statCount;
     void *addr = mmap(nullptr, statSize, PROT_READ, MAP_SHARED, fd, 0);
     if (addr == MAP_FAILED) {
