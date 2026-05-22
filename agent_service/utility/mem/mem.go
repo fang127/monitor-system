@@ -42,6 +42,7 @@ func (c *SimpleMemory) SetMessages(msg *schema.Message) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.Messages = append(c.Messages, msg)
+	// TODO 这里可以考虑对前面的消息进行压缩，或者只保留关键信息，以进一步优化内存使用和性能。
 	if len(c.Messages) > c.MaxWindowSize {
 		// 确保成对丢弃消息，保持对话配对关系
 		// 计算需要丢弃的消息数量（必须是偶数）

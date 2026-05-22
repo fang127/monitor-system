@@ -44,7 +44,7 @@ func BuildChatAgent(ctx context.Context) (r compose.Runnable[*UserMessage, *sche
 		return nil, err
 	}
 	_ = g.AddRetrieverNode(MilvusRetriever, milvusRetrieverKeyOfRetriever, compose.WithOutputKey("documents"))
-	// 6. 添加 InputToChat 节点，输入类型为 *UserMessage，输出类型为 string（用户输入的文本内容）
+	// 6. 添加 InputToChat 节点，输入类型为 *UserMessage，输出类型为 map[string]any（用户输入的文本内容）
 	_ = g.AddLambdaNode(InputToChat, compose.InvokableLambdaWithOption(newInputToChatLambda), compose.WithNodeName("UserMessageToChat"))
 
 	// 7. 定义节点之间的连接关系，确保数据流正确传递
