@@ -10,12 +10,13 @@
 ## ✨ 特性
 
 - 🚀 **高效采集** - 基于内核模块和 eBPF 的低开销数据采集
-- 📊 **全面监控** - CPU、内存、磁盘、网络、软中断等全方位指标
+- 📊 **全面监控** - CPU、内存、磁盘、网络、软中断、MySQL、Redis 等全方位指标
 - 🔄 **Push 模式** - Worker 主动推送，降低 Manager 负载
 - 📈 **健康评分** - 多维度加权评分算法，快速评估服务器状态
-- 🔍 **丰富查询** - 9 个 gRPC 查询接口，支持历史数据、趋势分析、异常检测
+- 🔍 **丰富查询** - 11 个 gRPC 查询接口，支持历史数据、趋势分析、异常检测和中间件明细查询
 - 🌐 **HTTP API 网关** - Go/Gin API Gateway 将 Manager 的 gRPC 查询能力转换为 JSON HTTP 接口
-- 💾 **数据持久化** - MySQL 存储历史数据
+- 💾 **数据持久化** - MySQL 存储历史数据，Manager 可使用 Redis 缓存热点查询结果
+- 🤖 **AI 运维分析** - agent_service 可结合实时监控、MySQL/Redis 明细和内部文档生成运维建议
 
 ## 📐 系统架构
 
@@ -27,13 +28,15 @@
 │  - CPU 采集     │                    │  - 数据接收     │
 │  - 内存采集     │                    │  - 评分计算     │
 │  - 磁盘采集     │                    │  - MySQL 存储   │
-│  - 网络采集     │                    │  - 查询服务     │
+│  - 网络采集     │                    │  - Redis 缓存   │
+│  - MySQL/Redis  │                    │  - 查询服务     │
 └─────────────────┘                    └─────────────────┘
         │                                      │
         │ 内核模块/eBPF                         │ QueryService
         ▼                                      ▼
-   /dev/cpu_stat_monitor                  9个查询接口
+   /dev/cpu_stat_monitor                  11个查询接口
    /dev/cpu_softirq_monitor
+   MySQL/Redis INFO/Status
 ```
 
 ### manager
@@ -58,6 +61,10 @@ Worker(多台)
 |                                              | server_performance |
 |                                              | server_*_detail    |
 |                                              +-------------------+
+|                                                       |
+|                                                       | 热点查询缓存
+|                                                       v
+|                                                    Redis
 |                                                           |
 |  +--------------------+     调用SQL封装     +-------------+ |
 |  | QueryServiceImpl   |------------------->| QueryManager | |
@@ -181,7 +188,7 @@ monitor_system/
 └── CMakeLists.txt             # 构建配置
 ```
 
-### mysql 数据库设计
+### MySQL 数据库设计
 
 ```
 monitor-system
@@ -191,6 +198,8 @@ monitor-system
   +-- server_softirq_detail    (软中断明细：每CPU每次上报一行)
   +-- server_mem_detail        (内存明细：每次上报一行，字段更全)
   +-- server_disk_detail       (磁盘明细：每磁盘每次上报一行)
+  +-- server_mysql_detail      (MySQL 明细：每实例每次上报一行)
+  +-- server_redis_detail      (Redis 明细：每实例每次上报一行)
 ```
 
 ## 🔧 环境要求
@@ -199,7 +208,8 @@ monitor-system
 - **编译器**: GCC 9+ 或 Clang 10+ (支持 C++17)
 - **CMake**: 3.10+
 - **内核版本**: 5.4+ (eBPF 功能需要)
-- **MySQL**: 8.0+ (必须)
+- **MySQL**: 8.0+ (必须，用于历史数据存储)
+- **Redis**: 6.0+ (可选，用于 Manager 查询缓存；启用 Redis 实例监控时需要目标 Redis 可访问)
 - **Conan**: 1.40+ (依赖管理)
 - **Python**: 3.6+ (构建脚本)
 - **Go**: 1.22+ (api_gateway)
@@ -241,6 +251,8 @@ make run
 | `GET` | `/api/servers/:server/disk-detail` | 指定服务器磁盘明细 |
 | `GET` | `/api/servers/:server/mem-detail` | 指定服务器内存明细 |
 | `GET` | `/api/servers/:server/softirq-detail` | 指定服务器软中断明细 |
+| `GET` | `/api/servers/:server/mysql-detail` | 指定服务器 MySQL 实例明细 |
+| `GET` | `/api/servers/:server/redis-detail` | 指定服务器 Redis 实例明细 |
 
 ### 生成 Go gRPC client
 
@@ -263,6 +275,8 @@ make proto
 | 内存 | `/proc/meminfo` | 总量、可用、缓存、Swap 等 |
 | 磁盘 | `/proc/diskstats` | 读写速率、IOPS、延迟、利用率 |
 | 网络 | eBPF / procfs | 收发速率、包数、错误/丢包统计 |
+| MySQL | MySQL status / variables / replication status | 可用性、连接压力、QPS/TPS、慢查询、锁等待、Buffer Pool 命中率、复制延迟 |
+| Redis | Redis INFO / CONFIG / SLOWLOG | 可用性、连接压力、内存使用率、命令吞吐、Key 命中率、淘汰/拒绝连接、复制状态、慢日志 |
 
 ### 指标单位约定
 
@@ -276,6 +290,10 @@ make proto
 | 磁盘 IOPS | `read_iops`、`write_iops` | ops/s | 每秒 IO 次数 |
 | 磁盘延迟 | `avg_read_latency_ms`、`avg_write_latency_ms` | ms | 平均读写延迟 |
 | 磁盘利用率 | `util_percent`、`disk_util_percent` | % | 百分比数值，范围通常为 0-100 |
+| MySQL 吞吐 | `qps`、`tps`、`slow_queries_rate`、`innodb_row_lock_waits_rate` | ops/s | 基于累计计数器按采集间隔计算的速率 |
+| Redis 吞吐 | `commands_per_sec`、`instantaneous_ops_per_sec` | ops/s | `commands_per_sec` 基于累计命令数计算；`instantaneous_ops_per_sec` 来自 Redis INFO |
+| Redis 容量 | `used_memory`、`maxmemory` | bytes | Redis INFO 原始字节数；`memory_used_percent` 为百分比 |
+| Redis 命中率 | `keyspace_hit_percent` | % | `keyspace_hits / (keyspace_hits + keyspace_misses)` |
 | 变化率字段 | `*_rate` 后缀 | ratio | 保存相对变化率；日志展示时乘以 100 显示为百分比 |
 
 ### Manager 查询接口
@@ -291,6 +309,8 @@ make proto
 | `QueryDiskDetail` | 磁盘详细数据 | IO 性能分析 |
 | `QueryMemDetail` | 内存详细数据 | 内存使用分析 |
 | `QuerySoftIrqDetail` | 软中断详细数据 | 中断负载分析 |
+| `QueryMysqlDetail` | MySQL 实例详细数据 | 数据库可用性、连接压力、慢查询、锁等待和复制排查 |
+| `QueryRedisDetail` | Redis 实例详细数据 | 缓存可用性、连接/内存压力、命中率、淘汰、慢日志和复制排查 |
 
 ### 健康评分算法
 
@@ -318,10 +338,10 @@ Score = CPU_Score × 35% + Mem_Score × 30% + Load_Score × 15%
 
 ## 🛠️ 技术栈
 
-- **语言**: C++
+- **语言**: C++、Go、TypeScript
 - **RPC 框架**: gRPC + Protocol Buffers
-- **数据采集**: Linux 内核模块 + eBPF + procfs
-- **数据库**: MySQL
+- **数据采集**: Linux 内核模块 + eBPF + procfs + MySQL/Redis status
+- **数据库**: MySQL、Redis
 - **构建系统**: CMake + conan + Makefile + python 脚本
 
 ## 🚀 快速开始
@@ -353,6 +373,20 @@ MYSQL_PORT=3306
 MYSQL_USER=root
 MYSQL_PASSWORD=123456
 MYSQL_DATABASE=monitor-system
+
+MANAGER_REDIS_ENABLED=true
+MANAGER_REDIS_URI=tcp://127.0.0.1:6379
+MANAGER_REDIS_CACHE_TTL_SECONDS=5
+
+MYSQL_MONITOR_ENABLED=false
+MYSQL_MONITOR_HOST=127.0.0.1
+MYSQL_MONITOR_PORT=3306
+MYSQL_MONITOR_INSTANCE=127.0.0.1:3306
+
+REDIS_MONITOR_ENABLED=false
+REDIS_MONITOR_HOST=127.0.0.1
+REDIS_MONITOR_PORT=6379
+REDIS_MONITOR_INSTANCE=127.0.0.1:6379
 ```
 
 ### 3. 运行构建脚本
@@ -461,11 +495,13 @@ lsmod | grep -E "CpuStat|Softirq"
 docker compose --env-file configs/app.env -f deploy/docker-compose.yml down
 ```
 
-## MySQL 字段注意事项
+## 字段注意事项
 
 `server_disk_detail` 使用 `read_ops` 和 `write_ops` 保存磁盘读写累计次数，避免使用 `reads`/`writes` 这类容易与 SQL 关键字或语法产生歧义的列名。
 
 网络明细、内存明细和磁盘明细已经按上面的单位约定写入 MySQL：网络吞吐为 B/s，内存容量为 MB，磁盘吞吐为 B/s。
+
+Redis 明细保存在 `server_redis_detail`，其中 `used_memory`、`maxmemory` 保留 Redis INFO 原始字节数，`commands_per_sec`、`net_input_bytes_per_sec`、`net_output_bytes_per_sec` 和 `slowlog_growth` 为 Manager 基于相邻采集点计算的速率/增量。
 
 ## 📄 许可证
 
