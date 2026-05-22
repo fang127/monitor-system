@@ -169,6 +169,96 @@ void fillSoftIrq(monitor::proto::MonitorInfo *info, std::mt19937 &rng) {
     }
 }
 
+void fillMysql(monitor::proto::MonitorInfo *info, std::mt19937 &rng, int worker_id, int round) {
+    auto *mysql = info->add_mysql_info();
+    const std::string host = workerIp(worker_id);
+    const uint64_t counter_base = 1000000ULL + static_cast<uint64_t>(worker_id) * 50000ULL;
+    const uint64_t round_delta = static_cast<uint64_t>(round) * 1200ULL;
+    const uint64_t questions = counter_base + round_delta;
+    const uint64_t com_select = counter_base / 2ULL + round_delta * 65ULL / 100ULL;
+    const uint64_t com_insert = counter_base / 8ULL + round_delta * 12ULL / 100ULL;
+    const uint64_t com_update = counter_base / 10ULL + round_delta * 10ULL / 100ULL;
+    const uint64_t com_delete = counter_base / 20ULL + round_delta * 3ULL / 100ULL;
+    const uint64_t com_commit = counter_base / 6ULL + round_delta * 16ULL / 100ULL;
+    const uint64_t com_rollback = counter_base / 200ULL + round_delta / 100ULL;
+    const uint64_t buffer_reads =
+        600ULL + static_cast<uint64_t>(worker_id) * 20ULL + static_cast<uint64_t>(round) * 2ULL;
+    const uint64_t buffer_requests = buffer_reads * 450ULL;
+
+    mysql->set_instance(host + ":3306");
+    mysql->set_host(host);
+    mysql->set_port(3306);
+    mysql->set_up(true);
+    mysql->set_version("8.0.36");
+    mysql->set_role(worker_id % 5 == 0 ? "replica" : "primary");
+    mysql->set_max_connections(2000);
+    mysql->set_threads_connected(80 + worker_id * 7 + round % 20);
+    mysql->set_threads_running(4 + worker_id % 8 + round % 5);
+    mysql->set_aborted_connects(static_cast<uint64_t>(worker_id / 3 + round / 20));
+    mysql->set_questions(questions);
+    mysql->set_com_select(com_select);
+    mysql->set_com_insert(com_insert);
+    mysql->set_com_update(com_update);
+    mysql->set_com_delete(com_delete);
+    mysql->set_com_commit(com_commit);
+    mysql->set_com_rollback(com_rollback);
+    mysql->set_slow_queries(20 + static_cast<uint64_t>(worker_id) * 2ULL + static_cast<uint64_t>(round / 4));
+    mysql->set_innodb_buffer_pool_read_requests(buffer_requests);
+    mysql->set_innodb_buffer_pool_reads(buffer_reads);
+    mysql->set_innodb_buffer_pool_hit_percent(99.0 + nextFloat(rng, 0.0f, 0.7f));
+    mysql->set_innodb_row_lock_waits(40 + static_cast<uint64_t>(worker_id) * 3ULL +
+                                     static_cast<uint64_t>(round / 3));
+    mysql->set_innodb_row_lock_time_avg_ms(1.0 + worker_id * 0.15 + nextFloat(rng, 0.0f, 0.8f));
+    mysql->set_replication_configured(worker_id % 5 == 0);
+    mysql->set_replication_running(worker_id % 5 == 0);
+    mysql->set_replication_lag_seconds(worker_id % 5 == 0 ? nextFloat(rng, 0.0f, 2.5f) : 0.0);
+}
+
+void fillRedis(monitor::proto::MonitorInfo *info, std::mt19937 &rng, int worker_id, int round) {
+    auto *redis = info->add_redis_info();
+    const std::string host = workerIp(worker_id);
+    const uint64_t maxmemory = 8ULL * 1024ULL * 1024ULL * 1024ULL;
+    const uint64_t used_memory =
+        1800ULL * 1024ULL * 1024ULL + static_cast<uint64_t>(worker_id) * 96ULL * 1024ULL * 1024ULL +
+        static_cast<uint64_t>(round) * 16ULL * 1024ULL * 1024ULL;
+    const uint64_t command_base = 2000000ULL + static_cast<uint64_t>(worker_id) * 70000ULL;
+    const uint64_t command_delta = static_cast<uint64_t>(round) * 1500ULL;
+    const uint64_t hits = command_base / 2ULL + command_delta * 85ULL / 100ULL;
+    const uint64_t misses = command_base / 20ULL + command_delta * 8ULL / 100ULL;
+    const double hit_percent = static_cast<double>(hits) / static_cast<double>(hits + misses) * 100.0;
+
+    redis->set_instance(host + ":6379");
+    redis->set_host(host);
+    redis->set_port(6379);
+    redis->set_up(true);
+    redis->set_version("7.2.4");
+    redis->set_role(worker_id % 4 == 0 ? "slave" : "master");
+    redis->set_uptime_in_seconds(86400 + static_cast<uint64_t>(round) * 2ULL);
+    redis->set_connected_clients(120 + worker_id * 5 + round % 30);
+    redis->set_blocked_clients(worker_id % 6 == 0 && round % 5 == 0 ? 1 : 0);
+    redis->set_maxclients(10000);
+    redis->set_used_memory(used_memory);
+    redis->set_maxmemory(maxmemory);
+    redis->set_mem_fragmentation_ratio(1.08 + nextFloat(rng, 0.0f, 0.18f));
+    redis->set_memory_used_percent(static_cast<double>(used_memory) / static_cast<double>(maxmemory) * 100.0);
+    redis->set_total_commands_processed(command_base + command_delta);
+    redis->set_instantaneous_ops_per_sec(800.0 + worker_id * 18.0 + nextFloat(rng, 0.0f, 120.0f));
+    redis->set_keyspace_hits(hits);
+    redis->set_keyspace_misses(misses);
+    redis->set_keyspace_hit_percent(hit_percent);
+    redis->set_expired_keys(4000 + static_cast<uint64_t>(worker_id) * 20ULL + static_cast<uint64_t>(round) * 6ULL);
+    redis->set_evicted_keys(static_cast<uint64_t>(worker_id % 3) * static_cast<uint64_t>(round / 10));
+    redis->set_rejected_connections(static_cast<uint64_t>(worker_id % 7 == 0 ? round / 30 : 0));
+    redis->set_total_error_replies(static_cast<uint64_t>(worker_id % 5 == 0 ? round / 8 : 0));
+    redis->set_total_net_input_bytes(command_base * 128ULL + command_delta * 180ULL);
+    redis->set_total_net_output_bytes(command_base * 256ULL + command_delta * 320ULL);
+    redis->set_replication_configured(worker_id % 4 == 0);
+    redis->set_master_link_up(worker_id % 4 == 0);
+    redis->set_connected_slaves(worker_id % 4 == 0 ? 0 : 1 + worker_id % 2);
+    redis->set_master_last_io_seconds_ago(worker_id % 4 == 0 ? nextFloat(rng, 0.0f, 3.0f) : 0.0);
+    redis->set_slowlog_len(5 + static_cast<uint64_t>(worker_id) + static_cast<uint64_t>(round / 6));
+}
+
 // 根据 worker_id 和 round 生成一个
 // MonitorInfo，内容会有一定规律但又不完全相同，以便测试不同数据的推送和处理
 monitor::proto::MonitorInfo makeMonitorInfo(int worker_id, int round) {
@@ -187,6 +277,8 @@ monitor::proto::MonitorInfo makeMonitorInfo(int worker_id, int round) {
     fillNet(&info, rng, worker_id, round);
     fillDisk(&info, rng, worker_id, round);
     fillSoftIrq(&info, rng);
+    fillMysql(&info, rng, worker_id, round);
+    fillRedis(&info, rng, worker_id, round);
 
     return info;
 }

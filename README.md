@@ -438,7 +438,7 @@ Processed data from server1_192.168.1.101, score: 75.32
 
 ### 8. 使用模拟 Worker 测试
 
-如果只想验证 Manager 接收、评分和 MySQL 写库，可以使用 `tests/simulated_workers_push`，不需要启动真实 worker、内核模块或 eBPF。测试程序默认模拟 5 台 worker：`worker-01` 到 `worker-05`，IP 为 `10.10.0.101` 到 `10.10.0.105`。
+如果只想验证 Manager 接收、评分和 MySQL 写库，可以使用 `tests/simulated_workers_push`，不需要启动真实 worker、内核模块或 eBPF。测试程序默认模拟 5 台 worker：`worker-01` 到 `worker-05`，IP 为 `10.10.0.101` 到 `10.10.0.105`。每台模拟 worker 会同时上报 1 个 MySQL 实例和 1 个 Redis 实例，覆盖 `server_mysql_detail`、`server_redis_detail` 明细落库以及基于相邻采集点计算的 QPS、TPS、Redis 命令速率、网络速率和慢日志增长。
 
 构建测试工具：
 
@@ -478,6 +478,8 @@ cmake --build build/Debug --target simulated_workers_push
 ```
 
 Manager 并发接收多台 worker 推送时，`std::cout`/`std::cerr` 日志可能交叉显示；这只影响控制台可读性，不代表数据接收或 MySQL 写库失败。
+
+`tests/manager_stress_test` 的 worker 压测请求同样携带 MySQL/Redis 明细。评估 worker-only 或 mixed 压测结果时，应同时关注 manager metrics 中的 `mysql_errors`、`redis_errors`、`dropped_monitor_samples`，以及 `server_mysql_detail`、`server_redis_detail` 的写入增长；这些结果已经包含 MySQL/Redis 明细写入带来的额外压力。
 
 ### 9. 停止服务和卸载内核模块
 

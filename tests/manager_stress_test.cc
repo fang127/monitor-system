@@ -194,6 +194,81 @@ monitor::proto::MonitorInfo makeMonitorInfo(int worker_id, uint64_t sequence) {
     disk->set_avg_write_latency_ms(1.5 + cycle * 0.01);
     disk->set_util_percent(std::min(90.0, 20.0 + cycle * 0.6));
 
+    auto *mysql = info.add_mysql_info();
+    const uint64_t mysql_base = 5000000ULL + static_cast<uint64_t>(worker_id) * 100000ULL;
+    const uint64_t mysql_delta = sequence * 1500ULL;
+    const uint64_t mysql_questions = mysql_base + mysql_delta;
+    const uint64_t mysql_buffer_reads = 900ULL + static_cast<uint64_t>(worker_id) * 5ULL + sequence / 10ULL;
+    const uint64_t mysql_buffer_requests = mysql_buffer_reads * 500ULL;
+    mysql->set_instance(host->ip_address() + ":3306");
+    mysql->set_host(host->ip_address());
+    mysql->set_port(3306);
+    mysql->set_up(true);
+    mysql->set_version("8.0.36");
+    mysql->set_role(worker_id % 5 == 0 ? "replica" : "primary");
+    mysql->set_max_connections(2000);
+    mysql->set_threads_connected(100 + worker_id % 80 + sequence % 25);
+    mysql->set_threads_running(6 + worker_id % 12 + sequence % 4);
+    mysql->set_aborted_connects(static_cast<uint64_t>(worker_id / 4) + sequence / 1000ULL);
+    mysql->set_questions(mysql_questions);
+    mysql->set_com_select(mysql_base / 2ULL + mysql_delta * 65ULL / 100ULL);
+    mysql->set_com_insert(mysql_base / 8ULL + mysql_delta * 12ULL / 100ULL);
+    mysql->set_com_update(mysql_base / 10ULL + mysql_delta * 10ULL / 100ULL);
+    mysql->set_com_delete(mysql_base / 20ULL + mysql_delta * 3ULL / 100ULL);
+    mysql->set_com_commit(mysql_base / 6ULL + mysql_delta * 16ULL / 100ULL);
+    mysql->set_com_rollback(mysql_base / 250ULL + mysql_delta / 100ULL);
+    mysql->set_slow_queries(100 + static_cast<uint64_t>(worker_id) + sequence / 20ULL);
+    mysql->set_innodb_buffer_pool_read_requests(mysql_buffer_requests);
+    mysql->set_innodb_buffer_pool_reads(mysql_buffer_reads);
+    mysql->set_innodb_buffer_pool_hit_percent(99.2);
+    mysql->set_innodb_row_lock_waits(80 + static_cast<uint64_t>(worker_id) * 2ULL + sequence / 15ULL);
+    mysql->set_innodb_row_lock_time_avg_ms(1.2 + cycle * 0.02);
+    mysql->set_replication_configured(worker_id % 5 == 0);
+    mysql->set_replication_running(worker_id % 5 == 0);
+    mysql->set_replication_lag_seconds(worker_id % 5 == 0 ? 1.0 + cycle * 0.05 : 0.0);
+
+    auto *redis = info.add_redis_info();
+    const uint64_t redis_maxmemory = 8ULL * 1024ULL * 1024ULL * 1024ULL;
+    const uint64_t redis_used_memory =
+        2ULL * 1024ULL * 1024ULL * 1024ULL + static_cast<uint64_t>(worker_id % 64) * 16ULL * 1024ULL * 1024ULL +
+        sequence * 1024ULL * 1024ULL;
+    const uint64_t redis_base = 8000000ULL + static_cast<uint64_t>(worker_id) * 100000ULL;
+    const uint64_t redis_delta = sequence * 2000ULL;
+    const uint64_t keyspace_hits = redis_base / 2ULL + redis_delta * 88ULL / 100ULL;
+    const uint64_t keyspace_misses = redis_base / 25ULL + redis_delta * 7ULL / 100ULL;
+    redis->set_instance(host->ip_address() + ":6379");
+    redis->set_host(host->ip_address());
+    redis->set_port(6379);
+    redis->set_up(true);
+    redis->set_version("7.2.4");
+    redis->set_role(worker_id % 4 == 0 ? "slave" : "master");
+    redis->set_uptime_in_seconds(172800 + sequence);
+    redis->set_connected_clients(180 + worker_id % 120 + sequence % 40);
+    redis->set_blocked_clients(worker_id % 17 == 0 && sequence % 10 == 0 ? 1 : 0);
+    redis->set_maxclients(10000);
+    redis->set_used_memory(redis_used_memory);
+    redis->set_maxmemory(redis_maxmemory);
+    redis->set_mem_fragmentation_ratio(1.12 + cycle * 0.002);
+    redis->set_memory_used_percent(static_cast<double>(redis_used_memory) / static_cast<double>(redis_maxmemory) *
+                                   100.0);
+    redis->set_total_commands_processed(redis_base + redis_delta);
+    redis->set_instantaneous_ops_per_sec(1200.0 + cycle * 12.0);
+    redis->set_keyspace_hits(keyspace_hits);
+    redis->set_keyspace_misses(keyspace_misses);
+    redis->set_keyspace_hit_percent(static_cast<double>(keyspace_hits) /
+                                    static_cast<double>(keyspace_hits + keyspace_misses) * 100.0);
+    redis->set_expired_keys(9000 + static_cast<uint64_t>(worker_id) * 10ULL + sequence * 5ULL);
+    redis->set_evicted_keys(static_cast<uint64_t>(worker_id % 3) * (sequence / 100ULL));
+    redis->set_rejected_connections(worker_id % 97 == 0 ? sequence / 200ULL : 0);
+    redis->set_total_error_replies(worker_id % 31 == 0 ? sequence / 25ULL : 0);
+    redis->set_total_net_input_bytes(redis_base * 128ULL + redis_delta * 180ULL);
+    redis->set_total_net_output_bytes(redis_base * 256ULL + redis_delta * 320ULL);
+    redis->set_replication_configured(worker_id % 4 == 0);
+    redis->set_master_link_up(worker_id % 4 == 0);
+    redis->set_connected_slaves(worker_id % 4 == 0 ? 0 : 1 + worker_id % 2);
+    redis->set_master_last_io_seconds_ago(worker_id % 4 == 0 ? 1.0 + cycle * 0.03 : 0.0);
+    redis->set_slowlog_len(20 + static_cast<uint64_t>(worker_id % 10) + sequence / 30ULL);
+
     for (int core = 0; core < 4; ++core) {
         auto *soft_irq = info.add_soft_irq();
         soft_irq->set_cpu("cpu" + std::to_string(core));

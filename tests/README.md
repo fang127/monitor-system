@@ -81,8 +81,11 @@ mixed_max_total_concurrency=...
 
 - 模拟 5 台主机：`worker-01` 到 `worker-05`
 - 每台主机使用不同 IP：`10.10.0.101` 到 `10.10.0.105`
+- 每台主机额外模拟 1 个 MySQL 实例和 1 个 Redis 实例，随轮次递增累计计数器，用于验证 `server_mysql_detail`、`server_redis_detail` 落库和派生速率
 - 默认每 2 秒推送一次
 - 默认每台 worker 推送 5 轮后退出
+
+`manager_stress_test` 的 worker 侧压测请求也会携带 MySQL/Redis 明细。压测时需要把这部分写库成本计入吞吐结果，观察 manager metrics 中的 `mysql_errors`、`redis_errors`、`dropped_monitor_samples` 和 MySQL/Redis 明细表增长是否符合预期。
 
 ## 构建
 
