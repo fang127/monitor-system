@@ -3,7 +3,10 @@ type SectionStateProps = {
   message?: string;
 };
 
-export function LoadingState({ title, message = '正在加载数据' }: SectionStateProps) {
+export function LoadingState({
+  title,
+  message = "正在加载数据",
+}: SectionStateProps) {
   return (
     <div className="section-state" role="status" aria-live="polite">
       <span className="spinner" aria-hidden="true" />
@@ -13,7 +16,10 @@ export function LoadingState({ title, message = '正在加载数据' }: SectionS
   );
 }
 
-export function ErrorState({ title, message = '接口暂不可用' }: SectionStateProps) {
+export function ErrorState({
+  title,
+  message = "接口暂不可用",
+}: SectionStateProps) {
   return (
     <div className="section-state section-state-error" role="alert">
       <strong>{title}</strong>
@@ -22,7 +28,7 @@ export function ErrorState({ title, message = '接口暂不可用' }: SectionSta
   );
 }
 
-export function EmptyState({ title, message = '暂无数据' }: SectionStateProps) {
+export function EmptyState({ title, message = "暂无数据" }: SectionStateProps) {
   return (
     <div className="section-state">
       <strong>{title}</strong>

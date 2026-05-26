@@ -1,10 +1,10 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet } from "react-router-dom";
 
 const navItems = [
-  { to: '/', label: 'Dashboard' },
-  { to: '/servers', label: '服务器' },
-  { to: '/ai-ops', label: 'AI 运维' },
-  { to: '/system', label: '系统' },
+  { to: "/", label: "Dashboard" },
+  { to: "/servers", label: "服务器" },
+  { to: "/ai-ops", label: "AI 运维" },
+  { to: "/system", label: "系统" },
 ];
 
 export function PageLayout() {
@@ -23,8 +23,10 @@ export function PageLayout() {
             <NavLink
               key={item.to}
               to={item.to}
-              end={item.to === '/'}
-              className={({ isActive }) => `nav-link ${isActive ? 'nav-link-active' : ''}`}
+              end={item.to === "/"}
+              className={({ isActive }) =>
+                `nav-link ${isActive ? "nav-link-active" : ""}`
+              }
             >
               {item.label}
             </NavLink>

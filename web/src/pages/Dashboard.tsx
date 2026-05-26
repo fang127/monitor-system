@@ -1,19 +1,19 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { getLatestScores } from '../api/dashboard';
-import { ClusterStatsPanel } from '../components/ClusterStats';
-import { HealthGauge } from '../components/HealthGauge';
-import { ErrorState, LoadingState } from '../components/SectionState';
-import { ServerTable } from '../components/ServerTable';
-import type { AsyncState, QueryLatestScoreResponse } from '../types/api';
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { getLatestScores } from "../api/dashboard";
+import { ClusterStatsPanel } from "../components/ClusterStats";
+import { HealthGauge } from "../components/HealthGauge";
+import { ErrorState, LoadingState } from "../components/SectionState";
+import { ServerTable } from "../components/ServerTable";
+import type { AsyncState, QueryLatestScoreResponse } from "../types/api";
 
 function initialState<T>(): AsyncState<T> {
   return { data: null, loading: true, error: null };
 }
 
 export function Dashboard() {
-  const [latest, setLatest] = useState<AsyncState<QueryLatestScoreResponse>>(() =>
-    initialState<QueryLatestScoreResponse>(),
+  const [latest, setLatest] = useState<AsyncState<QueryLatestScoreResponse>>(
+    () => initialState<QueryLatestScoreResponse>(),
   );
 
   useEffect(() => {
@@ -48,7 +48,9 @@ export function Dashboard() {
       </header>
 
       {latest.loading ? <LoadingState title="Dashboard" /> : null}
-      {latest.error ? <ErrorState title="Dashboard" message={latest.error} /> : null}
+      {latest.error ? (
+        <ErrorState title="Dashboard" message={latest.error} />
+      ) : null}
       {!latest.loading && !latest.error ? (
         <>
           <section className="section-block">
@@ -69,7 +71,10 @@ export function Dashboard() {
               <div className="section-heading">
                 <h2>集群平均健康分</h2>
               </div>
-              <HealthGauge score={latest.data?.cluster_stats?.avg_score ?? null} label="平均分" />
+              <HealthGauge
+                score={latest.data?.cluster_stats?.avg_score ?? null}
+                label="平均分"
+              />
             </section>
           </div>
         </>

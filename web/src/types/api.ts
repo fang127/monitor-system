@@ -1,5 +1,5 @@
-export type SortOrder = 'asc' | 'desc';
-export type ServerStatus = 'ONLINE' | 'OFFLINE' | string;
+export type SortOrder = "asc" | "desc";
+export type ServerStatus = "ONLINE" | "OFFLINE" | string;
 
 export type ApiEnvelope<T> = {
   code: number;
@@ -337,7 +337,7 @@ export type GatewayVersion = {
   version: string;
 };
 
-export type DetailKind = 'net' | 'disk' | 'mem' | 'softirq' | 'mysql' | 'redis';
+export type DetailKind = "net" | "disk" | "mem" | "softirq" | "mysql" | "redis";
 
 export type DetailResponseMap = {
   net: QueryNetDetailResponse;

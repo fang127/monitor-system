@@ -1,18 +1,21 @@
 export function formatPercent(value: number | null | undefined): string {
-  if (typeof value !== 'number' || Number.isNaN(value)) {
-    return '--';
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "--";
   }
 
   return `${value.toFixed(1)}%`;
 }
 
-export function formatNumber(value: number | string | null | undefined, fractionDigits = 1): string {
-  if (typeof value === 'string') {
-    return value || '--';
+export function formatNumber(
+  value: number | string | null | undefined,
+  fractionDigits = 1,
+): string {
+  if (typeof value === "string") {
+    return value || "--";
   }
 
-  if (typeof value !== 'number' || Number.isNaN(value)) {
-    return '--';
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "--";
   }
 
   return value.toLocaleString(undefined, {
@@ -22,24 +25,26 @@ export function formatNumber(value: number | string | null | undefined, fraction
 }
 
 export function formatScore(value: number | null | undefined): string {
-  if (typeof value !== 'number' || Number.isNaN(value)) {
-    return '--';
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "--";
   }
 
   return Math.max(0, Math.min(100, value)).toFixed(0);
 }
 
-export type BytesRateUnit = 'B/s' | 'KB/s' | 'MB/s' | 'GB/s';
+export type BytesRateUnit = "B/s" | "KB/s" | "MB/s" | "GB/s";
 
-const bytesRateUnits: BytesRateUnit[] = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
+const bytesRateUnits: BytesRateUnit[] = ["B/s", "KB/s", "MB/s", "GB/s"];
 
 function bytesRateUnitIndex(unit: BytesRateUnit): number {
   return bytesRateUnits.indexOf(unit);
 }
 
-export function pickBytesRateUnit(values: Array<number | null | undefined>): BytesRateUnit {
+export function pickBytesRateUnit(
+  values: Array<number | null | undefined>,
+): BytesRateUnit {
   const maxValue = values.reduce<number>((max, value) => {
-    if (typeof value !== 'number' || Number.isNaN(value)) {
+    if (typeof value !== "number" || Number.isNaN(value)) {
       return max;
     }
 
@@ -57,9 +62,12 @@ export function pickBytesRateUnit(values: Array<number | null | undefined>): Byt
   return bytesRateUnits[index];
 }
 
-export function formatBytesRate(value: number | null | undefined, unit?: BytesRateUnit): string {
-  if (typeof value !== 'number' || Number.isNaN(value)) {
-    return '--';
+export function formatBytesRate(
+  value: number | null | undefined,
+  unit?: BytesRateUnit,
+): string {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "--";
   }
 
   let current = Math.abs(value);
@@ -80,20 +88,22 @@ export function formatBytesRate(value: number | null | undefined, unit?: BytesRa
 
 export function formatDateTime(value: string | null | undefined): string {
   if (!value) {
-    return '--';
+    return "--";
   }
 
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return '--';
+    return "--";
   }
 
   return date.toLocaleString();
 }
 
 export function toDatetimeLocalValue(date: Date): string {
-  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  const offsetDate = new Date(
+    date.getTime() - date.getTimezoneOffset() * 60000,
+  );
   return offsetDate.toISOString().slice(0, 16);
 }
 
@@ -110,12 +120,12 @@ export function datetimeLocalToRfc3339(value: string): string | undefined {
   return date.toISOString();
 }
 
-export function scoreTone(score: number): 'success' | 'warning' | 'danger' {
+export function scoreTone(score: number): "success" | "warning" | "danger" {
   if (score >= 80) {
-    return 'success';
+    return "success";
   }
   if (score >= 60) {
-    return 'warning';
+    return "warning";
   }
-  return 'danger';
+  return "danger";
 }

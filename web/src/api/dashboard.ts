@@ -1,4 +1,4 @@
-import { apiGet, rootGet } from './client';
+import { apiGet, rootGet } from "./client";
 import type {
   DetailKind,
   DetailResponseMap,
@@ -12,29 +12,38 @@ import type {
   QueryTrendResponse,
   SortOrder,
   TimeRangeParams,
-} from '../types/api';
+} from "../types/api";
 
 function serverPath(server: string): string {
   return encodeURIComponent(server);
 }
 
 export function getLatestScores(): Promise<QueryLatestScoreResponse> {
-  return apiGet<QueryLatestScoreResponse>('/servers/latest');
+  return apiGet<QueryLatestScoreResponse>("/servers/latest");
 }
 
-export function getScoreRank(params: { order?: SortOrder; page?: number; page_size?: number }) {
-  return apiGet<QueryScoreRankResponse>('/servers/score-rank', { params });
+export function getScoreRank(params: {
+  order?: SortOrder;
+  page?: number;
+  page_size?: number;
+}) {
+  return apiGet<QueryScoreRankResponse>("/servers/score-rank", { params });
 }
 
 export function getPerformance(server: string, params: PagedQueryParams) {
-  return apiGet<QueryPerformanceResponse>(`/servers/${serverPath(server)}/performance`, { params });
+  return apiGet<QueryPerformanceResponse>(
+    `/servers/${serverPath(server)}/performance`,
+    { params },
+  );
 }
 
 export function getTrend(
   server: string,
   params: TimeRangeParams & { interval_seconds?: number },
 ): Promise<QueryTrendResponse> {
-  return apiGet<QueryTrendResponse>(`/servers/${serverPath(server)}/trend`, { params });
+  return apiGet<QueryTrendResponse>(`/servers/${serverPath(server)}/trend`, {
+    params,
+  });
 }
 
 export function getAnomalies(
@@ -56,7 +65,10 @@ export function getAnomalies(
     redis_slowlog_growth_threshold?: number;
   },
 ): Promise<QueryAnomalyResponse> {
-  return apiGet<QueryAnomalyResponse>(`/servers/${serverPath(server)}/anomalies`, { params });
+  return apiGet<QueryAnomalyResponse>(
+    `/servers/${serverPath(server)}/anomalies`,
+    { params },
+  );
 }
 
 export function getDetail<K extends DetailKind>(
@@ -64,14 +76,17 @@ export function getDetail<K extends DetailKind>(
   kind: K,
   params: PagedQueryParams,
 ): Promise<DetailResponseMap[K]> {
-  const endpoint = kind === 'softirq' ? 'softirq-detail' : `${kind}-detail`;
-  return apiGet<DetailResponseMap[K]>(`/servers/${serverPath(server)}/${endpoint}`, { params });
+  const endpoint = kind === "softirq" ? "softirq-detail" : `${kind}-detail`;
+  return apiGet<DetailResponseMap[K]>(
+    `/servers/${serverPath(server)}/${endpoint}`,
+    { params },
+  );
 }
 
 export function getGatewayHealth(): Promise<GatewayHealth> {
-  return rootGet<GatewayHealth>('/health');
+  return rootGet<GatewayHealth>("/health");
 }
 
 export function getGatewayVersion(): Promise<GatewayVersion> {
-  return apiGet<GatewayVersion>('/version');
+  return apiGet<GatewayVersion>("/version");
 }
