@@ -1,5 +1,0 @@
-
-# Development helper configuration.
-docker:
-  image: "monitor-system-agent-service"
-  dockerfile: "manifest/docker/Dockerfile"

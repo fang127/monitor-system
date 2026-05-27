@@ -122,6 +122,8 @@ services:
       API_GATEWAY_BASE_URL: ${DOCKER_API_GATEWAY_BASE_URL:-http://api_gateway:8080}
       MILVUS_ADDR: ${DOCKER_MILVUS_ADDR:-milvus:19530}
       AGENT_DOCS_DIR: /app/docs
+      AGENT_MEMORY_DIR: /app/memory
+      AGENT_MEMORY_ENABLED: ${AGENT_MEMORY_ENABLED:-true}
       AGENT_THINK_API_KEY: ${AGENT_THINK_API_KEY:-}
       AGENT_THINK_BASE_URL: ${AGENT_THINK_BASE_URL:-}
       AGENT_THINK_MODEL: ${AGENT_THINK_MODEL:-}
@@ -133,6 +135,8 @@ services:
     ports:
       - "${AGENT_SERVICE_PORT:-6872}:${AGENT_SERVICE_PORT:-6872}"
     extra_hosts: *manager-hosts
+    volumes:
+      - agent_memory_data:/app/memory
     depends_on:
       - milvus
 
@@ -168,6 +172,7 @@ volumes:
   milvus_etcd_data:
   milvus_minio_data:
   milvus_data:
+  agent_memory_data:
 
 networks:
   default:

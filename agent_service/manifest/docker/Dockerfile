@@ -4,7 +4,7 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN go build -o /out/agent_service ./main.go
+RUN go build -o /out/agent_service ./cmd/server
 
 FROM alpine:3.20
 
@@ -14,6 +14,7 @@ COPY manifest/config/config.yaml /app/manifest/config/config.yaml
 COPY docs /app/docs
 
 ENV AGENT_DOCS_DIR=/app/docs
+ENV AGENT_MEMORY_DIR=/app/memory
 EXPOSE 6872
 
 CMD ["/app/agent_service"]

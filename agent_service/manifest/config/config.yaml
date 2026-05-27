@@ -1,13 +1,9 @@
-# Gin HTTP 服务配置。
-server:
-  address: ":6872"
-  openapiPath: "/api.json"
-  swaggerPath: "/swagger"
-
-# 应用日志配置。
-logger:
-  level: "all"
-  stdout: true
+agent_service_port: 6872
+api_gateway_base_url: "http://127.0.0.1:8080"
+milvus_addr: "127.0.0.1:19530"
+docs_dir: "./docs"
+memory_dir: "./memory"
+memory_enabled: true
 
 ds_think_chat_model:
   api_key: ""
@@ -22,8 +18,3 @@ ds_quick_chat_model:
 doubao_embedding_model:
   api_key: ""
   model: "text-embedding-v4"
-
-agent_service_port: 6872
-api_gateway_base_url: "http://127.0.0.1:8080"
-milvus_addr: "127.0.0.1:19530"
-docs_dir: "./docs"
