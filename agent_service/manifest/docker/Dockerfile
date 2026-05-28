@@ -4,7 +4,7 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN go build -o /out/agent_service ./main.go
+RUN go build -o /out/agent_service ./cmd/server
 
 FROM alpine:3.20
 

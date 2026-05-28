@@ -4,7 +4,7 @@ IMAGE_TAG ?= $(shell git rev-parse --short HEAD)$(if $(shell git status --porcel
 
 .PHONY: build
 build:
-	@$(GO) build -o bin/agent_service ./main.go
+	@$(GO) build -o bin/agent_service ./cmd/server
 
 .PHONY: test
 test:

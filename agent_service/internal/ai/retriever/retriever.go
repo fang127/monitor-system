@@ -3,11 +3,11 @@ package retriever
 import (
 	"context"
 	"monitor-system/agent_service/internal/ai/embedder"
-	"monitor-system/agent_service/utility/client"
-	"monitor-system/agent_service/utility/common"
+	"monitor-system/agent_service/internal/storage/knowledge"
+	storageMilvus "monitor-system/agent_service/internal/storage/milvus"
 	"strings"
 
-	"github.com/cloudwego/eino-ext/components/retriever/milvus"
+	einoMilvus "github.com/cloudwego/eino-ext/components/retriever/milvus"
 	einoRetriever "github.com/cloudwego/eino/components/retriever"
 	"github.com/cloudwego/eino/schema"
 )
@@ -15,7 +15,7 @@ import (
 // NewMilvusRetriever创建一个基于Milvus的Retriever实例，从而实现向量数据库的检索功能。
 func NewMilvusRetriever(ctx context.Context) (rtr einoRetriever.Retriever, err error) {
 	// 创建Milvus客户端
-	cli, err := client.NewMilvusClient(ctx)
+	cli, err := storageMilvus.NewMilvusClient(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -24,9 +24,9 @@ func NewMilvusRetriever(ctx context.Context) (rtr einoRetriever.Retriever, err e
 	if err != nil {
 		return nil, err
 	}
-	r, err := milvus.NewRetriever(ctx, &milvus.RetrieverConfig{
+	r, err := einoMilvus.NewRetriever(ctx, &einoMilvus.RetrieverConfig{
 		Client:      cli,
-		Collection:  common.MilvusCollectionName,
+		Collection:  knowledge.MilvusCollectionName,
 		VectorField: "vector",
 		OutputFields: []string{
 			"id",

@@ -3,7 +3,7 @@ package embedder
 import (
 	"context"
 	"log"
-	"monitor-system/agent_service/utility/common"
+	"monitor-system/agent_service/internal/config"
 
 	"github.com/cloudwego/eino-ext/components/embedding/dashscope"
 	"github.com/cloudwego/eino/components/embedding"
@@ -11,11 +11,11 @@ import (
 
 // CrearteEmbedding 创建一个新的 Embedder 实例，使用配置中的模型名称和 API 密钥。
 func CrearteEmbedding(ctx context.Context) (eb embedding.Embedder, err error) {
-	modelName, err := common.ConfigString(ctx, "doubao_embedding_model.model", "AGENT_EMBEDDING_MODEL", "text-embedding-v4")
+	modelName, err := config.ConfigString(ctx, "doubao_embedding_model.model", "AGENT_EMBEDDING_MODEL", "text-embedding-v4")
 	if err != nil {
 		return nil, err
 	}
-	apiKey, err := common.ConfigString(ctx, "doubao_embedding_model.api_key", "AGENT_EMBEDDING_API_KEY", "")
+	apiKey, err := config.ConfigString(ctx, "doubao_embedding_model.api_key", "AGENT_EMBEDDING_API_KEY", "")
 	if err != nil {
 		return nil, err
 	}

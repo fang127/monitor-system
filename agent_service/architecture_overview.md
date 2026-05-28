@@ -15,19 +15,22 @@
 
 ## 2. 分层结构
 
-- **HTTP 接入层**：`main.go`、`api/chat/v1/chat.go`、`internal/controller/chat/*`
-- **AI 编排层**：`internal/ai/agent/chat_pipeline/*`、`knowledge_index_pipeline/*`、`plan_execute_replan/*`
+- **服务入口**：`cmd/server/main.go`
+- **HTTP 接入层**：`internal/handler/agent/*`、`internal/handler/agent/dto/*`
+- **响应与流式输出**：`internal/response/*`、`internal/sse/*`
+- **AI 编排层**：`internal/ai/pipeline/chat/*`、`internal/ai/pipeline/knowledge/*`、`internal/ai/pipeline/ops/*`
 - **工具与外部集成**：`internal/ai/tools/query_monitor_gateway.go`、`query_internal_docs.go`、`get_current_time.go`
-- **知识库存储**：通过 `utility/client/client.go` 访问 Milvus
+- **知识库存储**：通过 `internal/storage/milvus/client.go` 访问 Milvus，知识库常量位于 `internal/storage/knowledge`
+- **会话记忆**：`internal/session/memory`
 - **运行时配置**：`manifest/config/config.yaml`，并支持环境变量覆盖
 - **前端入口**：根目录 `web` React 应用中的 `AI 运维` 页面
 
 ## 3. 启动流程
 
-1. `main.go` 读取 `docs_dir` / `AGENT_DOCS_DIR`，并写入 `common.FileDir`。
+1. `cmd/server/main.go` 读取 `docs_dir` / `AGENT_DOCS_DIR`，并写入 `knowledge.FileDir`。
 2. 读取 `agent_service_port` / `AGENT_SERVICE_PORT`，默认监听端口为 `6872`。
 3. 注册 `/api/agent` 路由组，并挂载 CORS 中间件与统一响应中间件。
-4. 绑定 `chat.NewV1()` 控制器后启动 Gin HTTP 服务。
+4. 绑定 `agent.NewV1()` 处理器后启动 Gin HTTP 服务。
 
 ## 4. 核心流程
 
@@ -48,7 +51,7 @@
 
 ### 4.2 知识上传流程
 
-`/api/agent/upload` 会把上传文件保存到 `common.FileDir`，读取真实落盘路径和文件信息，删除 Milvus 中 `_source` 相同的旧分片，然后重新构建索引。
+`/api/agent/upload` 会把上传文件保存到 `knowledge.FileDir`，读取真实落盘路径和文件信息，删除 Milvus 中 `_source` 相同的旧分片，然后重新构建索引。
 
 Milvus 默认配置如下：
 
@@ -100,6 +103,6 @@ Milvus 默认配置如下：
 
 ## 7. 注意事项
 
-- 会话记忆仍是进程内存级别，具体实现位于 `utility/mem`。
+- 会话记忆仍是进程内存级别，具体实现位于 `internal/session/memory`。
 - 服务只消费现有 `api_gateway` HTTP API，不改变 C++ `manager` 的 gRPC 契约。
-- 依赖可用后，建议在 `agent_service` 目录执行 `go test ./...` 做基础验证。
+- 依赖可用后，建议在 `agent_service` 目录执行 `go test ./...` 和 `go build ./cmd/server` 做基础验证。

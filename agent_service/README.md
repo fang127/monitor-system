@@ -13,9 +13,15 @@
 
 ```text
 agent_service/
-├── api/                         # Gin HTTP 请求/响应定义
-├── internal/controller/chat/     # HTTP 控制器
-├── internal/ai/agent/            # 对话、知识索引、AI Ops 编排流程
+├── cmd/server/                   # HTTP 服务启动入口
+├── cmd/tools/                    # 本地调试和知识入库工具
+├── internal/config/              # 配置文件与环境变量读取
+├── internal/handler/agent/       # Agent HTTP 处理器和 DTO
+├── internal/response/            # 统一 JSON 响应与 CORS 中间件
+├── internal/sse/                 # SSE 连接与事件写入
+├── internal/session/memory/      # 进程内会话记忆
+├── internal/storage/             # Milvus 客户端和知识库常量
+├── internal/ai/pipeline/         # 对话、知识索引、AI Ops 编排流程
 ├── internal/ai/tools/            # 监控查询、知识库查询、时间工具
 ├── manifest/config/config.yaml   # 默认运行配置
 ├── manifest/docker/              # Docker 构建与单独 compose 文件
@@ -71,7 +77,7 @@ export AGENT_EMBEDDING_MODEL=text-embedding-v4
 
 ```bash
 go mod download
-go run ./main.go
+go run ./cmd/server
 ```
 
 服务启动后默认监听：
@@ -137,7 +143,8 @@ AI 运维界面已集成到根目录 `web` React 应用中，侧边栏点击 `AI
 在依赖和环境变量准备好后，可在 `agent_service` 目录执行：
 
 ```bash
-go test ./...
+PATH=/usr/local/go/bin:$HOME/go/bin:$PATH GOCACHE=/tmp/monitor-system-go-cache-agent go test ./...
+PATH=/usr/local/go/bin:$HOME/go/bin:$PATH go build ./cmd/server
 ```
 
 如果测试或本地运行需要调用模型、Milvus 或 `api_gateway`，请先确认对应服务和环境变量可用。

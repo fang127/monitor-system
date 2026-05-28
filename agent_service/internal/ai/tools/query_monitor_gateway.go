@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"monitor-system/agent_service/utility/common"
+	"monitor-system/agent_service/internal/config"
 
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/components/tool/utils"
@@ -233,14 +233,12 @@ func NewMonitorMysqlDetailTool() tool.InvokableTool {
 }
 
 func apiGatewayGet(ctx context.Context, path string, query url.Values) (json.RawMessage, error) {
-	baseURL, err := common.ConfigString(ctx, "api_gateway_base_url", "API_GATEWAY_BASE_URL", "http://127.0.0.1:8080")
+	baseURL, err := config.ConfigString(ctx, "api_gateway_base_url", "API_GATEWAY_BASE_URL", "http://127.0.0.1:8080")
 	if err != nil {
 		return nil, err
 	}
 	endpoint := strings.TrimRight(baseURL, "/") + path
-	if len(query) > 0 {
-		endpoint += "?" + query.Encode()
-	}
+	endpoint = buildAPIGatewayURL(baseURL, path, query)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
@@ -266,6 +264,14 @@ func apiGatewayGet(ctx context.Context, path string, query url.Values) (json.Raw
 		return envelope.Data, nil
 	}
 	return json.RawMessage(body), nil
+}
+
+func buildAPIGatewayURL(baseURL string, path string, query url.Values) string {
+	endpoint := strings.TrimRight(baseURL, "/") + path
+	if len(query) > 0 {
+		endpoint += "?" + query.Encode()
+	}
+	return endpoint
 }
 
 func queryAllServerAnomalies(ctx context.Context, params url.Values) (json.RawMessage, error) {
