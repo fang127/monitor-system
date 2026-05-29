@@ -18,7 +18,7 @@ services:
       - "${MYSQL_PORT:-3306}:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - "../manager/sql table/init_server_performance.sql:/docker-entrypoint-initdb.d/init_server_performance.sql:ro"
+      - "../sql table/init_server_performance.sql:/docker-entrypoint-initdb.d/init_server_performance.sql:ro"
     healthcheck:
       # 健康检查配置，确保 MySQL 服务可用
       test: [ "CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD} --silent" ] # 使用环境变量 MYSQL_ROOT_PASSWORD 进行健康检查
