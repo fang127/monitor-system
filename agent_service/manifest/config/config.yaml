@@ -24,6 +24,7 @@ doubao_embedding_model:
   model: "text-embedding-v4"
 
 agent_service_port: 6872
+jwt_secret: "monitor-system-dev-secret"
 api_gateway_base_url: "http://127.0.0.1:8080"
 milvus_addr: "127.0.0.1:19530"
 docs_dir: "./docs"

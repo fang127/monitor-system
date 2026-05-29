@@ -38,6 +38,6 @@ func NewExecutor(ctx context.Context) (adk.Agent, error) {
 				Tools: toolList,
 			},
 		},
-		MaxIterations: 999999, // 设置最大迭代次数，确保执行器能够持续执行直到完成任务
+		MaxIterations: 30, // 设置最大迭代次数，确保执行器能够持续执行直到完成任务
 	})
 }

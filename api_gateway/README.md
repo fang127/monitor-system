@@ -6,6 +6,9 @@
 
 - `GET /health`：服务健康检查
 - `GET /api/version`：服务版本信息
+- `POST /api/auth/login`：用户名密码登录，返回 JWT
+- `GET /api/auth/me`：返回当前登录用户
+- `POST /api/users`：管理员创建用户
 - `GET /api/servers/latest`：查询所有服务器最新评分和集群统计
 - `GET /api/servers/score-rank`：查询服务器评分排序
 - `GET /api/servers/:server/performance`：查询指定服务器历史性能数据
@@ -40,6 +43,30 @@ api_gateway/
 | `GIN_MODE` | `debug` | Gin 运行模式，支持 `debug`、`release`、`test` |
 | `MANAGER_GRPC_ADDR` | `127.0.0.1:50051` | C++ Manager gRPC 地址 |
 | `MANAGER_GRPC_TIMEOUT` | `5s` | 调用 Manager 的超时时间 |
+| `JWT_SECRET` | `monitor-system-dev-secret` | HS256 JWT 签名密钥，生产环境必须修改 |
+| `JWT_ACCESS_TTL` | `24h` | 访问令牌有效期 |
+| `MYSQL_HOST` | `127.0.0.1` | 用户表所在 MySQL 地址 |
+| `MYSQL_PORT` | `3306` | 用户表所在 MySQL 端口 |
+| `MYSQL_USER` | `root` | MySQL 用户名 |
+| `MYSQL_PASSWORD` | 空 | MySQL 密码 |
+| `MYSQL_DATABASE` | `monitor-system` | MySQL 数据库 |
+| `ADMIN_USERNAME` | 空 | 用户表为空时引导创建的管理员用户名 |
+| `ADMIN_PASSWORD` | 空 | 用户表为空时引导创建的管理员密码 |
+
+## 鉴权
+
+除 `/health`、`/api/version` 和 `/api/auth/login` 外，所有 HTTP API 都要求携带 JWT：
+
+```bash
+curl -X POST http://127.0.0.1:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"your-password"}'
+
+curl http://127.0.0.1:8080/api/servers/latest \
+  -H "Authorization: Bearer <access_token>"
+```
+
+首次启动时，服务会确保 `users` 表存在。如果用户表为空，会读取 `ADMIN_USERNAME` 和 `ADMIN_PASSWORD` 创建第一个 `admin` 用户。后续可由 `admin` 调用 `POST /api/users` 创建 `admin` 或 `user` 账号。
 
 ## 运行
 
@@ -131,8 +158,8 @@ api_gateway/internal/pb/queryapi/
 ```bash
 curl http://127.0.0.1:8080/health
 curl http://127.0.0.1:8080/api/version
-curl http://127.0.0.1:8080/api/servers/latest
-curl "http://127.0.0.1:8080/api/servers/score-rank?order=desc&page=1&page_size=20"
+curl http://127.0.0.1:8080/api/servers/latest -H "Authorization: Bearer <access_token>"
+curl "http://127.0.0.1:8080/api/servers/score-rank?order=desc&page=1&page_size=20" -H "Authorization: Bearer <access_token>"
 curl "http://127.0.0.1:8080/api/servers/server-01/performance?page=1&page_size=100"
 curl "http://127.0.0.1:8080/api/servers/server-01/trend?interval_seconds=60"
 curl "http://127.0.0.1:8080/api/servers/server-01/anomalies?page=1&page_size=50"

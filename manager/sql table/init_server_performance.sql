@@ -4,7 +4,18 @@
 CREATE DATABASE IF NOT EXISTS `monitor-system` DEFAULT CHARACTER SET utf8mb4;
 USE `monitor-system`;
 
--- 1. 服务器性能汇总表（主表）
+-- 1. 后端登录用户表
+CREATE TABLE IF NOT EXISTS users (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(64) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    role ENUM('admin','user') NOT NULL DEFAULT 'user',
+    status ENUM('active','disabled') NOT NULL DEFAULT 'active',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP 
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 2. 服务器性能汇总表（主表）
 CREATE TABLE IF NOT EXISTS server_performance (
     id INT AUTO_INCREMENT PRIMARY KEY,
     server_name VARCHAR(255) NOT NULL,
@@ -62,7 +73,7 @@ CREATE TABLE IF NOT EXISTS server_performance (
     INDEX idx_score(score)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 2. 网络详细数据表
+-- 3. 网络详细数据表
 CREATE TABLE IF NOT EXISTS server_net_detail (
     id INT AUTO_INCREMENT PRIMARY KEY,
     server_name VARCHAR(255) NOT NULL,
@@ -92,7 +103,7 @@ CREATE TABLE IF NOT EXISTS server_net_detail (
     INDEX idx_server_net_time(server_name, net_name, timestamp)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 3. 软中断详细数据表
+-- 4. 软中断详细数据表
 CREATE TABLE IF NOT EXISTS server_softirq_detail (
     id INT AUTO_INCREMENT PRIMARY KEY,
     server_name VARCHAR(255) NOT NULL,
@@ -124,7 +135,7 @@ CREATE TABLE IF NOT EXISTS server_softirq_detail (
     INDEX idx_server_cpu_time(server_name, cpu_name, timestamp)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 4. 内存详细数据表
+-- 5. 内存详细数据表
 CREATE TABLE IF NOT EXISTS server_mem_detail (
     id INT AUTO_INCREMENT PRIMARY KEY,
     server_name VARCHAR(255) NOT NULL,
@@ -174,7 +185,7 @@ CREATE TABLE IF NOT EXISTS server_mem_detail (
     INDEX idx_mem_used(total, free, avail)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 5. 磁盘详细数据表
+-- 6. 磁盘详细数据表
 CREATE TABLE IF NOT EXISTS server_disk_detail (
     id INT AUTO_INCREMENT PRIMARY KEY,
     server_name VARCHAR(255) NOT NULL,
@@ -210,7 +221,7 @@ CREATE TABLE IF NOT EXISTS server_disk_detail (
     INDEX idx_server_disk_time(server_name, disk_name, timestamp)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 6. MySQL 实例详细数据表
+-- 7. MySQL 实例详细数据表
 CREATE TABLE IF NOT EXISTS server_mysql_detail (
     id INT AUTO_INCREMENT PRIMARY KEY,
     server_name VARCHAR(255) NOT NULL,

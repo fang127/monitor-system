@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
+import { useAuth } from "../auth/AuthContext";
 
 const navItems = [
   { to: "/", label: "Dashboard" },
@@ -8,6 +9,12 @@ const navItems = [
 ];
 
 export function PageLayout() {
+  const { user, logout } = useAuth();
+  const visibleNavItems =
+    user?.role === "admin"
+      ? [...navItems, { to: "/users", label: "用户管理" }]
+      : navItems;
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -19,7 +26,7 @@ export function PageLayout() {
           </div>
         </div>
         <nav className="nav-list" aria-label="主导航">
-          {navItems.map((item) => (
+          {visibleNavItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -32,6 +39,13 @@ export function PageLayout() {
             </NavLink>
           ))}
         </nav>
+        <div className="sidebar-user">
+          <span>{user?.username}</span>
+          <strong>{user?.role}</strong>
+          <button type="button" onClick={logout}>
+            退出登录
+          </button>
+        </div>
       </aside>
       <main className="content-shell">
         <Outlet />

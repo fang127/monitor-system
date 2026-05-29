@@ -119,6 +119,7 @@ services:
     restart: unless-stopped
     environment:
       AGENT_SERVICE_PORT: ${AGENT_SERVICE_PORT:-6872}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       API_GATEWAY_BASE_URL: ${DOCKER_API_GATEWAY_BASE_URL:-http://api_gateway:8080}
       MILVUS_ADDR: ${DOCKER_MILVUS_ADDR:-milvus:19530}
       AGENT_DOCS_DIR: /app/docs
@@ -135,6 +136,7 @@ services:
     extra_hosts: *manager-hosts
     depends_on:
       - milvus
+      - api_gateway
 
   api_gateway:
     build:
@@ -147,9 +149,21 @@ services:
       GIN_MODE: ${GIN_MODE:-debug}
       MANAGER_GRPC_ADDR: ${DOCKER_MANAGER_GRPC_ADDR:-manager-host:50051}
       MANAGER_GRPC_TIMEOUT: ${MANAGER_GRPC_TIMEOUT:-5s}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-24h}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:?ADMIN_USERNAME is required}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
+      MYSQL_HOST: ${DOCKER_MYSQL_HOST:-mysql}
+      MYSQL_PORT: 3306
+      MYSQL_USER: ${MYSQL_USER:-root}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-monitor-system}
     ports:
       - "${API_GATEWAY_PORT:-8080}:${API_GATEWAY_PORT:-8080}"
     extra_hosts: *manager-hosts
+    depends_on:
+      mysql:
+        condition: service_healthy
 
   web:
     build:

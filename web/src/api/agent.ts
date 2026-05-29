@@ -1,4 +1,8 @@
 import axios, { type AxiosRequestConfig } from "axios";
+import {
+  getAuthToken,
+  redirectToLoginOnUnauthorized,
+} from "../auth/session";
 
 type AgentEnvelope<T> = {
   code?: number;
@@ -32,6 +36,14 @@ const agentClient = axios.create({
   timeout: 120000,
 });
 
+agentClient.interceptors.request.use((config) => {
+  const token = getAuthToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 function unwrapAgentEnvelope<T>(payload: AgentEnvelope<T>): T {
   const success =
     payload.code === undefined ? payload.message === "OK" : payload.code === 0;
@@ -43,6 +55,9 @@ function unwrapAgentEnvelope<T>(payload: AgentEnvelope<T>): T {
 
 function formatAgentError(error: unknown): Error {
   if (axios.isAxiosError(error)) {
+    if (error.response?.status === 401) {
+      redirectToLoginOnUnauthorized();
+    }
     const data = error.response?.data as
       | Partial<AgentEnvelope<unknown>>
       | undefined;
@@ -111,11 +126,13 @@ export async function sendAgentChatStream(
   handlers: AgentChatStreamHandlers,
 ): Promise<void> {
   try {
+    const token = getAuthToken();
     const response = await fetch(`${agentApiBaseUrl}/chat_stream`, {
       method: "POST",
       headers: {
         Accept: "text/event-stream",
         "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({
         Id: params.id,
@@ -124,6 +141,9 @@ export async function sendAgentChatStream(
     });
 
     if (!response.ok) {
+      if (response.status === 401) {
+        redirectToLoginOnUnauthorized();
+      }
       throw new Error(`AI 运维服务暂不可用 (${response.status})`);
     }
     if (!response.body) {

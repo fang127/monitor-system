@@ -1,8 +1,12 @@
 package tools
 
 import (
+	"context"
+	"net/http"
 	"net/url"
 	"testing"
+
+	authctx "monitor-system/agent_service/internal/auth"
 )
 
 func TestDetailEndpointMapsAliases(t *testing.T) {
@@ -61,5 +65,17 @@ func TestBuildAPIGatewayURLTrimsBaseSlashAndEncodesQuery(t *testing.T) {
 	want := "http://api-gateway/api/servers/node-1/performance?page=3&page_size=10"
 	if got != want {
 		t.Fatalf("URL 拼接不正确: got=%s want=%s", got, want)
+	}
+}
+
+func TestAddBearerTokenForwardsTokenFromContext(t *testing.T) {
+	ctx := authctx.ContextWithBearerToken(context.Background(), "user-token")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://api-gateway/api/servers/latest", nil)
+	if err != nil {
+		t.Fatalf("创建请求失败: %v", err)
+	}
+	addBearerToken(ctx, req)
+	if got := req.Header.Get("Authorization"); got != "Bearer user-token" {
+		t.Fatalf("Authorization = %q, want Bearer user-token", got)
 	}
 }

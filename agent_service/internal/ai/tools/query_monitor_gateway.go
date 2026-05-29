@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	authctx "monitor-system/agent_service/internal/auth"
 	"monitor-system/agent_service/internal/config"
 
 	"github.com/cloudwego/eino/components/tool"
@@ -109,6 +110,7 @@ func NewMonitorClusterOverviewTool() tool.InvokableTool {
 	return t
 }
 
+// NewMonitorAnomaliesTool 创建了一个工具函数，用于查询监控系统的异常记录。该工具函数根据输入参数构建查询参数，并发送 GET 请求到 API 网关的 /api/servers/{server_name}/anomalies 端点（如果指定了服务器名称）或 /api/servers/*/anomalies 端点（如果未指定服务器名称）。返回结果包含异常记录列表，支持分页和阈值过滤。
 func NewMonitorAnomaliesTool() tool.InvokableTool {
 	t, err := utils.InferOptionableTool(
 		"query_monitor_anomalies",
@@ -133,6 +135,7 @@ func NewMonitorAnomaliesTool() tool.InvokableTool {
 	return t
 }
 
+// NewMonitorPerformanceTool 创建了一个工具函数，用于查询监控系统的性能数据。该工具函数根据输入参数构建查询参数，并发送 GET 请求到 API 网关的 /api/servers/{server_name}/performance 端点。返回结果包含性能数据的时间序列记录，支持分页。
 func NewMonitorPerformanceTool() tool.InvokableTool {
 	t, err := utils.InferOptionableTool(
 		"query_monitor_performance",
@@ -152,6 +155,7 @@ func NewMonitorPerformanceTool() tool.InvokableTool {
 	return t
 }
 
+// NewMonitorTrendTool 创建了一个工具函数，用于查询监控系统的趋势数据。该工具函数根据输入参数构建查询参数，并发送 GET 请求到 API 网关的 /api/servers/{server_name}/trend 端点。返回结果包含趋势数据的时间序列记录，支持分页和趋势聚合间隔。
 func NewMonitorTrendTool() tool.InvokableTool {
 	t, err := utils.InferOptionableTool(
 		"query_monitor_trend",
@@ -171,6 +175,7 @@ func NewMonitorTrendTool() tool.InvokableTool {
 	return t
 }
 
+// NewMonitorDetailTool 创建了一个工具函数，用于查询监控系统的详细数据。该工具函数根据输入参数构建查询参数，并发送 GET 请求到 API 网关的 /api/servers/{server_name}/{kind}-detail 端点，其中 {kind} 可以是 net、disk、mem、softirq、mysql 或 redis。返回结果包含指定类型的详细数据记录，支持分页。
 func NewMonitorDetailTool() tool.InvokableTool {
 	t, err := utils.InferOptionableTool(
 		"query_monitor_detail",
@@ -194,6 +199,7 @@ func NewMonitorDetailTool() tool.InvokableTool {
 	return t
 }
 
+// NewMonitorRedisDetailTool 创建了一个工具函数，用于查询监控系统的 Redis 明细数据。该工具函数根据输入参数构建查询参数，并发送 GET 请求到 API 网关的 /api/servers/{server_name}/redis-detail 端点。返回结果包含 Redis 的可用性、连接压力、内存压力、命令执行速率、命中率、驱逐和拒绝连接数、复制延迟和慢日志增长等监控指标的详细记录，支持分页。
 func NewMonitorRedisDetailTool() tool.InvokableTool {
 	t, err := utils.InferOptionableTool(
 		"query_monitor_redis_detail",
@@ -213,6 +219,7 @@ func NewMonitorRedisDetailTool() tool.InvokableTool {
 	return t
 }
 
+// NewMonitorMysqlDetailTool 创建了一个工具函数，用于查询监控系统的 MySQL 明细数据。该工具函数根据输入参数构建查询参数，并发送 GET 请求到 API 网关的 /api/servers/{server_name}/mysql-detail 端点。返回结果包含 MySQL 的可用性、连接压力、QPS/TPS、慢查询率、InnoDB 行锁等待、缓冲池命中率和复制延迟等监控指标的详细记录，支持分页。
 func NewMonitorMysqlDetailTool() tool.InvokableTool {
 	t, err := utils.InferOptionableTool(
 		"query_monitor_mysql_detail",
@@ -232,18 +239,21 @@ func NewMonitorMysqlDetailTool() tool.InvokableTool {
 	return t
 }
 
+// apiGatewayGet 是一个辅助函数，用于发送 GET 请求到 API 网关的指定路径，并返回原始 JSON 响应数据。它从配置中获取 API 网关的基础 URL，构建完整的请求 URL，并添加 Bearer Token 进行身份验证。函数处理 HTTP 响应，检查状态码，并尝试解析响应体中的通用 envelope 结构以提取数据或错误信息。
 func apiGatewayGet(ctx context.Context, path string, query url.Values) (json.RawMessage, error) {
 	baseURL, err := config.ConfigString(ctx, "api_gateway_base_url", "API_GATEWAY_BASE_URL", "http://127.0.0.1:8080")
 	if err != nil {
 		return nil, err
 	}
-	endpoint := strings.TrimRight(baseURL, "/") + path
-	endpoint = buildAPIGatewayURL(baseURL, path, query)
+	endpoint := buildAPIGatewayURL(baseURL, path, query)
+	// 构建 HTTP GET 请求，并将上下文传递给请求以支持超时和取消。添加 Bearer Token 进行身份验证。
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
-	client := &http.Client{Timeout: 10 * time.Second}
+	addBearerToken(ctx, req)
+	// TODO: 如果性能成为问题，可以考虑实现一个带有连接池和上下文支持的共享 HTTP 客户端。
+	client := &http.Client{Timeout: 10 * time.Second} // 设置合理的超时时间，避免请求挂起
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
@@ -266,6 +276,14 @@ func apiGatewayGet(ctx context.Context, path string, query url.Values) (json.Raw
 	return json.RawMessage(body), nil
 }
 
+// 添加 Bearer Token 到 HTTP 请求头中，以便 API 网关进行身份验证。函数从上下文中提取 Bearer Token，如果存在，则将其添加到请求的 Authorization 头中
+func addBearerToken(ctx context.Context, req *http.Request) {
+	if token, ok := authctx.BearerTokenFromContext(ctx); ok {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+}
+
+// 构建 API 网关请求 URL 的辅助函数。它接受基础 URL、路径和查询参数，确保正确拼接路径并编码查询参数，返回完整的请求 URL。
 func buildAPIGatewayURL(baseURL string, path string, query url.Values) string {
 	endpoint := strings.TrimRight(baseURL, "/") + path
 	if len(query) > 0 {
@@ -274,11 +292,14 @@ func buildAPIGatewayURL(baseURL string, path string, query url.Values) string {
 	return endpoint
 }
 
+// queryAllServerAnomalies 是一个辅助函数，用于查询所有服务器的异常记录。当输入参数中未指定服务器名称时，工具函数会调用该函数。它首先查询最新的服务器概览以获取所有服务器名称，然后针对每个服务器发送 GET 请求到 API 网关的 /api/servers/{server_name}/anomalies 端点，并收集结果。最终返回一个包含所有服务器异常记录的 JSON 数据。
 func queryAllServerAnomalies(ctx context.Context, params url.Values) (json.RawMessage, error) {
+	// 1. 查询最新的服务器概览以获取所有服务器名称
 	overview, err := apiGatewayGet(ctx, "/api/servers/latest", nil)
 	if err != nil {
 		return nil, err
 	}
+	// 2. 解析服务器概览响应，提取服务器名称列表
 	var latest struct {
 		Servers []struct {
 			ServerName string `json:"server_name"`
@@ -287,6 +308,7 @@ func queryAllServerAnomalies(ctx context.Context, params url.Values) (json.RawMe
 	if err := json.Unmarshal(overview, &latest); err != nil {
 		return nil, err
 	}
+	// 3. 针对每个服务器发送 GET 请求到 /api/servers/{server_name}/anomalies 端点，并收集结果。使用 cloneValues 函数确保每个请求的查询参数独立，避免竞态条件。
 	results := make([]map[string]interface{}, 0, len(latest.Servers))
 	for _, server := range latest.Servers {
 		if server.ServerName == "" {
@@ -319,6 +341,7 @@ func queryAllServerAnomalies(ctx context.Context, params url.Values) (json.RawMe
 	return out, nil
 }
 
+// 构建查询异常记录的 URL 查询参数的辅助函数。
 func anomalyQuery(input *MonitorAnomaliesInput) url.Values {
 	values := url.Values{}
 	addTimeRange(values, input.StartTime, input.EndTime)
@@ -417,6 +440,7 @@ func detailEndpoint(kind string) (string, error) {
 	}
 }
 
+// formatGatewayOutput 是一个辅助函数，用于将 API 网关的响应数据和错误信息格式化为统一的工具输出结构。它接受数据来源、原始 JSON 数据和错误对象作为输入，并返回一个 JSON 字符串表示工具输出。如果发生错误，输出将包含成功标志、数据来源和错误信息；如果成功，输出将包含成功标志、数据来源、解析后的数据和消息。
 func formatGatewayOutput(source string, data json.RawMessage, err error) (string, error) {
 	if err != nil {
 		out, _ := json.Marshal(gatewayToolOutput{
@@ -427,9 +451,11 @@ func formatGatewayOutput(source string, data json.RawMessage, err error) (string
 		return string(out), err
 	}
 	var payload interface{}
+	// 尝试将原始 JSON 数据解析为通用接口，如果解析失败，则将原始数据作为字符串返回。这允许工具输出在数据格式不确定的情况下仍然提供有用的信息。
 	if len(data) > 0 && json.Unmarshal(data, &payload) != nil {
 		payload = string(data)
 	}
+	// 构建工具输出结构，并将其序列化为 JSON 字符串返回。输出包含成功标志、数据来源、解析后的数据和消息。如果序列化过程中发生错误，则返回该错误。
 	out, err := json.Marshal(gatewayToolOutput{
 		Success: true,
 		Source:  source,
@@ -442,6 +468,7 @@ func formatGatewayOutput(source string, data json.RawMessage, err error) (string
 	return string(out), nil
 }
 
+// 深拷贝 url.Values 以避免在循环中修改原始查询参数时引发竞态条件。该函数创建一个新的 url.Values 实例，并将原始值逐个复制到新实例中，确保每个服务器的查询参数独立且不会相互干扰。
 func cloneValues(values url.Values) url.Values {
 	cloned := url.Values{}
 	for key, list := range values {
@@ -452,6 +479,7 @@ func cloneValues(values url.Values) url.Values {
 	return cloned
 }
 
+// errorTool 是一个辅助函数，用于在工具函数初始化失败时创建一个返回固定错误信息的工具。该工具函数使用 utils.InferOptionableTool 创建，工具名称和描述由参数指定，执行函数始终返回一个格式化的错误输出，指示工具初始化失败并包含原始构建错误信息。这确保了即使在工具构建过程中发生错误，系统仍然能够提供有意义的反馈，而不是完全无法调用该工具。
 func errorTool(name string, buildErr error) tool.InvokableTool {
 	t, _ := utils.InferOptionableTool(
 		name,

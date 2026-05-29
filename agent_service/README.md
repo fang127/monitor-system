@@ -9,6 +9,8 @@
 - `POST /api/agent/upload`：上传运维文档并写入 Milvus 知识库。
 - `POST /api/agent/ai_ops`：查询监控事实和内部文档，生成中文 AI 运维分析报告。
 
+所有 `/api/agent/*` 接口都要求携带与 `api_gateway` 相同密钥签发的 JWT。服务校验通过后，会在调用 `api_gateway` 查询监控事实时透传同一个 `Authorization: Bearer <token>`。
+
 ## 目录结构
 
 ```text
@@ -47,6 +49,7 @@ agent_service/
 | 配置项 | 环境变量 | 默认值 | 说明 |
 | --- | --- | --- | --- |
 | `agent_service_port` | `AGENT_SERVICE_PORT` | `6872` | 服务监听端口 |
+| `jwt_secret` | `JWT_SECRET` | `monitor-system-dev-secret` | JWT HS256 校验密钥，需要与 `api_gateway` 一致 |
 | `api_gateway_base_url` | `API_GATEWAY_BASE_URL` | `http://127.0.0.1:8080` | 监控 API 网关地址 |
 | `milvus_addr` | `MILVUS_ADDR` | `127.0.0.1:19530` | Milvus 地址 |
 | `docs_dir` | `AGENT_DOCS_DIR` | `./docs` | 上传文档保存目录 |
@@ -58,6 +61,7 @@ agent_service/
 
 ```bash
 export AGENT_SERVICE_PORT=6872
+export JWT_SECRET=please-change-this-jwt-secret
 export API_GATEWAY_BASE_URL=http://127.0.0.1:8080
 export MILVUS_ADDR=127.0.0.1:19530
 export AGENT_DOCS_DIR=./docs
@@ -105,6 +109,7 @@ docker compose --env-file configs/app.env -f deploy/docker-compose.yml up -d
 ```bash
 curl -X POST http://127.0.0.1:6872/api/agent/chat \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <access_token>" \
   -d '{"Id":"demo-user","Question":"当前集群健康情况怎么样？"}'
 ```
 
@@ -112,13 +117,15 @@ curl -X POST http://127.0.0.1:6872/api/agent/chat \
 
 ```bash
 curl -X POST http://127.0.0.1:6872/api/agent/upload \
+  -H "Authorization: Bearer <access_token>" \
   -F "file=@./docs/告警处理手册.md"
 ```
 
 生成 AI 运维报告：
 
 ```bash
-curl -X POST http://127.0.0.1:6872/api/agent/ai_ops
+curl -X POST http://127.0.0.1:6872/api/agent/ai_ops \
+  -H "Authorization: Bearer <access_token>"
 ```
 
 ## Agent 工具

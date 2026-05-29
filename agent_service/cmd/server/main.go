@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"monitor-system/agent_service/internal/auth"
 	"monitor-system/agent_service/internal/config"
 	"monitor-system/agent_service/internal/handler/agent"
 	"monitor-system/agent_service/internal/response"
@@ -28,7 +29,13 @@ func main() {
 	router := gin.New()
 	router.Use(gin.Logger(), gin.Recovery(), response.CORSMiddleware())
 	controller := agent.NewV1()
-	controller.RegisterRoutes(router.Group("/api/agent"))
+	jwtSecret, err := config.ConfigString(ctx, "jwt_secret", "JWT_SECRET", "monitor-system-dev-secret")
+	if err != nil {
+		panic(err)
+	}
+	agentGroup := router.Group("/api/agent")
+	agentGroup.Use(auth.Middleware(auth.NewTokenManager(jwtSecret)))
+	controller.RegisterRoutes(agentGroup)
 	if err := router.Run(fmt.Sprintf(":%d", port)); err != nil {
 		panic(err)
 	}
