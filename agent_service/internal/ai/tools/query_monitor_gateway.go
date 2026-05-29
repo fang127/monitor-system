@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	authctx "monitor-system/agent_service/internal/auth"
@@ -33,6 +34,12 @@ type gatewayToolOutput struct {
 	Data    interface{} `json:"data,omitempty"`
 	Message string      `json:"message,omitempty"`
 	Error   string      `json:"error,omitempty"`
+}
+
+const maxConcurrentAllServerAnomalyQueries = 8
+
+var apiGatewayHTTPClient = &http.Client{
+	Timeout: 10 * time.Second,
 }
 
 // ClusterOverviewInput 定义了查询集群概览工具的输入结构，目前没有参数。
@@ -252,9 +259,7 @@ func apiGatewayGet(ctx context.Context, path string, query url.Values) (json.Raw
 		return nil, err
 	}
 	addBearerToken(ctx, req)
-	// TODO: 如果性能成为问题，可以考虑实现一个带有连接池和上下文支持的共享 HTTP 客户端。
-	client := &http.Client{Timeout: 10 * time.Second} // 设置合理的超时时间，避免请求挂起
-	resp, err := client.Do(req)
+	resp, err := apiGatewayHTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -308,30 +313,30 @@ func queryAllServerAnomalies(ctx context.Context, params url.Values) (json.RawMe
 	if err := json.Unmarshal(overview, &latest); err != nil {
 		return nil, err
 	}
-	// 3. 针对每个服务器发送 GET 请求到 /api/servers/{server_name}/anomalies 端点，并收集结果。使用 cloneValues 函数确保每个请求的查询参数独立，避免竞态条件。
-	results := make([]map[string]interface{}, 0, len(latest.Servers))
+	// 3. 提取有效服务器名称，结果切片按概览顺序预分配，确保并发查询后输出顺序稳定。
+	serverNames := make([]string, 0, len(latest.Servers))
 	for _, server := range latest.Servers {
 		if server.ServerName == "" {
 			continue
 		}
-		path := fmt.Sprintf("/api/servers/%s/anomalies", url.PathEscape(server.ServerName))
-		data, err := apiGatewayGet(ctx, path, cloneValues(params))
-		result := map[string]interface{}{"server_name": server.ServerName}
-		if err != nil {
-			result["success"] = false
-			result["error"] = err.Error()
-		} else {
-			var payload interface{}
-			if json.Unmarshal(data, &payload) == nil {
-				result["success"] = true
-				result["data"] = payload
-			} else {
-				result["success"] = true
-				result["data"] = string(data)
-			}
-		}
-		results = append(results, result)
+		serverNames = append(serverNames, server.ServerName)
 	}
+
+	// 4. 针对每个服务器并发查询异常记录，并使用信号量限制并发度，避免瞬间压垮 API 网关。
+	results := make([]map[string]interface{}, len(serverNames))
+	sem := make(chan struct{}, maxConcurrentAllServerAnomalyQueries)
+	var wg sync.WaitGroup
+	for index, serverName := range serverNames {
+		wg.Add(1)
+		go func(index int, serverName string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			results[index] = queryOneServerAnomalies(ctx, serverName, params)
+		}(index, serverName)
+	}
+	wg.Wait()
+
 	out, err := json.Marshal(map[string]interface{}{
 		"servers": results,
 	})
@@ -339,6 +344,26 @@ func queryAllServerAnomalies(ctx context.Context, params url.Values) (json.RawMe
 		return nil, err
 	}
 	return out, nil
+}
+
+func queryOneServerAnomalies(ctx context.Context, serverName string, params url.Values) map[string]interface{} {
+	path := fmt.Sprintf("/api/servers/%s/anomalies", url.PathEscape(serverName))
+	data, err := apiGatewayGet(ctx, path, cloneValues(params))
+	result := map[string]interface{}{"server_name": serverName}
+	if err != nil {
+		result["success"] = false
+		result["error"] = err.Error()
+		return result
+	}
+	var payload interface{}
+	if json.Unmarshal(data, &payload) == nil {
+		result["success"] = true
+		result["data"] = payload
+		return result
+	}
+	result["success"] = true
+	result["data"] = string(data)
+	return result
 }
 
 // 构建查询异常记录的 URL 查询参数的辅助函数。
