@@ -37,6 +37,20 @@
    /dev/cpu_stat_monitor                  11个查询接口
    /dev/cpu_softirq_monitor
    MySQL/Redis INFO/Status
+                                               │
+                                               │ gRPC
+                                               ▼
+                                        ┌─────────────────┐
+                                        │   api_gateway   │
+                                        │   HTTP JSON API │
+                                        └────────┬────────┘
+                                                 │
+                                                 │ HTTP + JWT
+                                                 ▼
+                                        ┌─────────────────┐
+                                        │  agent_service  │
+                                        │  AI 运维服务     │
+                                        └─────────────────┘
 ```
 
 ### manager
@@ -102,6 +116,31 @@ HTTP Client
            Manager(C++)
 ```
 
+### agent_service
+
+`agent_service` 是独立运行的 Go/Gin AI 运维服务，对外提供对话、流式对话、运维文档上传和 AI 运维报告接口。它不直接访问 Manager 或 MySQL，而是通过 `api_gateway` 读取监控事实，通过 Milvus 检索内部运维知识，并使用 CloudWeGo Eino 编排 RAG、工具调用和 plan-execute-replan 运维分析流程。
+
+```
+Web / HTTP Client
+    |
+    |  HTTP + JWT
+    v
++--------------------------------+
+|          agent_service          |
+|  Go + Gin + CloudWeGo Eino      |
+|                                |
+|  POST /api/agent/chat           |
+|  POST /api/agent/chat_stream    |
+|  POST /api/agent/upload         |
+|  POST /api/agent/ai_ops         |
++-----------+--------------------+
+       | 查询监控事实        | 检索运维知识
+       v                     v
+  api_gateway              Milvus
+```
+
+所有 `/api/agent/*` 接口都需要携带与 `api_gateway` 使用同一 `JWT_SECRET` 签发的 JWT。服务校验通过后，会在调用 `api_gateway` 时透传 `Authorization: Bearer <token>`。
+
 ### worker
 
 ```
@@ -163,6 +202,17 @@ monitor_system/
 │   ├── internal/response      # JSON 响应封装
 │   ├── Makefile               # make run / make proto
 │   └── README.md              # API 网关说明
+├── agent_service/             # Go AI 运维服务
+│   ├── cmd/server             # Gin HTTP Server 入口
+│   ├── cmd/tools              # 本地调试、知识入库和召回工具
+│   ├── internal/handler       # Agent HTTP Handler 和 DTO
+│   ├── internal/ai            # 对话、RAG、工具调用和 AI Ops 编排
+│   ├── internal/storage       # Milvus 和知识库存储封装
+│   ├── internal/session       # 进程内会话记忆
+│   ├── manifest/config        # 默认运行配置
+│   ├── manifest/docker        # Docker 构建和单独 compose 文件
+│   ├── docs                   # 默认运维知识文档目录
+│   └── README.md              # AI 运维服务说明
 ├── worker/                    # 工作者服务器（部署在被监控机器）
 │   ├── include/               # 头文件
 │   │   ├── monitor/           # 监控器接口
@@ -212,7 +262,9 @@ monitor-system
 - **Redis**: 6.0+ (可选，用于 Manager 查询缓存；启用 Redis 实例监控时需要目标 Redis 可访问)
 - **Conan**: 1.40+ (依赖管理)
 - **Python**: 3.6+ (构建脚本)
-- **Go**: 1.22+ (api_gateway)
+- **Go**: 1.22+ (api_gateway)，1.24+ (agent_service)
+- **Milvus**: 2.5+ (agent_service 知识库检索)
+- **大模型与 Embedding 服务**: agent_service 需要可访问的 OpenAI 兼容 Chat/Embedding API
 - **protoc + protoc-gen-go + protoc-gen-go-grpc**: 生成 Go gRPC client（`api_gateway/make proto` 会自动安装 Go 插件到本地 `.bin/`）
 
 ## 🌐 API Gateway
@@ -262,6 +314,76 @@ make proto
 ```
 
 生成文件输出到 `api_gateway/internal/pb/queryapi/`。
+
+## 🤖 AI 运维服务 agent_service
+
+`agent_service` 面向前端 `AI 运维` 页面和运维脚本提供智能问答与自动分析能力。它只消费 `api_gateway` 暴露的 HTTP API，不改变 C++ `manager` 的 gRPC 契约。
+
+### 功能接口
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `POST` | `/api/agent/chat` | 普通知识增强对话，支持基于会话 ID 的进程内上下文 |
+| `POST` | `/api/agent/chat_stream` | SSE 流式知识增强对话 |
+| `POST` | `/api/agent/upload` | 上传运维文档并写入 Milvus 知识库 |
+| `POST` | `/api/agent/ai_ops` | 查询监控事实和内部文档，生成中文 AI 运维分析报告 |
+
+### 配置
+
+默认配置文件位于 `agent_service/manifest/config/config.yaml`。常用环境变量如下：
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `AGENT_SERVICE_PORT` | `6872` | HTTP 服务端口 |
+| `JWT_SECRET` | `monitor-system-dev-secret` | JWT HS256 校验密钥，需要与 `api_gateway` 一致 |
+| `API_GATEWAY_BASE_URL` | `http://127.0.0.1:8080` | api_gateway 地址 |
+| `MILVUS_ADDR` | `127.0.0.1:19530` | Milvus 地址 |
+| `AGENT_DOCS_DIR` | `./docs` | 上传文档保存目录 |
+| `AGENT_THINK_*` | 空 | 规划、推理类 Chat 模型配置 |
+| `AGENT_QUICK_*` | 空 | 快速对话类 Chat 模型配置 |
+| `AGENT_EMBEDDING_*` | `text-embedding-v4` | Embedding 模型配置 |
+
+模型密钥不应写入仓库配置文件，生产环境建议通过环境变量或密钥管理系统注入。
+
+### 本地启动
+
+需要先启动 Milvus、`manager` 和 `api_gateway`，并准备可用的模型配置。随后在 `agent_service` 目录执行：
+
+```bash
+PATH=/usr/local/go/bin:$HOME/go/bin:$PATH go run ./cmd/server
+```
+
+服务默认监听：
+
+```text
+http://127.0.0.1:6872/api/agent
+```
+
+### Docker 部署
+
+根目录统一 compose 已包含 `agent_service`、Milvus、`api_gateway` 和前端：
+
+```bash
+docker compose --env-file configs/app.env -f deploy/docker-compose.yml up -d
+```
+
+容器内 `agent_service` 默认通过 `MILVUS_ADDR=milvus:19530` 访问 Milvus，通过 `API_GATEWAY_BASE_URL=http://api_gateway:8080` 访问容器内 `api_gateway`。
+
+### Agent 工具
+
+对话 Agent 和 AI Ops Agent 当前可调用的工具包括：
+
+- `query_monitor_cluster_overview`：查询集群概览。
+- `query_monitor_anomalies`：查询服务器异常记录。
+- `query_monitor_performance`：查询单台服务器历史性能数据。
+- `query_monitor_trend`：查询单台服务器指标趋势。
+- `query_monitor_detail`：查询网络、磁盘、内存、软中断、MySQL 或 Redis 明细。
+- `query_monitor_mysql_detail`：查询 MySQL 可用性、连接压力、QPS/TPS、慢查询、锁等待、Buffer Pool 命中率和复制延迟。
+- `query_monitor_redis_detail`：查询 Redis 可用性、连接压力、内存压力、命令吞吐、命中率、淘汰、拒绝连接、复制延迟和慢日志增长。
+- `query_internal_docs`：查询 Milvus 支撑的内部运维知识库。
+- `get_current_time`：提供当前时间，用于构造时间窗口查询。
+
+更多细节见 `agent_service/README.md` 和 `agent_service/architecture_overview.md`。
 
 ## 📚 系统指标说明
 
