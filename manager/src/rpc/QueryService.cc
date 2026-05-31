@@ -382,19 +382,18 @@ void QueryServiceImpl::setTimestamp(::google::protobuf::Timestamp *ts,
                                                   const ::monitor::proto::QueryLatestScoreRequest *request,
                                                   ::monitor::proto::QueryLatestScoreResponse *response) {
     (void)context;
-    (void)request;
 
     if (dispatcher_ && !g_inside_dispatcher) {
         return dispatchQuery(dispatcher_, request, response,
                              [this](const auto *req, auto *resp) { return QueryLatestScore(nullptr, req, resp); });
     }
 
-    if (!queryManager_ || !queryManager_->isInitialized()) {
-        return grpc::Status(grpc::StatusCode::UNAVAILABLE, "Query manager not initialized");
-    }
     QueryScope scope;
     grpc::Status scopeStatus;
     if (!convertQueryScope(request->scope(), &scope, &scopeStatus)) return scopeStatus;
+    if (!queryManager_ || !queryManager_->isInitialized()) {
+        return grpc::Status(grpc::StatusCode::UNAVAILABLE, "Query manager not initialized");
+    }
     const std::string cacheKey = latestScoreCacheKey(scope);
     if (redisCache_) {
         auto cached = redisCache_->get(cacheKey);

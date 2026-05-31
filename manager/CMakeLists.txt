@@ -21,8 +21,7 @@ endif()
 
 option(ENABLE_MYSQL "Enable MySQL support" ON)
 
-set(MANAGER_SOURCES
-    src/main.cc
+set(MANAGER_CORE_SOURCES
     src/HostManager.cc
     src/QueryManager.cc
     src/ManagerConfig.cc
@@ -33,16 +32,19 @@ set(MANAGER_SOURCES
     src/rpc/QueryService.cc
 )
 
-add_executable(manager ${MANAGER_SOURCES})
+add_library(manager_core STATIC ${MANAGER_CORE_SOURCES})
 
-target_include_directories(manager PUBLIC 
+target_include_directories(manager_core PUBLIC
     ${PROJECT_SOURCE_DIR}/manager/include
     ${PROJECT_SOURCE_DIR}/manager/include/rpc
 )
 
 if(ENABLE_MYSQL)
-    target_compile_definitions(manager PRIVATE ENABLE_MYSQL) # 定义宏以启用MySQL相关代码
+    target_compile_definitions(manager_core PUBLIC ENABLE_MYSQL) # 定义宏以启用MySQL相关代码
     list(APPEND MANAGER_LIBS libmysqlclient::libmysqlclient)
 endif()
 
-target_link_libraries(manager PUBLIC ${MANAGER_LIBS})
+target_link_libraries(manager_core PUBLIC ${MANAGER_LIBS})
+
+add_executable(manager src/main.cc)
+target_link_libraries(manager PUBLIC manager_core)
