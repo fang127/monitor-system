@@ -68,12 +68,6 @@ monitor-system/
 - `protoc`、`protoc-gen-go`、`protoc-gen-go-grpc`，用于 Go gRPC 代码生成。
 - eBPF 构建需要 `bpftool`、clang、libbpf、elfutils、ZLIB 和系统 BTF/vmlinux 头文件。
 
-在当前 WSL/Ubuntu 环境中，常用工具可能不在默认 `PATH` 中，执行构建和测试前可临时补齐：
-
-```bash
-export PATH=/usr/local/go/bin:$HOME/go/bin:/home/harry/.nvm/versions/node/v24.14.0/bin:/opt/sbin:$PATH
-```
-
 ## 快速开始
 
 ### 1. 启动基础服务
