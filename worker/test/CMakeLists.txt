@@ -8,7 +8,7 @@ find_package(elfutils CONFIG REQUIRED)
 find_package(ZLIB CONFIG REQUIRED)
 
 add_executable(TestNetEbpf
-    TestNetEbpf.cc
+    TestNetEbpf.cpp
 )
 
 target_link_libraries(TestNetEbpf

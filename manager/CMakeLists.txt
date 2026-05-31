@@ -22,14 +22,14 @@ endif()
 option(ENABLE_MYSQL "Enable MySQL support" ON)
 
 set(MANAGER_CORE_SOURCES
-    src/HostManager.cc
-    src/QueryManager.cc
-    src/ManagerConfig.cc
-    src/ManagerDispatcher.cc
-    src/MysqlConnectionPool.cc
-    src/RedisConnectionPool.cc
-    src/rpc/GrpcServer.cc
-    src/rpc/QueryService.cc
+    src/HostManager.cpp
+    src/QueryManager.cpp
+    src/ManagerConfig.cpp
+    src/ManagerDispatcher.cpp
+    src/MysqlConnectionPool.cpp
+    src/RedisConnectionPool.cpp
+    src/rpc/GrpcServer.cpp
+    src/rpc/QueryService.cpp
 )
 
 add_library(manager_core STATIC ${MANAGER_CORE_SOURCES})
@@ -46,5 +46,5 @@ endif()
 
 target_link_libraries(manager_core PUBLIC ${MANAGER_LIBS})
 
-add_executable(manager src/main.cc)
+add_executable(manager src/main.cpp)
 target_link_libraries(manager PUBLIC manager_core)

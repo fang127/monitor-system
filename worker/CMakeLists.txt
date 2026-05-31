@@ -43,31 +43,31 @@ if(ENABLE_EBPF)
 endif()
 
 set(WORKER_SRC
-    src/main.cc
-    src/monitor/MetricCollector.cc
-    src/monitor/CpuLoadMonitor.cc
-    src/monitor/CpuSoftirqMonitor.cc
-    src/monitor/CpuStatMonitor.cc
-    src/monitor/MemMonitor.cc
-    src/monitor/DiskMonitor.cc
-    src/monitor/HostInfoMonitor.cc
-    src/rpc/MonitorPusher.cc
-    src/utils/ReadFile.cc
+    src/main.cpp
+    src/monitor/MetricCollector.cpp
+    src/monitor/CpuLoadMonitor.cpp
+    src/monitor/CpuSoftirqMonitor.cpp
+    src/monitor/CpuStatMonitor.cpp
+    src/monitor/MemMonitor.cpp
+    src/monitor/DiskMonitor.cpp
+    src/monitor/HostInfoMonitor.cpp
+    src/rpc/MonitorPusher.cpp
+    src/utils/ReadFile.cpp
 )
 
 if(ENABLE_MYSQL_MONITOR)
-    list(APPEND WORKER_SRC src/monitor/MysqlMonitor.cc)
+    list(APPEND WORKER_SRC src/monitor/MysqlMonitor.cpp)
 endif()
 
 if(ENABLE_REDIS_MONITOR)
-    list(APPEND WORKER_SRC src/monitor/RedisMonitor.cc)
+    list(APPEND WORKER_SRC src/monitor/RedisMonitor.cpp)
 endif()
 
 # 根据 eBPF 支持选项添加源文件和库
 if(EBPF_FOUND)
-    list(APPEND WORKER_SRC src/monitor/NetEbpfMonitor.cc)
+    list(APPEND WORKER_SRC src/monitor/NetEbpfMonitor.cpp)
 else()
-    list(APPEND WORKER_SRC src/monitor/NetMonitor.cc)
+    list(APPEND WORKER_SRC src/monitor/NetMonitor.cpp)
 endif()
 
 add_executable(worker ${WORKER_SRC})
