@@ -95,13 +95,14 @@ rpc SetMonitorInfo(MonitorInfo) returns (google.protobuf.Empty)
 
 manager 端处理过程：
 
-1. `GrpcServerImpl::SetMonitorInfo()` 校验请求和主机名。
+1. `GrpcServerImpl::SetMonitorInfo()` 校验请求、主机名和 `x-monitor-worker-id`。
 2. 将最新 `MonitorInfo` 放入 `hostDatas_` 内存 map，保留最近一次上报快照。
 3. 如果配置了 `ManagerDispatcher`，把数据处理封装成 `MonitorPush` 任务提交到业务队列。
-4. 业务线程执行 `HostManager::onDataReceived(info)`。
-5. `HostManager` 生成主机 ID、计算评分、计算变化率、更新最新主机状态。
-6. 写入 Redis 最新评分缓存。
-7. 将 `HostMonitoringData` 放入 MySQL 写队列，由写线程异步落库。
+4. 业务线程执行 `HostManager::onDataReceived(info, workerIdentity)`。
+5. `HostManager` 通过 `worker_registrations` 校验 worker 凭证，并解析租户、团队、集群和服务器归属；未知、禁用、凭证错误或缺少显式作用域的 worker 不会写入监控事实。
+6. `HostManager` 生成主机 ID、计算评分、计算变化率、更新最新主机状态。
+7. 写入 Redis 最新评分缓存。
+8. 将带作用域的 `HostMonitoringData` 放入 MySQL 写队列，由写线程异步落库。
 
 主机 ID 生成规则：
 
@@ -163,6 +164,8 @@ manager 当前写入 7 张监控数据表：
 | `server_mysql_detail`   | 每个 MySQL 实例的可用性、连接压力、QPS/TPS、慢查询、锁等待、Buffer Pool 命中率和复制状态        |
 | `server_redis_detail`   | 每个 Redis 实例的可用性、连接压力、内存压力、命令吞吐、命中率、淘汰、拒绝连接、复制状态和慢日志 |
 
+这些事实表都包含 `tenant_id`、`team_id`、`cluster_id` 和 `server_id` 字段。`QueryService` 请求必须携带来自 `api_gateway` 当前 JWT 的查询作用域，`QueryManager` 会在概览、评分、趋势、异常和明细查询中统一应用该过滤条件。
+
 写库链路是异步的：
 
 ```text
@@ -179,7 +182,7 @@ HostManager::onDataReceived()
 当 `MANAGER_REDIS_ENABLED=true` 时，manager 会创建 Redis 连接池和 `RedisCache`：
 
 - `manager:latest_score:<hostID>`：`HostManager` 在收到上报后写入单台主机最新评分 JSON。
-- `manager:query:latest_score`：`QueryLatestScore` 查询结果的序列化 protobuf 缓存。
+- `manager:query:latest_score:<tenant_id>:<team_id>:<cluster_id>`：`QueryLatestScore` 查询结果的序列化 protobuf 缓存。
 
 缓存 TTL 由 `MANAGER_REDIS_CACHE_TTL_SECONDS` 控制，默认 5 秒。Redis 不是必需组件；关闭后查询会直接读 MySQL。
 
@@ -201,7 +204,7 @@ HostManager::onDataReceived()
 | `QueryMysqlDetail`   | 查询 MySQL 实例明细                    |
 | `QueryRedisDetail`   | 查询 Redis 实例明细                    |
 
-所有查询最终进入 `QueryManager` 执行 SQL。`QueryServiceImpl` 会先校验时间范围、分页参数，再把内部结构转换为 protobuf 响应。
+所有查询最终进入 `QueryManager` 执行 SQL。`QueryServiceImpl` 会先校验查询作用域、时间范围和分页参数，再把内部结构转换为 protobuf 响应。缺少租户或团队作用域的查询会返回 `UNAUTHENTICATED`。
 
 ## 配置
 

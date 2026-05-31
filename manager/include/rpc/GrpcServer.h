@@ -4,6 +4,7 @@
 #include <string>
 #include <unordered_map>
 #include "ManagerDispatcher.h"
+#include "WorkerIdentity.h"
 #include "monitor_info.grpc.pb.h"
 #include "monitor_info.pb.h"
 
@@ -18,7 +19,7 @@ struct HostData {
 };
 
 // 定义一个回调函数类型，用于处理接收到的监控信息
-using DataReceivedCallback = std::function<void(const monitor::proto::MonitorInfo &)>;
+using DataReceivedCallback = std::function<void(const monitor::proto::MonitorInfo &, const WorkerIdentity &)>;
 
 /**
  * @brief         gRPC 监控数据服务实现，负责接收 worker

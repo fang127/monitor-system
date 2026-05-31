@@ -67,6 +67,29 @@ SqlParam doubleParam(double value) {
     return param;
 }
 
+bool validateQueryScope(const QueryScope &scope, std::string *error) {
+    if (scope.tenant_id.empty() || scope.team_id.empty()) {
+        setError(error, "Missing query tenant or team scope");
+        return false;
+    }
+    return true;
+}
+
+// 生成基于查询范围的SQL谓词字符串，支持可选的表别名前缀，以便在JOIN查询中使用
+std::string scopePredicate(const QueryScope &scope, const std::string &alias = "") {
+    const std::string prefix = alias.empty() ? "" : alias + ".";
+    std::string predicate = prefix + "tenant_id=? AND " + prefix + "team_id=?";
+    if (!scope.cluster_id.empty()) predicate += " AND " + prefix + "cluster_id=?";
+    return predicate;
+}
+
+// 将查询范围的参数值追加到参数列表中，确保参数顺序与SQL谓词中的占位符一致
+void appendScopeParams(std::vector<SqlParam> &params, const QueryScope &scope) {
+    params.push_back(stringParam(scope.tenant_id));
+    params.push_back(stringParam(scope.team_id));
+    if (!scope.cluster_id.empty()) params.push_back(stringParam(scope.cluster_id));
+}
+
 /**
  * @brief         绑定参数到预处理语句
  *
@@ -357,7 +380,8 @@ QueryManager::MysqlConnectionLease QueryManager::acquireConnection(std::string *
 }
 #endif
 
-std::vector<PerformanceRecord> QueryManager::queryPerformanceRecords(const std::string &serverName,
+std::vector<PerformanceRecord> QueryManager::queryPerformanceRecords(const QueryScope &scope,
+                                                                     const std::string &serverName,
                                                                      const TimeRange &range, int page, int pageSize,
                                                                      int *totalCount, std::string *error) {
     std::vector<PerformanceRecord> records;
@@ -366,6 +390,7 @@ std::vector<PerformanceRecord> QueryManager::queryPerformanceRecords(const std::
     auto lease = acquireConnection(error);
     MYSQL *conn = lease.conn;
     if (!conn) return records;
+    if (!validateQueryScope(scope, error)) return records;
     // 校验时间范围
     if (!validateTimeRange(range)) {
         setError(error, "Invalid time range: start_time > end_time");
@@ -378,21 +403,35 @@ std::vector<PerformanceRecord> QueryManager::queryPerformanceRecords(const std::
 
     std::string startTimeStr = formatTimePoint(range.start_time);
     std::string endTimeStr = formatTimePoint(range.end_time);
+    const std::string whereClause = "WHERE " + scopePredicate(scope) +
+                                    " AND server_name=? "
+                                    "AND timestamp BETWEEN ? AND ?";
+    // 1. 先查询满足条件的记录总数
     if (totalCount) {
         // 获取满足条件的记录总数，方便前端分页显示
-        if (!executePreparedCount(conn,
-                                  "SELECT COUNT(*) FROM server_performance "
-                                  "WHERE server_name=? AND timestamp BETWEEN ? AND ?",
-                                  {stringParam(serverName), stringParam(startTimeStr), stringParam(endTimeStr)},
+        std::vector<SqlParam> params;
+        appendScopeParams(params, scope);
+        params.push_back(stringParam(serverName));
+        params.push_back(stringParam(startTimeStr));
+        params.push_back(stringParam(endTimeStr));
+        if (!executePreparedCount(conn, "SELECT COUNT(*) FROM server_performance " + whereClause, params,
                                   "performance count", totalCount, error)) {
             return records;
         }
     }
 
+    // 2. 执行分页查询，获取当前页的数据
     // page是从1开始的页码，因此计算offset时需要减1，pageSize是每页记录数
     // 按分页条件查询性能记录
     int offset = (page - 1) * pageSize; // 计算分页偏移量
     std::vector<std::vector<std::string>> rows;
+    std::vector<SqlParam> params;
+    appendScopeParams(params, scope);
+    params.push_back(stringParam(serverName));
+    params.push_back(stringParam(startTimeStr));
+    params.push_back(stringParam(endTimeStr));
+    params.push_back(intParam(pageSize));
+    params.push_back(intParam(offset));
     if (!executePreparedRows(conn,
                              "SELECT server_name, timestamp, cpu_percent, usr_percent, "
                              "system_percent, nice_percent, idle_percent, io_wait_percent, "
@@ -402,12 +441,9 @@ std::vector<PerformanceRecord> QueryManager::queryPerformanceRecords(const std::
                              "cpu_percent_rate, mem_used_percent_rate, "
                              "disk_util_percent_rate, load_avg_1_rate, send_rate_rate, "
                              "rcv_rate_rate "
-                             "FROM server_performance WHERE server_name=? "
-                             "AND timestamp BETWEEN ? AND ? "
-                             "ORDER BY timestamp DESC LIMIT ? OFFSET ?",
-                             {stringParam(serverName), stringParam(startTimeStr), stringParam(endTimeStr),
-                              intParam(pageSize), intParam(offset)},
-                             rows, "performance query", error)) {
+                             "FROM server_performance " +
+                                 whereClause + " ORDER BY timestamp DESC LIMIT ? OFFSET ?",
+                             params, rows, "performance query", error)) {
         return records;
     }
 
@@ -472,6 +508,7 @@ std::vector<PerformanceRecord> QueryManager::queryPerformanceRecords(const std::
     }
 #else
     setError(error, "QueryManager: MySQL support is not enabled");
+    (void)scope;
     (void)serverName;
     (void)range;
     (void)page;
@@ -481,14 +518,16 @@ std::vector<PerformanceRecord> QueryManager::queryPerformanceRecords(const std::
     return records;
 }
 
-std::vector<PerformanceRecord> QueryManager::queryTrend(const std::string &serverName, const TimeRange &range,
-                                                        int intervalSeconds, std::string *error) {
+std::vector<PerformanceRecord> QueryManager::queryTrend(const QueryScope &scope, const std::string &serverName,
+                                                        const TimeRange &range, int intervalSeconds,
+                                                        std::string *error) {
     std::vector<PerformanceRecord> records;
     if (error) error->clear();
 #ifdef ENABLE_MYSQL
     auto lease = acquireConnection(error);
     MYSQL *conn = lease.conn;
     if (!conn) return records;
+    if (!validateQueryScope(scope, error)) return records;
     // 校验时间范围
     if (!validateTimeRange(range)) {
         setError(error, "Invalid time range: start_time > end_time");
@@ -500,6 +539,11 @@ std::vector<PerformanceRecord> QueryManager::queryTrend(const std::string &serve
 
     std::string query;
     std::vector<SqlParam> params;
+    const std::string whereClause = "WHERE " + scopePredicate(scope) +
+                                    " AND server_name=? "
+                                    "AND timestamp BETWEEN ? AND ?";
+    // FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(timestamp) / intervalSeconds) * intervalSeconds)
+    // 是MySQL中常用的时间分桶函数，用于将时间戳按照指定的间隔进行分组，以便进行聚合计算和趋势分析
     if (intervalSeconds > 0) {
         query =
             "SELECT server_name, "
@@ -521,11 +565,15 @@ std::vector<PerformanceRecord> QueryManager::queryTrend(const std::string &serve
             "AVG(mem_used_percent_rate) as mem_used_percent_rate, "
             "AVG(disk_util_percent_rate) as disk_util_percent_rate, "
             "AVG(load_avg_1_rate) as load_avg_1_rate "
-            "FROM server_performance WHERE server_name=? "
-            "AND timestamp BETWEEN ? AND ? "
+            "FROM server_performance " +
+            whereClause +
+            " "
             "GROUP BY server_name, time_bucket ORDER BY time_bucket";
-        params = {intParam(intervalSeconds), intParam(intervalSeconds), stringParam(serverName),
-                  stringParam(startTimeStr), stringParam(endTimeStr)};
+        params = {intParam(intervalSeconds), intParam(intervalSeconds)};
+        appendScopeParams(params, scope);
+        params.push_back(stringParam(serverName));
+        params.push_back(stringParam(startTimeStr));
+        params.push_back(stringParam(endTimeStr));
     } else // 不进行聚合，直接返回原始数据
     {
         query =
@@ -534,9 +582,12 @@ std::vector<PerformanceRecord> QueryManager::queryTrend(const std::string &serve
             "load_avg_15, mem_used_percent, disk_util_percent, send_rate, "
             "rcv_rate, score, cpu_percent_rate, mem_used_percent_rate, "
             "disk_util_percent_rate, load_avg_1_rate "
-            "FROM server_performance WHERE server_name=? "
-            "AND timestamp BETWEEN ? AND ? ORDER BY timestamp";
-        params = {stringParam(serverName), stringParam(startTimeStr), stringParam(endTimeStr)};
+            "FROM server_performance " +
+            whereClause + " ORDER BY timestamp";
+        appendScopeParams(params, scope);
+        params.push_back(stringParam(serverName));
+        params.push_back(stringParam(startTimeStr));
+        params.push_back(stringParam(endTimeStr));
     }
 
     std::vector<std::vector<std::string>> rows;
@@ -587,6 +638,7 @@ std::vector<PerformanceRecord> QueryManager::queryTrend(const std::string &serve
     }
 #else
     setError(error, "QueryManager: MySQL support is not enabled");
+    (void)scope;
     (void)serverName;
     (void)range;
     (void)intervalSeconds;
@@ -594,15 +646,17 @@ std::vector<PerformanceRecord> QueryManager::queryTrend(const std::string &serve
     return records;
 }
 
-std::vector<AnomalyRecord> QueryManager::queryAnomalyRecords(const std::string &serverName, const TimeRange &range,
-                                                             const AnomalyThreshold &threshold, int page, int pageSize,
-                                                             int *totalCount, std::string *error) {
+std::vector<AnomalyRecord> QueryManager::queryAnomalyRecords(const QueryScope &scope, const std::string &serverName,
+                                                             const TimeRange &range, const AnomalyThreshold &threshold,
+                                                             int page, int pageSize, int *totalCount,
+                                                             std::string *error) {
     std::vector<AnomalyRecord> records;
     if (error) error->clear();
 #ifdef ENABLE_MYSQL
     auto lease = acquireConnection(error);
     MYSQL *conn = lease.conn;
     if (!conn) return records;
+    if (!validateQueryScope(scope, error)) return records;
     // 校验时间范围
     if (!validateTimeRange(range)) {
         setError(error, "Invalid time range: start_time > end_time");
@@ -615,8 +669,11 @@ std::vector<AnomalyRecord> QueryManager::queryAnomalyRecords(const std::string &
     // get start and end time as string
     std::string startTimeStr = formatTimePoint(range.start_time);
     std::string endTimeStr = formatTimePoint(range.end_time);
-    std::string whereClause = "timestamp BETWEEN ? AND ?";
-    std::vector<SqlParam> whereParams = {stringParam(startTimeStr), stringParam(endTimeStr)};
+    std::string whereClause = scopePredicate(scope) + " AND timestamp BETWEEN ? AND ?";
+    std::vector<SqlParam> whereParams;
+    appendScopeParams(whereParams, scope);
+    whereParams.push_back(stringParam(startTimeStr));
+    whereParams.push_back(stringParam(endTimeStr));
     if (!serverName.empty()) {
         whereClause += " AND server_name=?";
         whereParams.push_back(stringParam(serverName));
@@ -692,8 +749,11 @@ std::vector<AnomalyRecord> QueryManager::queryAnomalyRecords(const std::string &
         }
     }
 
-    std::string mysqlWhereClause = "timestamp BETWEEN ? AND ?";
-    std::vector<SqlParam> mysqlWhereParams = {stringParam(startTimeStr), stringParam(endTimeStr)};
+    std::string mysqlWhereClause = scopePredicate(scope) + " AND timestamp BETWEEN ? AND ?";
+    std::vector<SqlParam> mysqlWhereParams;
+    appendScopeParams(mysqlWhereParams, scope);
+    mysqlWhereParams.push_back(stringParam(startTimeStr));
+    mysqlWhereParams.push_back(stringParam(endTimeStr));
     if (!serverName.empty()) {
         mysqlWhereClause += " AND server_name=?";
         mysqlWhereParams.push_back(stringParam(serverName));
@@ -774,8 +834,11 @@ std::vector<AnomalyRecord> QueryManager::queryAnomalyRecords(const std::string &
         }
     }
 
-    std::string redisWhereClause = "timestamp BETWEEN ? AND ?";
-    std::vector<SqlParam> redisWhereParams = {stringParam(startTimeStr), stringParam(endTimeStr)};
+    std::string redisWhereClause = scopePredicate(scope) + " AND timestamp BETWEEN ? AND ?";
+    std::vector<SqlParam> redisWhereParams;
+    appendScopeParams(redisWhereParams, scope);
+    redisWhereParams.push_back(stringParam(startTimeStr));
+    redisWhereParams.push_back(stringParam(endTimeStr));
     if (!serverName.empty()) {
         redisWhereClause += " AND server_name=?";
         redisWhereParams.push_back(stringParam(serverName));
@@ -838,13 +901,13 @@ std::vector<AnomalyRecord> QueryManager::queryAnomalyRecords(const std::string &
                               connectionUsed > 95.0f ? "CRITICAL" : "WARNING");
         }
         if (memoryUsed > threshold.redis_memory_threshold) {
-            add_redis_anomaly(memoryUsed > 95.0f ? "REDIS_MEMORY_CRITICAL" : "REDIS_MEMORY_HIGH",
-                              "memory_used_percent", memoryUsed, threshold.redis_memory_threshold,
+            add_redis_anomaly(memoryUsed > 95.0f ? "REDIS_MEMORY_CRITICAL" : "REDIS_MEMORY_HIGH", "memory_used_percent",
+                              memoryUsed, threshold.redis_memory_threshold,
                               memoryUsed > 95.0f ? "CRITICAL" : "WARNING");
         }
         if (hitRate > 0 && hitRate < threshold.redis_hit_rate_threshold) {
-            add_redis_anomaly("REDIS_HIT_RATE_LOW", "keyspace_hit_percent", hitRate,
-                              threshold.redis_hit_rate_threshold, hitRate < 60.0f ? "CRITICAL" : "WARNING");
+            add_redis_anomaly("REDIS_HIT_RATE_LOW", "keyspace_hit_percent", hitRate, threshold.redis_hit_rate_threshold,
+                              hitRate < 60.0f ? "CRITICAL" : "WARNING");
         }
         if (replicationConfigured && !masterLinkUp) {
             add_redis_anomaly("REDIS_REPLICATION_LINK_DOWN", "master_link_up", 0.0f, 1.0f, "CRITICAL");
@@ -852,8 +915,7 @@ std::vector<AnomalyRecord> QueryManager::queryAnomalyRecords(const std::string &
         if (replicationLag > threshold.redis_replication_lag_threshold) {
             add_redis_anomaly("REDIS_REPLICATION_LAG", "master_last_io_seconds_ago", replicationLag,
                               threshold.redis_replication_lag_threshold,
-                              replicationLag > threshold.redis_replication_lag_threshold * 2 ? "CRITICAL"
-                                                                                              : "WARNING");
+                              replicationLag > threshold.redis_replication_lag_threshold * 2 ? "CRITICAL" : "WARNING");
         }
         if (rejectedConnections > 0) {
             add_redis_anomaly("REDIS_REJECTED_CONNECTIONS", "rejected_connections", rejectedConnections, 0.0f,
@@ -880,6 +942,7 @@ std::vector<AnomalyRecord> QueryManager::queryAnomalyRecords(const std::string &
     }
 #else
     setError(error, "QueryManager: MySQL support is not enabled");
+    (void)scope;
     (void)serverName;
     (void)range;
     (void)threshold;
@@ -890,21 +953,25 @@ std::vector<AnomalyRecord> QueryManager::queryAnomalyRecords(const std::string &
     return records;
 }
 
-std::vector<ServerScoreSummary> QueryManager::queryServerScoreRank(SortOrder order, int page, int pageSize,
-                                                                   int *totalCount, std::string *error) {
+std::vector<ServerScoreSummary> QueryManager::queryServerScoreRank(const QueryScope &scope, SortOrder order, int page,
+                                                                   int pageSize, int *totalCount, std::string *error) {
     std::vector<ServerScoreSummary> records;
     if (error) error->clear();
 #ifdef ENABLE_MYSQL
     auto lease = acquireConnection(error);
     MYSQL *conn = lease.conn;
     if (!conn) return records;
+    if (!validateQueryScope(scope, error)) return records;
     // 校验分页参数
     if (page < 1) page = 1;
     if (pageSize < 1) pageSize = 100;
 
     if (totalCount) {
-        if (!executePreparedCount(conn, "SELECT COUNT(DISTINCT server_name) FROM server_performance", {},
-                                  "score rank count", totalCount, error)) {
+        std::vector<SqlParam> countParams;
+        appendScopeParams(countParams, scope);
+        if (!executePreparedCount(
+                conn, "SELECT COUNT(DISTINCT server_name) FROM server_performance WHERE " + scopePredicate(scope),
+                countParams, "score rank count", totalCount, error)) {
             return records;
         }
     }
@@ -917,14 +984,21 @@ std::vector<ServerScoreSummary> QueryManager::queryServerScoreRank(SortOrder ord
         "p1.mem_used_percent, p1.disk_util_percent, p1.load_avg_1 "
         "FROM server_performance p1 "
         "INNER JOIN ("
-        "  SELECT server_name, MAX(timestamp) as max_ts "
-        "  FROM server_performance GROUP BY server_name"
-        ") p2 ON p1.server_name = p2.server_name AND p1.timestamp = "
-        "p2.max_ts "
+        "  SELECT tenant_id, team_id, cluster_id, server_name, MAX(timestamp) as max_ts "
+        "  FROM server_performance WHERE " +
+        scopePredicate(scope) +
+        " GROUP BY tenant_id, team_id, cluster_id, server_name"
+        ") p2 ON p1.tenant_id = p2.tenant_id AND p1.team_id = p2.team_id "
+        "AND p1.cluster_id = p2.cluster_id AND p1.server_name = p2.server_name "
+        "AND p1.timestamp = p2.max_ts "
         "ORDER BY p1.score " +
         orderBy + " LIMIT ? OFFSET ?";
     std::vector<std::vector<std::string>> rows;
-    if (!executePreparedRows(conn, query, {intParam(pageSize), intParam(offset)}, rows, "score rank query", error)) {
+    std::vector<SqlParam> params;
+    appendScopeParams(params, scope);
+    params.push_back(intParam(pageSize));
+    params.push_back(intParam(offset));
+    if (!executePreparedRows(conn, query, params, rows, "score rank query", error)) {
         return records;
     }
 
@@ -947,6 +1021,7 @@ std::vector<ServerScoreSummary> QueryManager::queryServerScoreRank(SortOrder ord
     }
 #else
     setError(error, "QueryManager: MySQL support is not enabled");
+    (void)scope;
     (void)order;
     (void)page;
     (void)pageSize;
@@ -955,25 +1030,33 @@ std::vector<ServerScoreSummary> QueryManager::queryServerScoreRank(SortOrder ord
     return records;
 }
 
-std::vector<ServerScoreSummary> QueryManager::queryLatestServerScores(ClusterStats *clusterStats, std::string *error) {
+std::vector<ServerScoreSummary> QueryManager::queryLatestServerScores(const QueryScope &scope,
+                                                                      ClusterStats *clusterStats, std::string *error) {
     std::vector<ServerScoreSummary> records;
     if (error) error->clear();
 #ifdef ENABLE_MYSQL
     auto lease = acquireConnection(error);
     MYSQL *conn = lease.conn;
     if (!conn) return records;
+    if (!validateQueryScope(scope, error)) return records;
     // 查询每台服务器的最新评分
     std::string query =
         "SELECT p1.server_name, p1.score, p1.timestamp, p1.cpu_percent, "
         "p1.mem_used_percent, p1.disk_util_percent, p1.load_avg_1 "
         "FROM server_performance p1 "
         "INNER JOIN ("
-        "  SELECT server_name, MAX(timestamp) as max_ts "
-        "  FROM server_performance GROUP BY server_name"
-        ") p2 ON p1.server_name = p2.server_name AND p1.timestamp = p2.max_ts "
+        "  SELECT tenant_id, team_id, cluster_id, server_name, MAX(timestamp) as max_ts "
+        "  FROM server_performance WHERE " +
+        scopePredicate(scope) +
+        " GROUP BY tenant_id, team_id, cluster_id, server_name"
+        ") p2 ON p1.tenant_id = p2.tenant_id AND p1.team_id = p2.team_id "
+        "AND p1.cluster_id = p2.cluster_id AND p1.server_name = p2.server_name "
+        "AND p1.timestamp = p2.max_ts "
         "ORDER BY p1.score DESC";
     std::vector<std::vector<std::string>> rows;
-    if (!executePreparedRows(conn, query, {}, rows, "latest score query", error)) return records;
+    std::vector<SqlParam> params;
+    appendScopeParams(params, scope);
+    if (!executePreparedRows(conn, query, params, rows, "latest score query", error)) return records;
 
     auto now = std::chrono::system_clock::now();
     float totalScore = 0;
@@ -1028,14 +1111,15 @@ std::vector<ServerScoreSummary> QueryManager::queryLatestServerScores(ClusterSta
     }
 #else
     setError(error, "QueryManager: MySQL support is not enabled");
+    (void)scope;
     (void)clusterStats;
 #endif
     return records;
 }
 
-std::vector<NetDetailRecord> QueryManager::queryNetDetailRecords(const std::string &serverName, const TimeRange &range,
-                                                                 int page, int pageSize, int *totalCount,
-                                                                 std::string *error) {
+std::vector<NetDetailRecord> QueryManager::queryNetDetailRecords(const QueryScope &scope, const std::string &serverName,
+                                                                 const TimeRange &range, int page, int pageSize,
+                                                                 int *totalCount, std::string *error) {
     std::vector<NetDetailRecord> records;
     if (error) error->clear();
 
@@ -1043,6 +1127,7 @@ std::vector<NetDetailRecord> QueryManager::queryNetDetailRecords(const std::stri
     auto lease = acquireConnection(error);
     MYSQL *conn = lease.conn;
     if (!conn) return records;
+    if (!validateQueryScope(scope, error)) return records;
 
     if (!validateTimeRange(range)) {
         setError(error, "Invalid time range: start_time > end_time");
@@ -1053,12 +1138,17 @@ std::vector<NetDetailRecord> QueryManager::queryNetDetailRecords(const std::stri
 
     std::string startTime = formatTimePoint(range.start_time);
     std::string endTime = formatTimePoint(range.end_time);
+    const std::string whereClause = "WHERE " + scopePredicate(scope) +
+                                    " AND server_name=? "
+                                    "AND timestamp BETWEEN ? AND ?";
 
     if (totalCount) {
-        if (!executePreparedCount(conn,
-                                  "SELECT COUNT(*) FROM server_net_detail "
-                                  "WHERE server_name=? AND timestamp BETWEEN ? AND ?",
-                                  {stringParam(serverName), stringParam(startTime), stringParam(endTime)},
+        std::vector<SqlParam> countParams;
+        appendScopeParams(countParams, scope);
+        countParams.push_back(stringParam(serverName));
+        countParams.push_back(stringParam(startTime));
+        countParams.push_back(stringParam(endTime));
+        if (!executePreparedCount(conn, "SELECT COUNT(*) FROM server_net_detail " + whereClause, countParams,
                                   "net detail count", totalCount, error)) {
             return records;
         }
@@ -1067,16 +1157,20 @@ std::vector<NetDetailRecord> QueryManager::queryNetDetailRecords(const std::stri
     // 按分页条件查询网络明细记录
     int offset = (page - 1) * pageSize;
     std::vector<std::vector<std::string>> rows;
+    std::vector<SqlParam> params;
+    appendScopeParams(params, scope);
+    params.push_back(stringParam(serverName));
+    params.push_back(stringParam(startTime));
+    params.push_back(stringParam(endTime));
+    params.push_back(intParam(pageSize));
+    params.push_back(intParam(offset));
     if (!executePreparedRows(conn,
                              "SELECT server_name, net_name, timestamp, err_in, err_out, "
                              "drop_in, drop_out, rcv_bytes_rate, snd_bytes_rate, "
                              "rcv_packets_rate, snd_packets_rate "
-                             "FROM server_net_detail WHERE server_name=? "
-                             "AND timestamp BETWEEN ? AND ? "
-                             "ORDER BY timestamp DESC LIMIT ? OFFSET ?",
-                             {stringParam(serverName), stringParam(startTime), stringParam(endTime), intParam(pageSize),
-                              intParam(offset)},
-                             rows, "net detail query", error)) {
+                             "FROM server_net_detail " +
+                                 whereClause + " ORDER BY timestamp DESC LIMIT ? OFFSET ?",
+                             params, rows, "net detail query", error)) {
         return records;
     }
 
@@ -1109,6 +1203,7 @@ std::vector<NetDetailRecord> QueryManager::queryNetDetailRecords(const std::stri
     }
 #else
     setError(error, "QueryManager: MySQL support is not enabled");
+    (void)scope;
     (void)serverName;
     (void)range;
     (void)page;
@@ -1119,7 +1214,8 @@ std::vector<NetDetailRecord> QueryManager::queryNetDetailRecords(const std::stri
     return records;
 }
 
-std::vector<DiskDetailRecord> QueryManager::queryDiskDetailRecords(const std::string &serverName,
+std::vector<DiskDetailRecord> QueryManager::queryDiskDetailRecords(const QueryScope &scope,
+                                                                   const std::string &serverName,
                                                                    const TimeRange &range, int page, int pageSize,
                                                                    int *totalCount, std::string *error) {
     std::vector<DiskDetailRecord> records;
@@ -1129,6 +1225,7 @@ std::vector<DiskDetailRecord> QueryManager::queryDiskDetailRecords(const std::st
     auto lease = acquireConnection(error);
     MYSQL *conn = lease.conn;
     if (!conn) return records;
+    if (!validateQueryScope(scope, error)) return records;
 
     if (!validateTimeRange(range)) {
         setError(error, "Invalid time range: start_time > end_time");
@@ -1139,12 +1236,17 @@ std::vector<DiskDetailRecord> QueryManager::queryDiskDetailRecords(const std::st
 
     std::string startTime = formatTimePoint(range.start_time);
     std::string endTime = formatTimePoint(range.end_time);
+    const std::string whereClause = "WHERE " + scopePredicate(scope) +
+                                    " AND server_name=? "
+                                    "AND timestamp BETWEEN ? AND ?";
 
     if (totalCount) {
-        if (!executePreparedCount(conn,
-                                  "SELECT COUNT(*) FROM server_disk_detail "
-                                  "WHERE server_name=? AND timestamp BETWEEN ? AND ?",
-                                  {stringParam(serverName), stringParam(startTime), stringParam(endTime)},
+        std::vector<SqlParam> countParams;
+        appendScopeParams(countParams, scope);
+        countParams.push_back(stringParam(serverName));
+        countParams.push_back(stringParam(startTime));
+        countParams.push_back(stringParam(endTime));
+        if (!executePreparedCount(conn, "SELECT COUNT(*) FROM server_disk_detail " + whereClause, countParams,
                                   "disk detail count", totalCount, error)) {
             return records;
         }
@@ -1152,16 +1254,20 @@ std::vector<DiskDetailRecord> QueryManager::queryDiskDetailRecords(const std::st
 
     int offset = (page - 1) * pageSize;
     std::vector<std::vector<std::string>> rows;
+    std::vector<SqlParam> params;
+    appendScopeParams(params, scope);
+    params.push_back(stringParam(serverName));
+    params.push_back(stringParam(startTime));
+    params.push_back(stringParam(endTime));
+    params.push_back(intParam(pageSize));
+    params.push_back(intParam(offset));
     if (!executePreparedRows(conn,
                              "SELECT server_name, disk_name, timestamp, read_bytes_per_sec, "
                              "write_bytes_per_sec, read_iops, write_iops, avg_read_latency_ms, "
                              "avg_write_latency_ms, util_percent "
-                             "FROM server_disk_detail WHERE server_name=? "
-                             "AND timestamp BETWEEN ? AND ? "
-                             "ORDER BY timestamp DESC LIMIT ? OFFSET ?",
-                             {stringParam(serverName), stringParam(startTime), stringParam(endTime), intParam(pageSize),
-                              intParam(offset)},
-                             rows, "disk detail query", error)) {
+                             "FROM server_disk_detail " +
+                                 whereClause + " ORDER BY timestamp DESC LIMIT ? OFFSET ?",
+                             params, rows, "disk detail query", error)) {
         return records;
     }
 
@@ -1192,6 +1298,7 @@ std::vector<DiskDetailRecord> QueryManager::queryDiskDetailRecords(const std::st
     }
 #else
     setError(error, "QueryManager: MySQL support is not enabled");
+    (void)scope;
     (void)serverName;
     (void)range;
     (void)page;
@@ -1202,9 +1309,9 @@ std::vector<DiskDetailRecord> QueryManager::queryDiskDetailRecords(const std::st
     return records;
 }
 
-std::vector<MemDetailRecord> QueryManager::queryMemDetailRecords(const std::string &serverName, const TimeRange &range,
-                                                                 int page, int pageSize, int *totalCount,
-                                                                 std::string *error) {
+std::vector<MemDetailRecord> QueryManager::queryMemDetailRecords(const QueryScope &scope, const std::string &serverName,
+                                                                 const TimeRange &range, int page, int pageSize,
+                                                                 int *totalCount, std::string *error) {
     std::vector<MemDetailRecord> records;
     if (error) error->clear();
 
@@ -1212,6 +1319,7 @@ std::vector<MemDetailRecord> QueryManager::queryMemDetailRecords(const std::stri
     auto lease = acquireConnection(error);
     MYSQL *conn = lease.conn;
     if (!conn) return records;
+    if (!validateQueryScope(scope, error)) return records;
 
     if (!validateTimeRange(range)) {
         setError(error, "Invalid time range: start_time > end_time");
@@ -1222,12 +1330,17 @@ std::vector<MemDetailRecord> QueryManager::queryMemDetailRecords(const std::stri
 
     std::string startTime = formatTimePoint(range.start_time);
     std::string endTime = formatTimePoint(range.end_time);
+    const std::string whereClause = "WHERE " + scopePredicate(scope) +
+                                    " AND server_name=? "
+                                    "AND timestamp BETWEEN ? AND ?";
 
     if (totalCount) {
-        if (!executePreparedCount(conn,
-                                  "SELECT COUNT(*) FROM server_mem_detail "
-                                  "WHERE server_name=? AND timestamp BETWEEN ? AND ?",
-                                  {stringParam(serverName), stringParam(startTime), stringParam(endTime)},
+        std::vector<SqlParam> countParams;
+        appendScopeParams(countParams, scope);
+        countParams.push_back(stringParam(serverName));
+        countParams.push_back(stringParam(startTime));
+        countParams.push_back(stringParam(endTime));
+        if (!executePreparedCount(conn, "SELECT COUNT(*) FROM server_mem_detail " + whereClause, countParams,
                                   "mem detail count", totalCount, error)) {
             return records;
         }
@@ -1235,15 +1348,19 @@ std::vector<MemDetailRecord> QueryManager::queryMemDetailRecords(const std::stri
 
     int offset = (page - 1) * pageSize;
     std::vector<std::vector<std::string>> rows;
+    std::vector<SqlParam> params;
+    appendScopeParams(params, scope);
+    params.push_back(stringParam(serverName));
+    params.push_back(stringParam(startTime));
+    params.push_back(stringParam(endTime));
+    params.push_back(intParam(pageSize));
+    params.push_back(intParam(offset));
     if (!executePreparedRows(conn,
                              "SELECT server_name, timestamp, total, free, avail, buffers, "
                              "cached, active, inactive, dirty "
-                             "FROM server_mem_detail WHERE server_name=? "
-                             "AND timestamp BETWEEN ? AND ? "
-                             "ORDER BY timestamp DESC LIMIT ? OFFSET ?",
-                             {stringParam(serverName), stringParam(startTime), stringParam(endTime), intParam(pageSize),
-                              intParam(offset)},
-                             rows, "mem detail query", error)) {
+                             "FROM server_mem_detail " +
+                                 whereClause + " ORDER BY timestamp DESC LIMIT ? OFFSET ?",
+                             params, rows, "mem detail query", error)) {
         return records;
     }
 
@@ -1274,6 +1391,7 @@ std::vector<MemDetailRecord> QueryManager::queryMemDetailRecords(const std::stri
     }
 #else
     setError(error, "QueryManager: MySQL support is not enabled");
+    (void)scope;
     (void)serverName;
     (void)range;
     (void)page;
@@ -1284,7 +1402,8 @@ std::vector<MemDetailRecord> QueryManager::queryMemDetailRecords(const std::stri
     return records;
 }
 
-std::vector<SoftIrqDetailRecord> QueryManager::querySoftIrqDetailRecords(const std::string &serverName,
+std::vector<SoftIrqDetailRecord> QueryManager::querySoftIrqDetailRecords(const QueryScope &scope,
+                                                                         const std::string &serverName,
                                                                          const TimeRange &range, int page, int pageSize,
                                                                          int *totalCount, std::string *error) {
     std::vector<SoftIrqDetailRecord> records;
@@ -1294,6 +1413,7 @@ std::vector<SoftIrqDetailRecord> QueryManager::querySoftIrqDetailRecords(const s
     auto lease = acquireConnection(error);
     MYSQL *conn = lease.conn;
     if (!conn) return records;
+    if (!validateQueryScope(scope, error)) return records;
 
     if (!validateTimeRange(range)) {
         setError(error, "Invalid time range: start_time > end_time");
@@ -1304,12 +1424,17 @@ std::vector<SoftIrqDetailRecord> QueryManager::querySoftIrqDetailRecords(const s
 
     std::string startTime = formatTimePoint(range.start_time);
     std::string endTime = formatTimePoint(range.end_time);
+    const std::string whereClause = "WHERE " + scopePredicate(scope) +
+                                    " AND server_name=? "
+                                    "AND timestamp BETWEEN ? AND ?";
 
     if (totalCount) {
-        if (!executePreparedCount(conn,
-                                  "SELECT COUNT(*) FROM server_softirq_detail "
-                                  "WHERE server_name=? AND timestamp BETWEEN ? AND ?",
-                                  {stringParam(serverName), stringParam(startTime), stringParam(endTime)},
+        std::vector<SqlParam> countParams;
+        appendScopeParams(countParams, scope);
+        countParams.push_back(stringParam(serverName));
+        countParams.push_back(stringParam(startTime));
+        countParams.push_back(stringParam(endTime));
+        if (!executePreparedCount(conn, "SELECT COUNT(*) FROM server_softirq_detail " + whereClause, countParams,
                                   "softirq detail count", totalCount, error)) {
             return records;
         }
@@ -1317,15 +1442,19 @@ std::vector<SoftIrqDetailRecord> QueryManager::querySoftIrqDetailRecords(const s
 
     int offset = (page - 1) * pageSize;
     std::vector<std::vector<std::string>> rows;
+    std::vector<SqlParam> params;
+    appendScopeParams(params, scope);
+    params.push_back(stringParam(serverName));
+    params.push_back(stringParam(startTime));
+    params.push_back(stringParam(endTime));
+    params.push_back(intParam(pageSize));
+    params.push_back(intParam(offset));
     if (!executePreparedRows(conn,
                              "SELECT server_name, cpu_name, timestamp, hi, timer, net_tx, "
                              "net_rx, block, sched "
-                             "FROM server_softirq_detail WHERE server_name=? "
-                             "AND timestamp BETWEEN ? AND ? "
-                             "ORDER BY timestamp DESC LIMIT ? OFFSET ?",
-                             {stringParam(serverName), stringParam(startTime), stringParam(endTime), intParam(pageSize),
-                              intParam(offset)},
-                             rows, "softirq detail query", error)) {
+                             "FROM server_softirq_detail " +
+                                 whereClause + " ORDER BY timestamp DESC LIMIT ? OFFSET ?",
+                             params, rows, "softirq detail query", error)) {
         return records;
     }
 
@@ -1354,6 +1483,7 @@ std::vector<SoftIrqDetailRecord> QueryManager::querySoftIrqDetailRecords(const s
     }
 #else
     setError(error, "QueryManager: MySQL support is not enabled");
+    (void)scope;
     (void)serverName;
     (void)range;
     (void)page;
@@ -1363,7 +1493,8 @@ std::vector<SoftIrqDetailRecord> QueryManager::querySoftIrqDetailRecords(const s
     return records;
 }
 
-std::vector<MysqlDetailRecord> QueryManager::queryMysqlDetailRecords(const std::string &serverName,
+std::vector<MysqlDetailRecord> QueryManager::queryMysqlDetailRecords(const QueryScope &scope,
+                                                                     const std::string &serverName,
                                                                      const TimeRange &range, int page, int pageSize,
                                                                      int *totalCount, std::string *error) {
     std::vector<MysqlDetailRecord> records;
@@ -1373,6 +1504,7 @@ std::vector<MysqlDetailRecord> QueryManager::queryMysqlDetailRecords(const std::
     auto lease = acquireConnection(error);
     MYSQL *conn = lease.conn;
     if (!conn) return records;
+    if (!validateQueryScope(scope, error)) return records;
 
     if (!validateTimeRange(range)) {
         setError(error, "Invalid time range: start_time > end_time");
@@ -1383,12 +1515,17 @@ std::vector<MysqlDetailRecord> QueryManager::queryMysqlDetailRecords(const std::
 
     std::string startTime = formatTimePoint(range.start_time);
     std::string endTime = formatTimePoint(range.end_time);
+    const std::string whereClause = "WHERE " + scopePredicate(scope) +
+                                    " AND server_name=? "
+                                    "AND timestamp BETWEEN ? AND ?";
 
     if (totalCount) {
-        if (!executePreparedCount(conn,
-                                  "SELECT COUNT(*) FROM server_mysql_detail "
-                                  "WHERE server_name=? AND timestamp BETWEEN ? AND ?",
-                                  {stringParam(serverName), stringParam(startTime), stringParam(endTime)},
+        std::vector<SqlParam> countParams;
+        appendScopeParams(countParams, scope);
+        countParams.push_back(stringParam(serverName));
+        countParams.push_back(stringParam(startTime));
+        countParams.push_back(stringParam(endTime));
+        if (!executePreparedCount(conn, "SELECT COUNT(*) FROM server_mysql_detail " + whereClause, countParams,
                                   "mysql detail count", totalCount, error)) {
             return records;
         }
@@ -1396,6 +1533,13 @@ std::vector<MysqlDetailRecord> QueryManager::queryMysqlDetailRecords(const std::
 
     int offset = (page - 1) * pageSize;
     std::vector<std::vector<std::string>> rows;
+    std::vector<SqlParam> params;
+    appendScopeParams(params, scope);
+    params.push_back(stringParam(serverName));
+    params.push_back(stringParam(startTime));
+    params.push_back(stringParam(endTime));
+    params.push_back(intParam(pageSize));
+    params.push_back(intParam(offset));
     if (!executePreparedRows(conn,
                              "SELECT server_name, instance, timestamp, mysql_host, mysql_port, up, version, `role`, "
                              "max_connections, threads_connected, threads_running, aborted_connects, "
@@ -1404,12 +1548,9 @@ std::vector<MysqlDetailRecord> QueryManager::queryMysqlDetailRecords(const std::
                              "innodb_buffer_pool_hit_percent, innodb_row_lock_waits, innodb_row_lock_time_avg_ms, "
                              "replication_configured, replication_running, replication_lag_seconds, "
                              "connection_used_percent, qps, tps, slow_queries_rate, innodb_row_lock_waits_rate "
-                             "FROM server_mysql_detail WHERE server_name=? "
-                             "AND timestamp BETWEEN ? AND ? "
-                             "ORDER BY timestamp DESC LIMIT ? OFFSET ?",
-                             {stringParam(serverName), stringParam(startTime), stringParam(endTime), intParam(pageSize),
-                              intParam(offset)},
-                             rows, "mysql detail query", error)) {
+                             "FROM server_mysql_detail " +
+                                 whereClause + " ORDER BY timestamp DESC LIMIT ? OFFSET ?",
+                             params, rows, "mysql detail query", error)) {
         return records;
     }
 
@@ -1486,6 +1627,7 @@ std::vector<MysqlDetailRecord> QueryManager::queryMysqlDetailRecords(const std::
     }
 #else
     setError(error, "QueryManager: MySQL support is not enabled");
+    (void)scope;
     (void)serverName;
     (void)range;
     (void)page;
@@ -1496,7 +1638,8 @@ std::vector<MysqlDetailRecord> QueryManager::queryMysqlDetailRecords(const std::
     return records;
 }
 
-std::vector<RedisDetailRecord> QueryManager::queryRedisDetailRecords(const std::string &serverName,
+std::vector<RedisDetailRecord> QueryManager::queryRedisDetailRecords(const QueryScope &scope,
+                                                                     const std::string &serverName,
                                                                      const TimeRange &range, int page, int pageSize,
                                                                      int *totalCount, std::string *error) {
     std::vector<RedisDetailRecord> records;
@@ -1506,6 +1649,7 @@ std::vector<RedisDetailRecord> QueryManager::queryRedisDetailRecords(const std::
     auto lease = acquireConnection(error);
     MYSQL *conn = lease.conn;
     if (!conn) return records;
+    if (!validateQueryScope(scope, error)) return records;
 
     if (!validateTimeRange(range)) {
         setError(error, "Invalid time range: start_time > end_time");
@@ -1516,12 +1660,17 @@ std::vector<RedisDetailRecord> QueryManager::queryRedisDetailRecords(const std::
 
     std::string startTime = formatTimePoint(range.start_time);
     std::string endTime = formatTimePoint(range.end_time);
+    const std::string whereClause = "WHERE " + scopePredicate(scope) +
+                                    " AND server_name=? "
+                                    "AND timestamp BETWEEN ? AND ?";
 
     if (totalCount) {
-        if (!executePreparedCount(conn,
-                                  "SELECT COUNT(*) FROM server_redis_detail "
-                                  "WHERE server_name=? AND timestamp BETWEEN ? AND ?",
-                                  {stringParam(serverName), stringParam(startTime), stringParam(endTime)},
+        std::vector<SqlParam> countParams;
+        appendScopeParams(countParams, scope);
+        countParams.push_back(stringParam(serverName));
+        countParams.push_back(stringParam(startTime));
+        countParams.push_back(stringParam(endTime));
+        if (!executePreparedCount(conn, "SELECT COUNT(*) FROM server_redis_detail " + whereClause, countParams,
                                   "redis detail count", totalCount, error)) {
             return records;
         }
@@ -1529,6 +1678,13 @@ std::vector<RedisDetailRecord> QueryManager::queryRedisDetailRecords(const std::
 
     int offset = (page - 1) * pageSize;
     std::vector<std::vector<std::string>> rows;
+    std::vector<SqlParam> params;
+    appendScopeParams(params, scope);
+    params.push_back(stringParam(serverName));
+    params.push_back(stringParam(startTime));
+    params.push_back(stringParam(endTime));
+    params.push_back(intParam(pageSize));
+    params.push_back(intParam(offset));
     if (!executePreparedRows(conn,
                              "SELECT server_name, instance, timestamp, redis_host, redis_port, up, version, `role`, "
                              "uptime_in_seconds, connected_clients, blocked_clients, maxclients, "
@@ -1539,12 +1695,9 @@ std::vector<RedisDetailRecord> QueryManager::queryRedisDetailRecords(const std::
                              "total_net_output_bytes, net_input_bytes_per_sec, net_output_bytes_per_sec, "
                              "replication_configured, master_link_up, connected_slaves, master_last_io_seconds_ago, "
                              "slowlog_len, slowlog_growth "
-                             "FROM server_redis_detail WHERE server_name=? "
-                             "AND timestamp BETWEEN ? AND ? "
-                             "ORDER BY timestamp DESC LIMIT ? OFFSET ?",
-                             {stringParam(serverName), stringParam(startTime), stringParam(endTime), intParam(pageSize),
-                              intParam(offset)},
-                             rows, "redis detail query", error)) {
+                             "FROM server_redis_detail " +
+                                 whereClause + " ORDER BY timestamp DESC LIMIT ? OFFSET ?",
+                             params, rows, "redis detail query", error)) {
         return records;
     }
 
@@ -1629,6 +1782,7 @@ std::vector<RedisDetailRecord> QueryManager::queryRedisDetailRecords(const std::
     }
 #else
     setError(error, "QueryManager: MySQL support is not enabled");
+    (void)scope;
     (void)serverName;
     (void)range;
     (void)page;

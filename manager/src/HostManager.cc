@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cctype>
 #include <chrono>
+#include <cstdlib>
 #include <cstdint>
 #include <map>
 #include <mutex>
@@ -306,6 +307,17 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
     std::tm tm = *std::localtime(&t);
     char timeStr[32];
     std::strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", &tm);
+
+    // 检查监控数据是否包含必要的范围信息（租户ID、团队ID、集群ID），如果缺失则记录错误并丢弃该数据
+    if (data.scope.tenant_id.empty() || data.scope.team_id.empty() || data.scope.cluster_id.empty()) {
+        std::cerr << "HostManager: monitor data has no explicit tenant, team or cluster scope" << std::endl;
+        if (metrics_) metrics_->dropped_monitor_samples.fetch_add(1);
+        return;
+    }
+    const std::string tenantIDSql = quoteSqlString(conn, data.scope.tenant_id);
+    const std::string teamIDSql = quoteSqlString(conn, data.scope.team_id);
+    const std::string clusterIDSql = quoteSqlString(conn, data.scope.cluster_id);
+    const std::string serverIDSql = data.scope.server_id == 0 ? "NULL" : std::to_string(data.scope.server_id);
     const std::string hostNameSql = quoteSqlString(conn, data.host_name); // 转义主机名以防 SQL 注入
     const std::string timestampSql = quoteSqlString(conn, timeStr);       // 转义时间戳字符串以防 SQL 注入
 
@@ -366,7 +378,7 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
 
         std::ostringstream oss;
         oss << "INSERT INTO server_performance "
-            << "(server_name, cpu_percent, usr_percent, system_percent, "
+            << "(tenant_id, team_id, cluster_id, server_id, server_name, cpu_percent, usr_percent, system_percent, "
                "nice_percent, "
             << "idle_percent, io_wait_percent, irq_percent, soft_irq_percent, "
             << "load_avg_1, load_avg_3, load_avg_15, "
@@ -379,17 +391,18 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
             << "mem_used_percent_rate, total_rate, free_rate, avail_rate, "
             << "disk_util_percent_rate, send_rate_rate, rcv_rate_rate, "
                "timestamp) VALUES ("
-            << hostNameSql << "," << cpuPercent << "," << usrPercent << "," << systemPercent << "," << nicePercent
-            << "," << idlePercent << "," << ioWaitPercent << "," << irqPercent << "," << softIrqPercent << ","
-            << loadAvg1 << "," << loadAvg3 << "," << loadAvg15 << "," << memUsedPercent << "," << total << ","
-            << freeMem << "," << avail << "," << diskUtilPercent << "," << sendRate << "," << rcvRate << ","
-            << data.host_score.score << "," << data.cpu_percent_rate << "," << data.usr_percent_rate << ","
-            << data.system_percent_rate << "," << data.nice_percent_rate << "," << data.idle_percent_rate << ","
-            << data.io_wait_percent_rate << "," << data.irq_percent_rate << "," << data.soft_irq_percent_rate << ","
-            << data.load_avg_1_rate << "," << data.load_avg_3_rate << "," << data.load_avg_15_rate << ","
-            << data.mem_used_percent_rate << "," << data.mem_total_rate << "," << data.mem_free_rate << ","
-            << data.mem_avail_rate << "," << diskUtilPercentRate << "," << data.net_in_rate_rate << ","
-            << data.net_out_rate_rate << "," << timestampSql << ")";
+            << tenantIDSql << "," << teamIDSql << "," << clusterIDSql << "," << serverIDSql << "," << hostNameSql << ","
+            << cpuPercent << "," << usrPercent << "," << systemPercent << "," << nicePercent << "," << idlePercent
+            << "," << ioWaitPercent << "," << irqPercent << "," << softIrqPercent << "," << loadAvg1 << "," << loadAvg3
+            << "," << loadAvg15 << "," << memUsedPercent << "," << total << "," << freeMem << "," << avail << ","
+            << diskUtilPercent << "," << sendRate << "," << rcvRate << "," << data.host_score.score << ","
+            << data.cpu_percent_rate << "," << data.usr_percent_rate << "," << data.system_percent_rate << ","
+            << data.nice_percent_rate << "," << data.idle_percent_rate << "," << data.io_wait_percent_rate << ","
+            << data.irq_percent_rate << "," << data.soft_irq_percent_rate << "," << data.load_avg_1_rate << ","
+            << data.load_avg_3_rate << "," << data.load_avg_15_rate << "," << data.mem_used_percent_rate << ","
+            << data.mem_total_rate << "," << data.mem_free_rate << "," << data.mem_avail_rate << ","
+            << diskUtilPercentRate << "," << data.net_in_rate_rate << "," << data.net_out_rate_rate << ","
+            << timestampSql << ")";
         // 执行写入语句
         mysql_query(conn, oss.str().c_str());
         // check for errors
@@ -426,15 +439,16 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
 
             std::ostringstream oss;
             oss << "INSERT INTO server_net_detail "
-                << "(server_name, net_name, err_in, err_out, drop_in, "
+                << "(tenant_id, team_id, cluster_id, server_id, server_name, net_name, err_in, err_out, drop_in, "
                    "drop_out, "
                 << "rcv_bytes_rate, rcv_packets_rate, snd_bytes_rate, "
                    "snd_packets_rate, "
                 << "rcv_bytes_rate_rate, rcv_packets_rate_rate, "
                 << "snd_bytes_rate_rate, snd_packets_rate_rate, "
                 << "err_in_rate, err_out_rate, drop_in_rate, drop_out_rate, "
-                << "timestamp) VALUES (" << hostNameSql << "," << netNameSql << "," << curr.err_in << ","
-                << curr.err_out << "," << curr.drop_in << "," << curr.drop_out << "," << curr.net_recv_bytes_rate << ","
+                << "timestamp) VALUES (" << tenantIDSql << "," << teamIDSql << "," << clusterIDSql << "," << serverIDSql
+                << "," << hostNameSql << "," << netNameSql << "," << curr.err_in << "," << curr.err_out << ","
+                << curr.drop_in << "," << curr.drop_out << "," << curr.net_recv_bytes_rate << ","
                 << curr.net_recv_packets_rate << "," << curr.net_send_bytes_rate << "," << curr.net_send_packets_rate
                 << "," << rate(curr.net_recv_bytes_rate, last.net_recv_bytes_rate) << ","
                 << rate(curr.net_recv_packets_rate, last.net_recv_packets_rate) << ","
@@ -475,19 +489,21 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
 
             std::ostringstream oss;
             oss << "INSERT INTO server_softirq_detail "
-                << "(server_name, cpu_name, hi, timer, net_tx, net_rx, block, "
+                << "(tenant_id, team_id, cluster_id, server_id, server_name, cpu_name, hi, timer, net_tx, net_rx, "
+                   "block, "
                 << "irq_poll, tasklet, sched, hrtimer, rcu, "
                 << "hi_rate, timer_rate, net_tx_rate, net_rx_rate, block_rate, "
                 << "irq_poll_rate, tasklet_rate, sched_rate, hrtimer_rate, "
                    "rcu_rate, "
-                << "timestamp) VALUES (" << hostNameSql << "," << cpuNameSql << "," << curr.hi << "," << curr.timer
-                << "," << curr.net_tx << "," << curr.net_rx << "," << curr.block << "," << curr.irq_poll << ","
-                << curr.tasklet << "," << curr.sched << "," << curr.hrtimer << "," << curr.rcu << ","
-                << rate(curr.hi, last.hi) << "," << rate(curr.timer, last.timer) << ","
-                << rate(curr.net_tx, last.net_tx) << "," << rate(curr.net_rx, last.net_rx) << ","
-                << rate(curr.block, last.block) << "," << rate(curr.irq_poll, last.irq_poll) << ","
-                << rate(curr.tasklet, last.tasklet) << "," << rate(curr.sched, last.sched) << ","
-                << rate(curr.hrtimer, last.hrtimer) << "," << rate(curr.rcu, last.rcu) << "," << timestampSql << ")";
+                << "timestamp) VALUES (" << tenantIDSql << "," << teamIDSql << "," << clusterIDSql << "," << serverIDSql
+                << "," << hostNameSql << "," << cpuNameSql << "," << curr.hi << "," << curr.timer << "," << curr.net_tx
+                << "," << curr.net_rx << "," << curr.block << "," << curr.irq_poll << "," << curr.tasklet << ","
+                << curr.sched << "," << curr.hrtimer << "," << curr.rcu << "," << rate(curr.hi, last.hi) << ","
+                << rate(curr.timer, last.timer) << "," << rate(curr.net_tx, last.net_tx) << ","
+                << rate(curr.net_rx, last.net_rx) << "," << rate(curr.block, last.block) << ","
+                << rate(curr.irq_poll, last.irq_poll) << "," << rate(curr.tasklet, last.tasklet) << ","
+                << rate(curr.sched, last.sched) << "," << rate(curr.hrtimer, last.hrtimer) << ","
+                << rate(curr.rcu, last.rcu) << "," << timestampSql << ")";
             mysql_query(conn, oss.str().c_str());
 
             if (mysql_errno(conn)) {
@@ -528,7 +544,7 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
 
             std::ostringstream oss;
             oss << "INSERT INTO server_mem_detail "
-                << "(server_name, total, free, avail, buffers, cached, "
+                << "(tenant_id, team_id, cluster_id, server_id, server_name, total, free, avail, buffers, cached, "
                    "swap_cached, "
                 << "active, inactive, active_anon, inactive_anon, active_file, "
                    "inactive_file, "
@@ -542,7 +558,8 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
                    "writeback_rate, "
                 << "anon_pages_rate, mapped_rate, kreclaimable_rate, "
                    "sreclaimable_rate, "
-                << "sunreclaim_rate, timestamp) VALUES (" << hostNameSql << "," << curr.total << "," << curr.free << ","
+                << "sunreclaim_rate, timestamp) VALUES (" << tenantIDSql << "," << teamIDSql << "," << clusterIDSql
+                << "," << serverIDSql << "," << hostNameSql << "," << curr.total << "," << curr.free << ","
                 << curr.avail << "," << curr.buffers << "," << curr.cached << "," << curr.swap_cached << ","
                 << curr.active << "," << curr.inactive << "," << curr.active_anon << "," << curr.inactive_anon << ","
                 << curr.active_file << "," << curr.inactive_file << "," << curr.dirty << "," << curr.writeback << ","
@@ -588,7 +605,7 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
 
             std::ostringstream oss;
             oss << "INSERT INTO server_disk_detail "
-                << "(server_name, disk_name, read_ops, write_ops, "
+                << "(tenant_id, team_id, cluster_id, server_id, server_name, disk_name, read_ops, write_ops, "
                    "sectors_read, "
                    "sectors_written, "
                 << "read_time_ms, write_time_ms, io_in_progress, io_time_ms, "
@@ -600,12 +617,13 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
                    "read_iops_rate, write_iops_rate, "
                 << "avg_read_latency_ms_rate, avg_write_latency_ms_rate, "
                    "util_percent_rate, "
-                << "timestamp) VALUES (" << hostNameSql << "," << diskNameSql << "," << disk.reads() << ","
-                << disk.writes() << "," << disk.sectors_read() << "," << disk.sectors_written() << ","
-                << disk.read_time_ms() << "," << disk.write_time_ms() << "," << disk.io_in_progress() << ","
-                << disk.io_time_ms() << "," << disk.weighted_io_time_ms() << "," << curr.read_bytes_per_sec << ","
-                << curr.write_bytes_per_sec << "," << curr.read_iops << "," << curr.write_iops << ","
-                << curr.avg_read_latency_ms << "," << curr.avg_write_latency_ms << "," << curr.util_percent << ","
+                << "timestamp) VALUES (" << tenantIDSql << "," << teamIDSql << "," << clusterIDSql << "," << serverIDSql
+                << "," << hostNameSql << "," << diskNameSql << "," << disk.reads() << "," << disk.writes() << ","
+                << disk.sectors_read() << "," << disk.sectors_written() << "," << disk.read_time_ms() << ","
+                << disk.write_time_ms() << "," << disk.io_in_progress() << "," << disk.io_time_ms() << ","
+                << disk.weighted_io_time_ms() << "," << curr.read_bytes_per_sec << "," << curr.write_bytes_per_sec
+                << "," << curr.read_iops << "," << curr.write_iops << "," << curr.avg_read_latency_ms << ","
+                << curr.avg_write_latency_ms << "," << curr.util_percent << ","
                 << rate(curr.read_bytes_per_sec, last.read_bytes_per_sec) << ","
                 << rate(curr.write_bytes_per_sec, last.write_bytes_per_sec) << ","
                 << rate(curr.read_iops, last.read_iops) << "," << rate(curr.write_iops, last.write_iops) << ","
@@ -674,19 +692,21 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
 
             std::ostringstream oss;
             oss << "INSERT INTO server_mysql_detail "
-                << "(server_name, instance, mysql_host, mysql_port, up, version, `role`, "
+                << "(tenant_id, team_id, cluster_id, server_id, server_name, instance, mysql_host, mysql_port, up, "
+                << "version, `role`, "
                 << "max_connections, threads_connected, threads_running, aborted_connects, "
                 << "questions, com_select, com_insert, com_update, com_delete, com_commit, com_rollback, "
                 << "slow_queries, innodb_buffer_pool_read_requests, innodb_buffer_pool_reads, "
                 << "innodb_buffer_pool_hit_percent, innodb_row_lock_waits, innodb_row_lock_time_avg_ms, "
                 << "replication_configured, replication_running, replication_lag_seconds, "
                 << "connection_used_percent, qps, tps, slow_queries_rate, innodb_row_lock_waits_rate, "
-                << "timestamp) VALUES (" << hostNameSql << "," << instanceSql << "," << mysqlHostSql << ","
-                << mysql.port() << "," << (mysql.up() ? 1 : 0) << "," << versionSql << "," << roleSql << ","
-                << mysql.max_connections() << "," << mysql.threads_connected() << "," << mysql.threads_running() << ","
-                << mysql.aborted_connects() << "," << mysql.questions() << "," << mysql.com_select() << ","
-                << mysql.com_insert() << "," << mysql.com_update() << "," << mysql.com_delete() << ","
-                << mysql.com_commit() << "," << mysql.com_rollback() << "," << mysql.slow_queries() << ","
+                << "timestamp) VALUES (" << tenantIDSql << "," << teamIDSql << "," << clusterIDSql << "," << serverIDSql
+                << "," << hostNameSql << "," << instanceSql << "," << mysqlHostSql << "," << mysql.port() << ","
+                << (mysql.up() ? 1 : 0) << "," << versionSql << "," << roleSql << "," << mysql.max_connections() << ","
+                << mysql.threads_connected() << "," << mysql.threads_running() << "," << mysql.aborted_connects() << ","
+                << mysql.questions() << "," << mysql.com_select() << "," << mysql.com_insert() << ","
+                << mysql.com_update() << "," << mysql.com_delete() << "," << mysql.com_commit() << ","
+                << mysql.com_rollback() << "," << mysql.slow_queries() << ","
                 << mysql.innodb_buffer_pool_read_requests() << "," << mysql.innodb_buffer_pool_reads() << ","
                 << mysql.innodb_buffer_pool_hit_percent() << "," << mysql.innodb_row_lock_waits() << ","
                 << mysql.innodb_row_lock_time_avg_ms() << "," << (mysql.replication_configured() ? 1 : 0) << ","
@@ -758,7 +778,8 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
 
             std::ostringstream oss;
             oss << "INSERT INTO server_redis_detail "
-                << "(server_name, instance, redis_host, redis_port, up, version, `role`, uptime_in_seconds, "
+                << "(tenant_id, team_id, cluster_id, server_id, server_name, instance, redis_host, redis_port, up, "
+                << "version, `role`, uptime_in_seconds, "
                 << "connected_clients, blocked_clients, maxclients, connection_used_percent, "
                 << "used_memory, maxmemory, mem_fragmentation_ratio, memory_used_percent, "
                 << "total_commands_processed, instantaneous_ops_per_sec, commands_per_sec, "
@@ -766,10 +787,11 @@ void HostManager::writeToMysql(HostMonitoringData &data) {
                 << "rejected_connections, total_error_replies, total_net_input_bytes, total_net_output_bytes, "
                 << "net_input_bytes_per_sec, net_output_bytes_per_sec, replication_configured, master_link_up, "
                 << "connected_slaves, master_last_io_seconds_ago, slowlog_len, slowlog_growth, timestamp) VALUES ("
-                << hostNameSql << "," << instanceSql << "," << redisHostSql << "," << redis.port() << ","
-                << (redis.up() ? 1 : 0) << "," << versionSql << "," << roleSql << "," << redis.uptime_in_seconds()
-                << "," << redis.connected_clients() << "," << redis.blocked_clients() << "," << redis.maxclients()
-                << "," << connectionUsedPercent << "," << redis.used_memory() << "," << redis.maxmemory() << ","
+                << tenantIDSql << "," << teamIDSql << "," << clusterIDSql << "," << serverIDSql << "," << hostNameSql
+                << "," << instanceSql << "," << redisHostSql << "," << redis.port() << "," << (redis.up() ? 1 : 0)
+                << "," << versionSql << "," << roleSql << "," << redis.uptime_in_seconds() << ","
+                << redis.connected_clients() << "," << redis.blocked_clients() << "," << redis.maxclients() << ","
+                << connectionUsedPercent << "," << redis.used_memory() << "," << redis.maxmemory() << ","
                 << redis.mem_fragmentation_ratio() << "," << redis.memory_used_percent() << ","
                 << redis.total_commands_processed() << "," << redis.instantaneous_ops_per_sec() << "," << commandsPerSec
                 << "," << redis.keyspace_hits() << "," << redis.keyspace_misses() << "," << redis.keyspace_hit_percent()
@@ -812,7 +834,58 @@ void HostManager::stop() {
     mysqlWriteThreads_.clear();
 }
 
-void HostManager::onDataReceived(const monitor::proto::MonitorInfo &info) {
+bool HostManager::resolveWorkerScope(const WorkerIdentity &workerIdentity, WorkerScope *scope) {
+    if (!scope || workerIdentity.worker_id.empty()) return false;
+#ifdef ENABLE_MYSQL
+    if (!mysqlWritePool_) return false;
+    auto guard = mysqlWritePool_->acquire(config_.mysql_read_timeout);
+    MYSQL *conn = guard.get();
+    if (!conn) return false;
+
+    // 查询 worker_registrations 表验证 worker_id 和 worker_token，并获取对应的 tenant_id、team_id、cluster_id 和
+    // server_id（如果有）。使用 COALESCE(server_id, 0) 确保即使 server_id 为空也能正确处理。
+    // TODO: 可以增加缓存来减少对数据库的查询频率，尤其是在 worker 数量较多的情况下。
+    const std::string workerIDSql = quoteSqlString(conn, workerIdentity.worker_id);
+    std::ostringstream oss;
+    oss << "SELECT tenant_id, team_id, cluster_id, COALESCE(server_id, 0), token_hash "
+        << "FROM worker_registrations WHERE worker_id=" << workerIDSql << " AND status='active' LIMIT 1";
+    if (mysql_query(conn, oss.str().c_str()) != 0) {
+        std::cerr << "Worker registry query error: " << mysql_error(conn) << std::endl;
+        return false;
+    }
+    MYSQL_RES *res = mysql_store_result(conn);
+    if (!res) return false;
+    MYSQL_ROW row = mysql_fetch_row(res);
+    if (!row) {
+        mysql_free_result(res);
+        return false;
+    }
+    const std::string expectedToken = row[4] ? row[4] : "";
+    if (!expectedToken.empty() && expectedToken != workerIdentity.worker_token) {
+        mysql_free_result(res);
+        return false;
+    }
+    scope->tenant_id = row[0] ? row[0] : "";
+    scope->team_id = row[1] ? row[1] : "";
+    scope->cluster_id = row[2] ? row[2] : "";
+    scope->server_id = row[3] ? static_cast<std::uint64_t>(std::strtoull(row[3], nullptr, 10)) : 0;
+    mysql_free_result(res);
+    return !scope->tenant_id.empty() && !scope->team_id.empty() && !scope->cluster_id.empty();
+#else
+    (void)workerIdentity;
+    return false;
+#endif
+}
+
+void HostManager::onDataReceived(const monitor::proto::MonitorInfo &info, const WorkerIdentity &workerIdentity) {
+    WorkerScope scope;
+    if (!resolveWorkerScope(workerIdentity, &scope)) {
+        std::cerr << "Drop monitor data from unregistered or unauthorized worker: " << workerIdentity.worker_id
+                  << std::endl;
+        if (metrics_) metrics_->dropped_monitor_samples.fetch_add(1);
+        return;
+    }
+
     // 创建唯一主机 ID，生产环境可替换为真实主机名
     std::string hostID;
     if (info.has_host_info()) {
@@ -922,6 +995,7 @@ void HostManager::onDataReceived(const monitor::proto::MonitorInfo &info) {
         lastPerfSamples[hostID] = curr;
     }
     HostMonitoringData data{hostID,
+                            scope,
                             HostScore{info, score, now},
                             curr.net_in_rate,
                             curr.net_out_rate,
@@ -952,7 +1026,7 @@ void HostManager::onDataReceived(const monitor::proto::MonitorInfo &info) {
         hostScores_[hostID] = HostScore{info, score, now};
     }
 
-    // 存储最新的分数到Redis缓存，键名格式为"manager:latest_score:{hostID}"
+    // 存储最新的分数到Redis缓存，键名格式为"manager:latest_score:{hostID}"，值为JSON字符串包含服务器名称和分数，例如{"server_name":"{hostID}","score":85.5}
     if (redisCache_) {
         std::ostringstream cached;
         cached << "{\"server_name\":\"" << hostID << "\",\"score\":" << score << "}";

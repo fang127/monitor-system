@@ -62,6 +62,16 @@ struct TimeRange {
 };
 
 /**
+ * @brief         查询认证作用域，来自 api_gateway 写入的访问令牌上下文
+ *
+ */
+struct QueryScope {
+    std::string tenant_id;
+    std::string team_id;
+    std::string cluster_id;
+};
+
+/**
  * @brief         指定时间点的服务器性能记录
  *
  */
@@ -346,8 +356,8 @@ public:
      * @param         error 输出参数，保存错误信息
      * @return        性能记录列表
      */
-    std::vector<PerformanceRecord> queryPerformanceRecords(const std::string &serverName, const TimeRange &range,
-                                                           int page, int pageSize, int *totalCount,
+    std::vector<PerformanceRecord> queryPerformanceRecords(const QueryScope &scope, const std::string &serverName,
+                                                           const TimeRange &range, int page, int pageSize, int *totalCount,
                                                            std::string *error = nullptr);
 
     /**
@@ -359,7 +369,7 @@ public:
      * @param         error 输出参数，保存错误信息
      * @return        趋势性能记录列表
      */
-    std::vector<PerformanceRecord> queryTrend(const std::string &serverName, const TimeRange &range,
+    std::vector<PerformanceRecord> queryTrend(const QueryScope &scope, const std::string &serverName, const TimeRange &range,
                                               int intervalSeconds, std::string *error = nullptr);
 
     /**
@@ -374,8 +384,8 @@ public:
      * @param         error 输出参数，保存错误信息
      * @return        异常记录列表
      */
-    std::vector<AnomalyRecord> queryAnomalyRecords(const std::string &serverName, const TimeRange &range,
-                                                   const AnomalyThreshold &threshold, int page, int pageSize,
+    std::vector<AnomalyRecord> queryAnomalyRecords(const QueryScope &scope, const std::string &serverName,
+                                                   const TimeRange &range, const AnomalyThreshold &threshold, int page, int pageSize,
                                                    int *totalCount, std::string *error = nullptr);
 
     /**
@@ -388,7 +398,7 @@ public:
      * @param         error 输出参数，保存错误信息
      * @return        服务器评分摘要列表
      */
-    std::vector<ServerScoreSummary> queryServerScoreRank(SortOrder order, int page, int pageSize, int *totalCount,
+    std::vector<ServerScoreSummary> queryServerScoreRank(const QueryScope &scope, SortOrder order, int page, int pageSize, int *totalCount,
                                                          std::string *error = nullptr);
 
     /**
@@ -398,7 +408,8 @@ public:
      * @param         error 输出参数，保存错误信息
      * @return        最新服务器评分摘要列表
      */
-    std::vector<ServerScoreSummary> queryLatestServerScores(ClusterStats *clusterStats, std::string *error = nullptr);
+    std::vector<ServerScoreSummary> queryLatestServerScores(const QueryScope &scope, ClusterStats *clusterStats,
+                                                            std::string *error = nullptr);
 
     /**
      * @brief         查询网络明细统计
@@ -411,7 +422,7 @@ public:
      * @param         error 输出参数，保存错误信息
      * @return        网络明细记录列表
      */
-    std::vector<NetDetailRecord> queryNetDetailRecords(const std::string &serverName, const TimeRange &range, int page,
+    std::vector<NetDetailRecord> queryNetDetailRecords(const QueryScope &scope, const std::string &serverName, const TimeRange &range, int page,
                                                        int pageSize, int *totalCount, std::string *error = nullptr);
 
     /**
@@ -425,7 +436,7 @@ public:
      * @param         error 输出参数，保存错误信息
      * @return        磁盘明细记录列表
      */
-    std::vector<DiskDetailRecord> queryDiskDetailRecords(const std::string &serverName, const TimeRange &range,
+    std::vector<DiskDetailRecord> queryDiskDetailRecords(const QueryScope &scope, const std::string &serverName, const TimeRange &range,
                                                          int page, int pageSize, int *totalCount,
                                                          std::string *error = nullptr);
 
@@ -440,7 +451,7 @@ public:
      * @param         error 输出参数，保存错误信息
      * @return        内存明细记录列表
      */
-    std::vector<MemDetailRecord> queryMemDetailRecords(const std::string &serverName, const TimeRange &range, int page,
+    std::vector<MemDetailRecord> queryMemDetailRecords(const QueryScope &scope, const std::string &serverName, const TimeRange &range, int page,
                                                        int pageSize, int *totalCount, std::string *error = nullptr);
 
     /**
@@ -454,8 +465,8 @@ public:
      * @param         error 输出参数，保存错误信息
      * @return        软中断明细记录列表
      */
-    std::vector<SoftIrqDetailRecord> querySoftIrqDetailRecords(const std::string &serverName, const TimeRange &range,
-                                                               int page, int pageSize, int *totalCount,
+    std::vector<SoftIrqDetailRecord> querySoftIrqDetailRecords(const QueryScope &scope, const std::string &serverName,
+                                                               const TimeRange &range, int page, int pageSize, int *totalCount,
                                                                std::string *error = nullptr);
 
     /**
@@ -469,7 +480,7 @@ public:
      * @param         error 输出参数，保存错误信息
      * @return        MySQL 明细记录列表
      */
-    std::vector<MysqlDetailRecord> queryMysqlDetailRecords(const std::string &serverName, const TimeRange &range,
+    std::vector<MysqlDetailRecord> queryMysqlDetailRecords(const QueryScope &scope, const std::string &serverName, const TimeRange &range,
                                                            int page, int pageSize, int *totalCount,
                                                            std::string *error = nullptr);
 
@@ -484,7 +495,7 @@ public:
      * @param         error 输出参数，保存错误信息
      * @return        Redis 明细记录列表
      */
-    std::vector<RedisDetailRecord> queryRedisDetailRecords(const std::string &serverName, const TimeRange &range,
+    std::vector<RedisDetailRecord> queryRedisDetailRecords(const QueryScope &scope, const std::string &serverName, const TimeRange &range,
                                                            int page, int pageSize, int *totalCount,
                                                            std::string *error = nullptr);
 

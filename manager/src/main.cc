@@ -76,7 +76,9 @@ int main(int argc, char *argv[]) {
 #endif
                           redisCache.get());
     service.setDataReceivedCallback(
-        [&hostManager](const monitor::proto::MonitorInfo &info) { hostManager.onDataReceived(info); });
+        [&hostManager](const monitor::proto::MonitorInfo &info, const monitor::WorkerIdentity &workerIdentity) {
+            hostManager.onDataReceived(info, workerIdentity);
+        });
 
     // 启动 HostManager 后台线程，处理主机状态更新和数据清理等任务
     hostManager.start();

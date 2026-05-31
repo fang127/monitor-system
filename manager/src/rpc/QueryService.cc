@@ -62,6 +62,41 @@ grpc::Status queryErrorStatus(const std::string &error) {
     return grpc::Status(grpc::StatusCode::INTERNAL, error);
 }
 
+/**
+ * @brief         将 Protobuf 定义的查询作用域转换为内部使用的 QueryScope
+ * 结构，并进行必要的验证，确保查询请求包含有效的租户和团队信息
+ *
+ * @param         requestScope
+ * @param         scope
+ * @param         status
+ * @return
+ * @return
+ */
+bool convertQueryScope(const ::monitor::proto::QueryScope &requestScope, QueryScope *scope, grpc::Status *status) {
+    if (!scope) return false;
+    scope->tenant_id = requestScope.tenant_id();
+    scope->team_id = requestScope.team_id();
+    scope->cluster_id = requestScope.cluster_id();
+    if (scope->tenant_id.empty() || scope->team_id.empty()) {
+        if (status) {
+            *status = grpc::Status(grpc::StatusCode::UNAUTHENTICATED, "缺少查询租户或团队作用域");
+        }
+        return false;
+    }
+    return true;
+}
+
+/**
+ * @brief         生成最新分数查询的 Redis
+ * 缓存键，基于查询作用域的租户、团队和集群信息构建唯一的缓存键，确保不同作用域的数据隔离和缓存命中正确性
+ *
+ * @param         scope
+ * @return
+ */
+std::string latestScoreCacheKey(const QueryScope &scope) {
+    return "manager:query:latest_score:" + scope.tenant_id + ":" + scope.team_id + ":" + scope.cluster_id;
+}
+
 } // namespace
 
 QueryServiceImpl::QueryServiceImpl(QueryManager *queryManager, ManagerDispatcher *dispatcher, RedisCache *redisCache)
@@ -108,6 +143,9 @@ void QueryServiceImpl::setTimestamp(::google::protobuf::Timestamp *ts,
     if (!queryManager_ || !queryManager_->isInitialized()) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE, "Query manager not initialized");
     }
+    QueryScope scope;
+    grpc::Status scopeStatus;
+    if (!convertQueryScope(request->scope(), &scope, &scopeStatus)) return scopeStatus;
 
     // 验证时间范围
     TimeRange range = convertTimeRange(request->time_range());
@@ -122,8 +160,8 @@ void QueryServiceImpl::setTimestamp(::google::protobuf::Timestamp *ts,
 
     int totalCount = 0;
     std::string error;
-    auto records =
-        queryManager_->queryPerformanceRecords(request->server_name(), range, page, pageSize, &totalCount, &error);
+    auto records = queryManager_->queryPerformanceRecords(scope, request->server_name(), range, page, pageSize,
+                                                          &totalCount, &error);
     if (!error.empty()) return queryErrorStatus(error);
 
     for (const auto &rec : records) {
@@ -175,6 +213,9 @@ void QueryServiceImpl::setTimestamp(::google::protobuf::Timestamp *ts,
     if (!queryManager_ || !queryManager_->isInitialized()) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE, "Query manager not initialized");
     }
+    QueryScope scope;
+    grpc::Status scopeStatus;
+    if (!convertQueryScope(request->scope(), &scope, &scopeStatus)) return scopeStatus;
 
     TimeRange range = convertTimeRange(request->time_range());
     if (!queryManager_->validateTimeRange(range)) {
@@ -182,7 +223,7 @@ void QueryServiceImpl::setTimestamp(::google::protobuf::Timestamp *ts,
     }
 
     std::string error;
-    auto records = queryManager_->queryTrend(request->server_name(), range, request->interval_seconds(), &error);
+    auto records = queryManager_->queryTrend(scope, request->server_name(), range, request->interval_seconds(), &error);
     if (!error.empty()) return queryErrorStatus(error);
 
     for (const auto &rec : records) {
@@ -225,6 +266,9 @@ void QueryServiceImpl::setTimestamp(::google::protobuf::Timestamp *ts,
     if (!queryManager_ || !queryManager_->isInitialized()) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE, "Query manager not initialized");
     }
+    QueryScope scope;
+    grpc::Status scopeStatus;
+    if (!convertQueryScope(request->scope(), &scope, &scopeStatus)) return scopeStatus;
 
     TimeRange range = convertTimeRange(request->time_range());
     if (!queryManager_->validateTimeRange(range)) {
@@ -264,7 +308,7 @@ void QueryServiceImpl::setTimestamp(::google::protobuf::Timestamp *ts,
 
     int totalCount = 0;
     std::string error;
-    auto records = queryManager_->queryAnomalyRecords(request->server_name(), range, thresholds, page, pageSize,
+    auto records = queryManager_->queryAnomalyRecords(scope, request->server_name(), range, thresholds, page, pageSize,
                                                       &totalCount, &error);
     if (!error.empty()) return queryErrorStatus(error);
 
@@ -299,6 +343,9 @@ void QueryServiceImpl::setTimestamp(::google::protobuf::Timestamp *ts,
     if (!queryManager_ || !queryManager_->isInitialized()) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE, "Query manager not initialized");
     }
+    QueryScope scope;
+    grpc::Status scopeStatus;
+    if (!convertQueryScope(request->scope(), &scope, &scopeStatus)) return scopeStatus;
 
     SortOrder order = (request->order() == ::monitor::proto::ASC) ? SortOrder::ASC : SortOrder::DESC;
 
@@ -309,7 +356,7 @@ void QueryServiceImpl::setTimestamp(::google::protobuf::Timestamp *ts,
 
     int totalCount = 0;
     std::string error;
-    auto records = queryManager_->queryServerScoreRank(order, page, pageSize, &totalCount, &error);
+    auto records = queryManager_->queryServerScoreRank(scope, order, page, pageSize, &totalCount, &error);
     if (!error.empty()) return queryErrorStatus(error);
 
     for (const auto &rec : records) {
@@ -342,18 +389,21 @@ void QueryServiceImpl::setTimestamp(::google::protobuf::Timestamp *ts,
                              [this](const auto *req, auto *resp) { return QueryLatestScore(nullptr, req, resp); });
     }
 
-    if (redisCache_) {
-        auto cached = redisCache_->get("manager:query:latest_score");
-        if (cached && response->ParseFromString(*cached)) return grpc::Status::OK;
-    }
-
     if (!queryManager_ || !queryManager_->isInitialized()) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE, "Query manager not initialized");
+    }
+    QueryScope scope;
+    grpc::Status scopeStatus;
+    if (!convertQueryScope(request->scope(), &scope, &scopeStatus)) return scopeStatus;
+    const std::string cacheKey = latestScoreCacheKey(scope);
+    if (redisCache_) {
+        auto cached = redisCache_->get(cacheKey);
+        if (cached && response->ParseFromString(*cached)) return grpc::Status::OK;
     }
 
     ClusterStats stats;
     std::string error;
-    auto records = queryManager_->queryLatestServerScores(&stats, &error);
+    auto records = queryManager_->queryLatestServerScores(scope, &stats, &error);
     if (!error.empty()) return queryErrorStatus(error);
 
     for (const auto &rec : records) {
@@ -380,7 +430,7 @@ void QueryServiceImpl::setTimestamp(::google::protobuf::Timestamp *ts,
 
     if (redisCache_) {
         std::string serialized;
-        if (response->SerializeToString(&serialized)) redisCache_->set("manager:query:latest_score", serialized);
+        if (response->SerializeToString(&serialized)) redisCache_->set(cacheKey, serialized);
     }
 
     return grpc::Status::OK;
@@ -399,6 +449,9 @@ void QueryServiceImpl::setTimestamp(::google::protobuf::Timestamp *ts,
     if (!queryManager_ || !queryManager_->isInitialized()) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE, "Query manager not initialized");
     }
+    QueryScope scope;
+    grpc::Status scopeStatus;
+    if (!convertQueryScope(request->scope(), &scope, &scopeStatus)) return scopeStatus;
 
     TimeRange time_range = convertTimeRange(request->time_range());
     if (!queryManager_->validateTimeRange(time_range)) {
@@ -412,8 +465,8 @@ void QueryServiceImpl::setTimestamp(::google::protobuf::Timestamp *ts,
 
     int totalCount = 0;
     std::string error;
-    auto records =
-        queryManager_->queryNetDetailRecords(request->server_name(), time_range, page, pageSize, &totalCount, &error);
+    auto records = queryManager_->queryNetDetailRecords(scope, request->server_name(), time_range, page, pageSize,
+                                                        &totalCount, &error);
     if (!error.empty()) return queryErrorStatus(error);
 
     for (const auto &rec : records) {
@@ -451,6 +504,9 @@ void QueryServiceImpl::setTimestamp(::google::protobuf::Timestamp *ts,
     if (!queryManager_ || !queryManager_->isInitialized()) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE, "Query manager not initialized");
     }
+    QueryScope scope;
+    grpc::Status scopeStatus;
+    if (!convertQueryScope(request->scope(), &scope, &scopeStatus)) return scopeStatus;
 
     TimeRange time_range = convertTimeRange(request->time_range());
     if (!queryManager_->validateTimeRange(time_range)) {
@@ -464,8 +520,8 @@ void QueryServiceImpl::setTimestamp(::google::protobuf::Timestamp *ts,
 
     int totalCount = 0;
     std::string error;
-    auto records =
-        queryManager_->queryDiskDetailRecords(request->server_name(), time_range, page, pageSize, &totalCount, &error);
+    auto records = queryManager_->queryDiskDetailRecords(scope, request->server_name(), time_range, page, pageSize,
+                                                         &totalCount, &error);
     if (!error.empty()) return queryErrorStatus(error);
 
     for (const auto &rec : records) {
@@ -502,6 +558,9 @@ void QueryServiceImpl::setTimestamp(::google::protobuf::Timestamp *ts,
     if (!queryManager_ || !queryManager_->isInitialized()) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE, "Query manager not initialized");
     }
+    QueryScope scope;
+    grpc::Status scopeStatus;
+    if (!convertQueryScope(request->scope(), &scope, &scopeStatus)) return scopeStatus;
 
     TimeRange time_range = convertTimeRange(request->time_range());
     if (!queryManager_->validateTimeRange(time_range)) {
@@ -515,8 +574,8 @@ void QueryServiceImpl::setTimestamp(::google::protobuf::Timestamp *ts,
 
     int totalCount = 0;
     std::string error;
-    auto records =
-        queryManager_->queryMemDetailRecords(request->server_name(), time_range, page, pageSize, &totalCount, &error);
+    auto records = queryManager_->queryMemDetailRecords(scope, request->server_name(), time_range, page, pageSize,
+                                                        &totalCount, &error);
     if (!error.empty()) return queryErrorStatus(error);
 
     for (const auto &rec : records) {
@@ -553,6 +612,9 @@ void QueryServiceImpl::setTimestamp(::google::protobuf::Timestamp *ts,
     if (!queryManager_ || !queryManager_->isInitialized()) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE, "Query manager not initialized");
     }
+    QueryScope scope;
+    grpc::Status scopeStatus;
+    if (!convertQueryScope(request->scope(), &scope, &scopeStatus)) return scopeStatus;
 
     TimeRange time_range = convertTimeRange(request->time_range());
     if (!queryManager_->validateTimeRange(time_range)) {
@@ -566,7 +628,7 @@ void QueryServiceImpl::setTimestamp(::google::protobuf::Timestamp *ts,
 
     int totalCount = 0;
     std::string error;
-    auto records = queryManager_->querySoftIrqDetailRecords(request->server_name(), time_range, page, pageSize,
+    auto records = queryManager_->querySoftIrqDetailRecords(scope, request->server_name(), time_range, page, pageSize,
                                                             &totalCount, &error);
     if (!error.empty()) return queryErrorStatus(error);
 
@@ -603,6 +665,9 @@ void QueryServiceImpl::setTimestamp(::google::protobuf::Timestamp *ts,
     if (!queryManager_ || !queryManager_->isInitialized()) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE, "Query manager not initialized");
     }
+    QueryScope scope;
+    grpc::Status scopeStatus;
+    if (!convertQueryScope(request->scope(), &scope, &scopeStatus)) return scopeStatus;
 
     TimeRange time_range = convertTimeRange(request->time_range());
     if (!queryManager_->validateTimeRange(time_range)) {
@@ -616,8 +681,8 @@ void QueryServiceImpl::setTimestamp(::google::protobuf::Timestamp *ts,
 
     int totalCount = 0;
     std::string error;
-    auto records =
-        queryManager_->queryMysqlDetailRecords(request->server_name(), time_range, page, pageSize, &totalCount, &error);
+    auto records = queryManager_->queryMysqlDetailRecords(scope, request->server_name(), time_range, page, pageSize,
+                                                          &totalCount, &error);
     if (!error.empty()) return queryErrorStatus(error);
 
     for (const auto &rec : records) {
@@ -677,6 +742,9 @@ void QueryServiceImpl::setTimestamp(::google::protobuf::Timestamp *ts,
     if (!queryManager_ || !queryManager_->isInitialized()) {
         return grpc::Status(grpc::StatusCode::UNAVAILABLE, "Query manager not initialized");
     }
+    QueryScope scope;
+    grpc::Status scopeStatus;
+    if (!convertQueryScope(request->scope(), &scope, &scopeStatus)) return scopeStatus;
 
     TimeRange time_range = convertTimeRange(request->time_range());
     if (!queryManager_->validateTimeRange(time_range)) {
@@ -690,8 +758,8 @@ void QueryServiceImpl::setTimestamp(::google::protobuf::Timestamp *ts,
 
     int totalCount = 0;
     std::string error;
-    auto records =
-        queryManager_->queryRedisDetailRecords(request->server_name(), time_range, page, pageSize, &totalCount, &error);
+    auto records = queryManager_->queryRedisDetailRecords(scope, request->server_name(), time_range, page, pageSize,
+                                                          &totalCount, &error);
     if (!error.empty()) return queryErrorStatus(error);
 
     for (const auto &rec : records) {

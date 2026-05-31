@@ -1,4 +1,5 @@
 #include "GrpcServer.h"
+#include <grpcpp/support/string_ref.h>
 #include <grpcpp/support/status.h>
 #include <chrono>
 #include <mutex>
@@ -28,6 +29,14 @@ std::string resolveHostID(const monitor::proto::MonitorInfo &info) {
     return info.name();
 }
 
+std::string metadataValue(::grpc::ServerContext *context, const std::string &key) {
+    if (!context) return "";
+    const auto &metadata = context->client_metadata();
+    auto it = metadata.find(key);
+    if (it == metadata.end()) return "";
+    return std::string(it->second.data(), it->second.length());
+}
+
 } // namespace
 
 ::grpc::Status GrpcServerImpl::SetMonitorInfo(::grpc::ServerContext *context,
@@ -35,6 +44,13 @@ std::string resolveHostID(const monitor::proto::MonitorInfo &info) {
                                               ::google::protobuf::Empty *response) {
     // 校验请求
     if (!request) return ::grpc::Status(::grpc::StatusCode::INVALID_ARGUMENT, "Empty request");
+    WorkerIdentity workerIdentity{
+        metadataValue(context, "x-monitor-worker-id"),
+        metadataValue(context, "x-monitor-worker-token"),
+    };
+    if (workerIdentity.worker_id.empty()) {
+        return ::grpc::Status(::grpc::StatusCode::UNAUTHENTICATED, "Missing worker identity");
+    }
 
     std::string hostname = resolveHostID(*request);
 
@@ -43,6 +59,7 @@ std::string resolveHostID(const monitor::proto::MonitorInfo &info) {
 
     // 保存带时间戳的监控数据
     // 后续如有性能需要，可考虑使用无锁结构
+    // TODO: 可以增加过期数据清理机制，避免内存占用过大，例如定期清理超过一定时间未更新的数据;
     {
         std::lock_guard<std::mutex> lock(mutex_);
         hostDatas_[hostname] = {*request, std::chrono::system_clock::now()};
@@ -55,13 +72,13 @@ std::string resolveHostID(const monitor::proto::MonitorInfo &info) {
         DataReceivedCallback callback = callback_;
         // 提交异步任务到线程池，执行回调函数
         if (!dispatcher_->submitMonitorTask(
-                hostname,
-                [callback = std::move(callback), requestCopy = std::move(requestCopy)]() { callback(requestCopy); })) {
+                hostname, [callback = std::move(callback), requestCopy = std::move(requestCopy),
+                           workerIdentity = std::move(workerIdentity)]() { callback(requestCopy, workerIdentity); })) {
             return ::grpc::Status::OK;
         }
     } else if (callback_) {
         // 如果没有线程池，直接在当前线程执行回调函数（不推荐，可能会阻塞gRPC线程）
-        callback_(*request);
+        callback_(*request, workerIdentity);
     }
 
     return ::grpc::Status::OK;

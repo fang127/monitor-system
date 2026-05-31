@@ -3,6 +3,7 @@
 #include "ManagerMetrics.h"
 #include "MysqlConnectionPool.h"
 #include "RedisConnectionPool.h"
+#include "WorkerIdentity.h"
 #include "monitor_info.pb.h"
 
 #include <condition_variable>
@@ -31,6 +32,7 @@ struct HostScore {
  */
 struct HostMonitoringData {
     std::string host_name;
+    WorkerScope scope;
     HostScore host_score;
     double net_in_rate;
     double net_out_rate;
@@ -91,7 +93,7 @@ public:
      *
      * @param         info 监控数据
      */
-    void onDataReceived(const monitor::proto::MonitorInfo &info);
+    void onDataReceived(const monitor::proto::MonitorInfo &info, const WorkerIdentity &workerIdentity);
 
     /**
      * @brief         获取所有主机评分快照
@@ -127,6 +129,15 @@ private:
      *
      */
     void writeToMysql(HostMonitoringData &data);
+
+    /**
+     * @brief         根据 worker 注册信息解析可信租户、团队、集群和服务器归属
+     *
+     * @param         workerIdentity worker 推送携带的身份和凭证
+     * @param         scope 输出的可信作用域
+     * @return        解析成功返回 true，否则返回 false
+     */
+    bool resolveWorkerScope(const WorkerIdentity &workerIdentity, WorkerScope *scope);
 
     /**
      * @brief         将主机监控数据加入 MySQL 写队列，等待后台线程异步写入
