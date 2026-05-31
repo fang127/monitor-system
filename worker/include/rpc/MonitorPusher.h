@@ -23,8 +23,8 @@ public:
      * @param         managerAddress manager 的 gRPC 地址
      * @param         intervalSeconds 推送间隔，单位秒，默认 10 秒
      */
-    explicit MonitorPusher(const std::string &managerAddress,
-                           int intervalSeconds = 10);
+    explicit MonitorPusher(const std::string &managerAddress, int intervalSeconds = 10, std::string workerID = "",
+                           std::string workerToken = "");
     ~MonitorPusher();
 
     /**
@@ -60,13 +60,13 @@ private:
      */
     bool pushOnce();
 
-    std::string managerAddress_; // manager 的 gRPC 地址
-    int intervalSeconds_;        // 指标推送间隔，单位秒
-    std::atomic<bool>
-        running_; // 控制推送器运行状态的标记
-    std::unique_ptr<std::thread> thread_;        // 指标推送线程
-    std::unique_ptr<MetricCollector> collector_; // 指标采集器实例
-    std::unique_ptr<monitor::proto::GrpcManager::Stub>
-        stub_; // 与 manager 通信的 gRPC stub
+    std::string managerAddress_;                              // manager 的 gRPC 地址
+    std::string workerID_;                                    // worker 稳定身份，用于 manager 解析资产归属
+    std::string workerToken_;                                 // worker 注册凭证，用于 manager 校验上报来源
+    int intervalSeconds_;                                     // 指标推送间隔，单位秒
+    std::atomic<bool> running_;                               // 控制推送器运行状态的标记
+    std::unique_ptr<std::thread> thread_;                     // 指标推送线程
+    std::unique_ptr<MetricCollector> collector_;              // 指标采集器实例
+    std::unique_ptr<monitor::proto::GrpcManager::Stub> stub_; // 与 manager 通信的 gRPC stub
 };
 } // namespace monitor

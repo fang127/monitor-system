@@ -79,19 +79,23 @@ worker/
 
 1. 解析 manager 地址，默认 `localhost:50051`。
 2. 解析推送间隔，默认 `10` 秒；传入非正数时回退默认值。
-3. 创建 `MonitorPusher` 并调用 `start()`，主线程随后常驻。
+3. 解析稳定 `worker_id` 和注册凭证。可以通过 `WORKER_ID`、`WORKER_TOKEN` 环境变量设置，也可以作为第 3、4 个命令行参数传入。
+4. 创建 `MonitorPusher` 并调用 `start()`，主线程随后常驻。
 
 命令格式：
 
 ```bash
-./build/Debug/worker/worker [manager_address] [interval_seconds]
+./build/Debug/worker/worker [manager_address] [interval_seconds] [worker_id] [worker_token]
 ```
 
 示例：
 
 ```bash
-./build/Debug/worker/worker 192.168.1.10:50051 10
+WORKER_ID=worker-prod-01 WORKER_TOKEN=change-me ./build/Debug/worker/worker 192.168.1.10:50051 10
+./build/Debug/worker/worker 192.168.1.10:50051 10 worker-prod-01 change-me
 ```
+
+`worker_id` 必须先在 MySQL 的 `worker_registrations` 表中注册，并绑定明确的租户、团队、集群和服务器归属。manager 不信任 worker 自报的租户或团队字段，只使用注册表解析出的可信作用域。
 
 ## 推送机制
 
@@ -104,7 +108,7 @@ worker/
 5. `pushOnce()` 创建空的 `MonitorInfo`。
 6. 调用 `collector_->collectAll(&info)` 依次采集所有指标。
 7. 打印本轮采集结果。
-8. 调用 `stub_->SetMonitorInfo(&context, info, &response)` 推送给 manager。
+8. 在 gRPC metadata 中携带 `x-monitor-worker-id` 和 `x-monitor-worker-token`，再调用 `stub_->SetMonitorInfo(&context, info, &response)` 推送给 manager。
 9. 成功则打印 success，失败打印 gRPC 错误信息。
 
 推送间隔内每秒检查一次 `running_`，因此停止时不需要等待完整间隔结束。

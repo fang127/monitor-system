@@ -6,6 +6,7 @@
 #include <chrono>
 #include <memory>
 #include <thread>
+#include <utility>
 #include "MetricCollector.h"
 #include "monitor_info.grpc.pb.h"
 #include "monitor_info.pb.h"
@@ -17,8 +18,13 @@ namespace monitor {
  * @param         managerAddress manager 的 gRPC 地址
  * @param         intervalSeconds 推送间隔，单位秒
  */
-MonitorPusher::MonitorPusher(const std::string &managerAddress, int intervalSeconds)
-    : managerAddress_(managerAddress), intervalSeconds_(intervalSeconds), running_(false) {
+MonitorPusher::MonitorPusher(const std::string &managerAddress, int intervalSeconds, std::string workerID,
+                             std::string workerToken)
+    : managerAddress_(managerAddress),
+      workerID_(std::move(workerID)),
+      workerToken_(std::move(workerToken)),
+      intervalSeconds_(intervalSeconds),
+      running_(false) {
     auto channel = grpc::CreateChannel(managerAddress_, grpc::InsecureChannelCredentials());
     stub_ = monitor::proto::GrpcManager::NewStub(channel);
     collector_ = std::make_unique<MetricCollector>();
@@ -216,10 +222,10 @@ bool MonitorPusher::pushOnce() {
                       << "Role: " << redis.role() << ", "
                       << "Version: " << redis.version() << std::endl;
             std::cout << "  Clients: " << redis.connected_clients() << "/" << redis.maxclients()
-                      << ", Memory: " << redis.memory_used_percent() << "%, Ops/s: "
-                      << redis.instantaneous_ops_per_sec() << std::endl;
-            std::cout << "  Hit: " << redis.keyspace_hit_percent() << "%, Evicted: "
-                      << redis.evicted_keys() << ", Slowlog: " << redis.slowlog_len() << std::endl;
+                      << ", Memory: " << redis.memory_used_percent()
+                      << "%, Ops/s: " << redis.instantaneous_ops_per_sec() << std::endl;
+            std::cout << "  Hit: " << redis.keyspace_hit_percent() << "%, Evicted: " << redis.evicted_keys()
+                      << ", Slowlog: " << redis.slowlog_len() << std::endl;
         }
     }
 
@@ -227,6 +233,8 @@ bool MonitorPusher::pushOnce() {
 
     // 推送到 manager
     grpc::ClientContext context;
+    if (!workerID_.empty()) context.AddMetadata("x-monitor-worker-id", workerID_);
+    if (!workerToken_.empty()) context.AddMetadata("x-monitor-worker-token", workerToken_);
     google::protobuf::Empty response;
     grpc::Status status = stub_->SetMonitorInfo(&context, info, &response);
 
