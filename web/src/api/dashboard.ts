@@ -1,4 +1,5 @@
 import { apiGet, rootGet } from "./client";
+import { getSelectedClusterId } from "../auth/session";
 import type {
   DetailKind,
   DetailResponseMap,
@@ -18,8 +19,20 @@ function serverPath(server: string): string {
   return encodeURIComponent(server);
 }
 
+function withCluster<T extends Record<string, unknown> | undefined>(
+  params?: T,
+) {
+  const clusterId = getSelectedClusterId();
+  return {
+    ...(params || {}),
+    ...(clusterId ? { cluster_id: clusterId } : {}),
+  };
+}
+
 export function getLatestScores(): Promise<QueryLatestScoreResponse> {
-  return apiGet<QueryLatestScoreResponse>("/servers/latest");
+  return apiGet<QueryLatestScoreResponse>("/servers/latest", {
+    params: withCluster(),
+  });
 }
 
 export function getScoreRank(params: {
@@ -27,13 +40,15 @@ export function getScoreRank(params: {
   page?: number;
   page_size?: number;
 }) {
-  return apiGet<QueryScoreRankResponse>("/servers/score-rank", { params });
+  return apiGet<QueryScoreRankResponse>("/servers/score-rank", {
+    params: withCluster(params),
+  });
 }
 
 export function getPerformance(server: string, params: PagedQueryParams) {
   return apiGet<QueryPerformanceResponse>(
     `/servers/${serverPath(server)}/performance`,
-    { params },
+    { params: withCluster(params) },
   );
 }
 
@@ -42,7 +57,7 @@ export function getTrend(
   params: TimeRangeParams & { interval_seconds?: number },
 ): Promise<QueryTrendResponse> {
   return apiGet<QueryTrendResponse>(`/servers/${serverPath(server)}/trend`, {
-    params,
+    params: withCluster(params),
   });
 }
 
@@ -67,7 +82,7 @@ export function getAnomalies(
 ): Promise<QueryAnomalyResponse> {
   return apiGet<QueryAnomalyResponse>(
     `/servers/${serverPath(server)}/anomalies`,
-    { params },
+    { params: withCluster(params) },
   );
 }
 
@@ -79,7 +94,7 @@ export function getDetail<K extends DetailKind>(
   const endpoint = kind === "softirq" ? "softirq-detail" : `${kind}-detail`;
   return apiGet<DetailResponseMap[K]>(
     `/servers/${serverPath(server)}/${endpoint}`,
-    { params },
+    { params: withCluster(params) },
   );
 }
 

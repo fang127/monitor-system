@@ -86,7 +86,9 @@ web/dist/
 
 ## 鉴权与角色
 
-前端启动后会先进入 `/login`。登录成功后，JWT 会保存在浏览器 `localStorage` 中，并自动附加到监控 API 和 AI 运维 API 请求的 `Authorization: Bearer <token>` 请求头。
+前端启动后会先进入 `/login`。登录成功后，JWT 会保存在浏览器 `localStorage` 中，并自动附加到监控 API 和 AI 运维 API 请求的 `Authorization: Bearer <token>` 请求头。登录表单支持填写 `tenant_id` 和 `team_id`；如果账号只有一个有效团队，后端会自动选择该团队，如果账号有多个团队则需要显式选择。
+
+登录态会保存当前租户、团队和可切换团队列表。侧栏会展示当前租户/团队，并在用户拥有多个团队时提供团队切换；切换成功后会刷新访问令牌。侧栏的“集群 ID”会作为当前集群过滤条件附加到监控查询和 AI 运维聊天请求中。
 
 `admin` 用户会看到“用户管理”入口，可创建 `admin` 或 `user` 账号；普通 `user` 只能访问监控与 AI 运维页面。
 

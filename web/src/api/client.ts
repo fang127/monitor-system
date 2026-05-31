@@ -1,8 +1,5 @@
 import axios, { type AxiosRequestConfig } from "axios";
-import {
-  getAuthToken,
-  redirectToLoginOnUnauthorized,
-} from "../auth/session";
+import { getAuthToken, redirectToLoginOnUnauthorized } from "../auth/session";
 import type { ApiEnvelope } from "../types/api";
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "/api";

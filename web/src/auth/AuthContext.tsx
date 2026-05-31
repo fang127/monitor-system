@@ -6,7 +6,10 @@ import {
   useMemo,
   useState,
 } from "react";
-import { login as loginRequest } from "../api/auth";
+import {
+  login as loginRequest,
+  switchTeam as switchTeamRequest,
+} from "../api/auth";
 import {
   clearAuthSession,
   getStoredSession,
@@ -18,7 +21,13 @@ import {
 type AuthContextValue = {
   session: AuthSession | null;
   user: AuthUser | null;
-  login: (username: string, password: string) => Promise<void>;
+  login: (
+    username: string,
+    password: string,
+    tenantId?: string,
+    teamId?: string,
+  ) => Promise<void>;
+  switchTeam: (tenantId: string, teamId: string) => Promise<void>;
   logout: () => void;
 };
 
@@ -29,8 +38,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     getStoredSession(),
   );
 
-  const login = useCallback(async (username: string, password: string) => {
-    const nextSession = await loginRequest({ username, password });
+  const login = useCallback(
+    async (
+      username: string,
+      password: string,
+      tenantId?: string,
+      teamId?: string,
+    ) => {
+      const nextSession = await loginRequest({
+        username,
+        password,
+        tenant_id: tenantId || undefined,
+        team_id: teamId || undefined,
+      });
+      saveAuthSession(nextSession);
+      setSession(nextSession);
+    },
+    [],
+  );
+
+  const switchTeam = useCallback(async (tenantId: string, teamId: string) => {
+    const nextSession = await switchTeamRequest({
+      tenant_id: tenantId,
+      team_id: teamId,
+    });
     saveAuthSession(nextSession);
     setSession(nextSession);
   }, []);
@@ -45,9 +76,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       user: session?.user || null,
       login,
+      switchTeam,
       logout,
     }),
-    [login, logout, session],
+    [login, logout, session, switchTeam],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

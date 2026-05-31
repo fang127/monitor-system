@@ -14,6 +14,8 @@ export function LoginPage() {
   const location = useLocation();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [tenantId, setTenantId] = useState("");
+  const [teamId, setTeamId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -26,7 +28,7 @@ export function LoginPage() {
     setError(null);
     setSubmitting(true);
     try {
-      await login(username, password);
+      await login(username, password, tenantId.trim(), teamId.trim());
       const state = location.state as LocationState | null;
       navigate(state?.from?.pathname || "/", { replace: true });
     } catch (err) {
@@ -62,6 +64,22 @@ export function LoginPage() {
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
+            />
+          </label>
+          <label>
+            租户 ID
+            <input
+              autoComplete="organization"
+              value={tenantId}
+              onChange={(event) => setTenantId(event.target.value)}
+            />
+          </label>
+          <label>
+            团队 ID
+            <input
+              autoComplete="organization-title"
+              value={teamId}
+              onChange={(event) => setTeamId(event.target.value)}
             />
           </label>
           {error ? <div className="auth-error">{error}</div> : null}

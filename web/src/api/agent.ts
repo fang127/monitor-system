@@ -1,6 +1,7 @@
 import axios, { type AxiosRequestConfig } from "axios";
 import {
   getAuthToken,
+  getSelectedClusterId,
   redirectToLoginOnUnauthorized,
 } from "../auth/session";
 
@@ -96,6 +97,7 @@ export function sendAgentChat(params: {
 }): Promise<AgentChatResponse> {
   return agentPost<AgentChatResponse>("/chat", {
     Id: params.id,
+    ClusterId: getSelectedClusterId() || undefined,
     Question: params.question,
   });
 }
@@ -136,6 +138,7 @@ export async function sendAgentChatStream(
       },
       body: JSON.stringify({
         Id: params.id,
+        ClusterId: getSelectedClusterId() || undefined,
         Question: params.question,
       }),
     });

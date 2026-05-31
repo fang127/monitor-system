@@ -4,6 +4,8 @@ import type { AuthRole, AuthSession, AuthUser } from "../auth/session";
 export type LoginParams = {
   username: string;
   password: string;
+  tenant_id?: string;
+  team_id?: string;
 };
 
 export type CreateUserParams = {
@@ -18,6 +20,13 @@ export function login(params: LoginParams): Promise<AuthSession> {
 
 export function getCurrentUser(): Promise<AuthUser> {
   return apiGet<AuthUser>("/auth/me");
+}
+
+export function switchTeam(params: {
+  tenant_id: string;
+  team_id: string;
+}): Promise<AuthSession> {
+  return apiPost<AuthSession>("/auth/switch-team", params);
 }
 
 export function createUser(params: CreateUserParams): Promise<AuthUser> {
