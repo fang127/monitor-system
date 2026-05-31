@@ -23,6 +23,20 @@ source configs/app.env
 set +a
 ```
 
+## 显式作用域初始化
+
+当前系统部署前需要按顺序执行根目录 `sql table` 下的身份、资产、监控事实和 agent 记忆 schema，并显式插入：
+
+- `tenants`：租户。
+- `teams`：团队，必须归属某个租户。
+- `users`：登录用户。
+- `user_team_memberships`：用户在团队内的角色和启用状态。
+- `clusters`：监控集群，必须归属租户和团队。
+- `servers`：服务器资产，必须归属租户、团队和集群。
+- `worker_registrations`：worker 稳定 ID、凭证、租户、团队、集群和服务器绑定关系。
+
+`api_gateway` 登录成功后签发带 `tenant_id` 和 `team_id` 的 JWT；`agent_service` 普通聊天只从 JWT 获取租户、团队和用户身份；`manager` 只从 `worker_registrations` 解析监控数据归属。
+
 ## 常见启动问题
 
 如果集群监控或服务器页面出现类似下面的错误：
