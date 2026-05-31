@@ -4,20 +4,13 @@
 CREATE DATABASE IF NOT EXISTS `monitor-system` DEFAULT CHARACTER SET utf8mb4;
 USE `monitor-system`;
 
--- 1. 后端登录用户表
-CREATE TABLE IF NOT EXISTS users (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(64) NOT NULL UNIQUE,
-    password_hash VARCHAR(255) NOT NULL,
-    role ENUM('admin','user') NOT NULL DEFAULT 'user',
-    status ENUM('active','disabled') NOT NULL DEFAULT 'active',
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP 
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- 2. 服务器性能汇总表（主表）
+-- 1. 服务器性能汇总表（主表）
 CREATE TABLE IF NOT EXISTS server_performance (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id VARCHAR(128) NOT NULL,
+    team_id VARCHAR(128) NOT NULL,
+    cluster_id VARCHAR(128) NOT NULL,
+    server_id BIGINT NULL,
     server_name VARCHAR(255) NOT NULL,
     -- CPU 指标
     cpu_percent FLOAT DEFAULT 0,              -- CPU总使用率，单位：%
@@ -69,6 +62,9 @@ CREATE TABLE IF NOT EXISTS server_performance (
     rcv_rate_rate FLOAT DEFAULT 0,            -- 接收速率变化率
     -- 时间戳
     timestamp DATETIME NOT NULL,              -- 采集时间
+    INDEX idx_scope_time(tenant_id, team_id, cluster_id, timestamp),
+    INDEX idx_scope_server_time(tenant_id, team_id, cluster_id, server_name, timestamp),
+    INDEX idx_server_id_time(server_id, timestamp),
     INDEX idx_server_time(server_name, timestamp),
     INDEX idx_score(score)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -76,6 +72,10 @@ CREATE TABLE IF NOT EXISTS server_performance (
 -- 3. 网络详细数据表
 CREATE TABLE IF NOT EXISTS server_net_detail (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id VARCHAR(128) NOT NULL,
+    team_id VARCHAR(128) NOT NULL,
+    cluster_id VARCHAR(128) NOT NULL,
+    server_id BIGINT NULL,
     server_name VARCHAR(255) NOT NULL,
     net_name VARCHAR(64) NOT NULL,              -- 网卡名称，如 eth0, ens33
     -- 错误和丢弃统计
@@ -100,12 +100,19 @@ CREATE TABLE IF NOT EXISTS server_net_detail (
     drop_out_rate FLOAT DEFAULT 0,              -- 发送丢弃数变化率
     -- 时间戳
     timestamp DATETIME NOT NULL,
+    INDEX idx_scope_time(tenant_id, team_id, cluster_id, timestamp),
+    INDEX idx_scope_server_time(tenant_id, team_id, cluster_id, server_name, timestamp),
+    INDEX idx_server_id_time(server_id, timestamp),
     INDEX idx_server_net_time(server_name, net_name, timestamp)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 4. 软中断详细数据表
 CREATE TABLE IF NOT EXISTS server_softirq_detail (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id VARCHAR(128) NOT NULL,
+    team_id VARCHAR(128) NOT NULL,
+    cluster_id VARCHAR(128) NOT NULL,
+    server_id BIGINT NULL,
     server_name VARCHAR(255) NOT NULL,
     cpu_name VARCHAR(64) NOT NULL,
     -- 软中断计数
@@ -132,12 +139,19 @@ CREATE TABLE IF NOT EXISTS server_softirq_detail (
     rcu_rate FLOAT DEFAULT 0,
     -- 时间戳
     timestamp DATETIME NOT NULL,
+    INDEX idx_scope_time(tenant_id, team_id, cluster_id, timestamp),
+    INDEX idx_scope_server_time(tenant_id, team_id, cluster_id, server_name, timestamp),
+    INDEX idx_server_id_time(server_id, timestamp),
     INDEX idx_server_cpu_time(server_name, cpu_name, timestamp)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 5. 内存详细数据表
 CREATE TABLE IF NOT EXISTS server_mem_detail (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id VARCHAR(128) NOT NULL,
+    team_id VARCHAR(128) NOT NULL,
+    cluster_id VARCHAR(128) NOT NULL,
+    server_id BIGINT NULL,
     server_name VARCHAR(255) NOT NULL,
     -- 内存指标
     total FLOAT DEFAULT 0,
@@ -181,6 +195,9 @@ CREATE TABLE IF NOT EXISTS server_mem_detail (
     sunreclaim_rate FLOAT DEFAULT 0,
     -- 时间戳
     timestamp DATETIME NOT NULL,
+    INDEX idx_scope_time(tenant_id, team_id, cluster_id, timestamp),
+    INDEX idx_scope_server_time(tenant_id, team_id, cluster_id, server_name, timestamp),
+    INDEX idx_server_id_time(server_id, timestamp),
     INDEX idx_server_time(server_name, timestamp),
     INDEX idx_mem_used(total, free, avail)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -188,6 +205,10 @@ CREATE TABLE IF NOT EXISTS server_mem_detail (
 -- 6. 磁盘详细数据表
 CREATE TABLE IF NOT EXISTS server_disk_detail (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id VARCHAR(128) NOT NULL,
+    team_id VARCHAR(128) NOT NULL,
+    cluster_id VARCHAR(128) NOT NULL,
+    server_id BIGINT NULL,
     server_name VARCHAR(255) NOT NULL,
     disk_name VARCHAR(64) NOT NULL,
     -- 磁盘计数器
@@ -218,12 +239,19 @@ CREATE TABLE IF NOT EXISTS server_disk_detail (
     util_percent_rate FLOAT DEFAULT 0,
     -- 时间戳
     timestamp DATETIME NOT NULL,
+    INDEX idx_scope_time(tenant_id, team_id, cluster_id, timestamp),
+    INDEX idx_scope_server_time(tenant_id, team_id, cluster_id, server_name, timestamp),
+    INDEX idx_server_id_time(server_id, timestamp),
     INDEX idx_server_disk_time(server_name, disk_name, timestamp)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 7. MySQL 实例详细数据表
 CREATE TABLE IF NOT EXISTS server_mysql_detail (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id VARCHAR(128) NOT NULL,
+    team_id VARCHAR(128) NOT NULL,
+    cluster_id VARCHAR(128) NOT NULL,
+    server_id BIGINT NULL,
     server_name VARCHAR(255) NOT NULL,
     instance VARCHAR(255) NOT NULL,
     mysql_host VARCHAR(255) NOT NULL,
@@ -263,6 +291,9 @@ CREATE TABLE IF NOT EXISTS server_mysql_detail (
     innodb_row_lock_waits_rate FLOAT DEFAULT 0, -- InnoDB行锁等待率，单位：%
     -- 时间戳
     timestamp DATETIME NOT NULL,
+    INDEX idx_scope_time(tenant_id, team_id, cluster_id, timestamp),
+    INDEX idx_scope_server_time(tenant_id, team_id, cluster_id, server_name, timestamp),
+    INDEX idx_server_id_time(server_id, timestamp),
     INDEX idx_server_mysql_time(server_name, instance, timestamp),
     INDEX idx_mysql_instance(instance, timestamp),
     INDEX idx_mysql_up(up, timestamp)
@@ -271,6 +302,10 @@ CREATE TABLE IF NOT EXISTS server_mysql_detail (
 -- 8. Redis 实例详细数据表
 CREATE TABLE IF NOT EXISTS server_redis_detail (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id VARCHAR(128) NOT NULL,
+    team_id VARCHAR(128) NOT NULL,
+    cluster_id VARCHAR(128) NOT NULL,
+    server_id BIGINT NULL,
     server_name VARCHAR(255) NOT NULL,
     instance VARCHAR(255) NOT NULL,
     redis_host VARCHAR(255) NOT NULL,
@@ -313,6 +348,9 @@ CREATE TABLE IF NOT EXISTS server_redis_detail (
     slowlog_len BIGINT UNSIGNED DEFAULT 0,
     slowlog_growth FLOAT DEFAULT 0,
     timestamp DATETIME NOT NULL,
+    INDEX idx_scope_time(tenant_id, team_id, cluster_id, timestamp),
+    INDEX idx_scope_server_time(tenant_id, team_id, cluster_id, server_name, timestamp),
+    INDEX idx_server_id_time(server_id, timestamp),
     INDEX idx_server_redis_time(server_name, instance, timestamp),
     INDEX idx_redis_instance(instance, timestamp),
     INDEX idx_redis_up(up, timestamp)
