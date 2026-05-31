@@ -8,16 +8,13 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-type UserStore interface {
-	FindByUsername(username string) (User, error)
-	Create(username string, passwordHash string, role Role) (User, error)
-}
-
 // 给前端返回的用户信息，不包含敏感字段
 type LoginResult struct {
-	AccessToken string    `json:"access_token"`
-	ExpiresAt   time.Time `json:"expires_at"`
-	User        User      `json:"user"`
+	AccessToken  string           `json:"access_token"`
+	ExpiresAt    time.Time        `json:"expires_at"`
+	User         User             `json:"user"`
+	CurrentScope TeamMembership   `json:"current_scope"`
+	Teams        []TeamMembership `json:"teams"`
 }
 
 type Service struct {
@@ -34,7 +31,7 @@ func NewService(store UserStore, tokenManager *TokenManager) *Service {
 }
 
 // Login 验证用户凭据并生成访问令牌
-func (s *Service) Login(username string, password string) (LoginResult, error) {
+func (s *Service) Login(username string, password string, tenantID string, teamID string) (LoginResult, error) {
 	if s == nil || s.store == nil || s.tokenManager == nil {
 		return LoginResult{}, errors.New("认证服务未配置")
 	}
@@ -54,15 +51,74 @@ func (s *Service) Login(username string, password string) (LoginResult, error) {
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
 		return LoginResult{}, ErrInvalidCredentials
 	}
-	token, expiresAt, err := s.tokenManager.Generate(user)
+	// 获取用户的团队成员关系并选择当前访问的团队范围
+	memberships, err := s.store.ListActiveMemberships(user.ID)
+	if err != nil {
+		return LoginResult{}, err
+	}
+	scope, err := selectMembership(memberships, tenantID, teamID)
+	if err != nil {
+		return LoginResult{}, err
+	}
+	token, expiresAt, err := s.tokenManager.Generate(user, scope)
 	if err != nil {
 		return LoginResult{}, err
 	}
 	return LoginResult{
-		AccessToken: token,
-		ExpiresAt:   expiresAt,
-		User:        sanitizeUser(user),
+		AccessToken:  token,
+		ExpiresAt:    expiresAt,
+		User:         sanitizeUser(user),
+		CurrentScope: scope,
+		Teams:        memberships,
 	}, nil
+}
+
+// SwitchTeam 切换当前访问团队并重新签发带作用域的访问令牌。
+func (s *Service) SwitchTeam(claims Claims, tenantID string, teamID string) (LoginResult, error) {
+	if s == nil || s.store == nil || s.tokenManager == nil {
+		return LoginResult{}, errors.New("认证服务未配置")
+	}
+	memberships, err := s.store.ListActiveMemberships(claims.UserID)
+	if err != nil {
+		return LoginResult{}, err
+	}
+	scope, err := selectMembership(memberships, tenantID, teamID)
+	if err != nil {
+		return LoginResult{}, err
+	}
+	user := User{
+		ID:       claims.UserID,
+		Username: claims.Username,
+		Role:     claims.Role,
+		Status:   StatusActive,
+	}
+	token, expiresAt, err := s.tokenManager.Generate(user, scope)
+	if err != nil {
+		return LoginResult{}, err
+	}
+	return LoginResult{
+		AccessToken:  token,
+		ExpiresAt:    expiresAt,
+		User:         sanitizeUser(user),
+		CurrentScope: scope,
+		Teams:        memberships,
+	}, nil
+}
+
+// CurrentContext 返回当前令牌对应的团队上下文和用户可切换团队列表。
+func (s *Service) CurrentContext(claims Claims) (TeamMembership, []TeamMembership, error) {
+	if s == nil || s.store == nil {
+		return TeamMembership{}, nil, errors.New("认证服务未配置")
+	}
+	memberships, err := s.store.ListActiveMemberships(claims.UserID)
+	if err != nil {
+		return TeamMembership{}, nil, err
+	}
+	scope, err := selectMembership(memberships, claims.TenantID, claims.TeamID)
+	if err != nil {
+		return TeamMembership{}, nil, err
+	}
+	return scope, memberships, nil
 }
 
 // CreateUser 创建一个新用户，返回创建的用户信息（不包含密码哈希）
@@ -95,4 +151,28 @@ func (s *Service) CreateUser(username string, password string, role Role) (User,
 func sanitizeUser(user User) User {
 	user.PasswordHash = ""
 	return user
+}
+
+// selectMembership 根据提供的租户ID和团队ID从用户的团队成员关系列表中选择一个匹配的成员关系
+func selectMembership(memberships []TeamMembership, tenantID string, teamID string) (TeamMembership, error) {
+	tenantID = strings.TrimSpace(tenantID)
+	teamID = strings.TrimSpace(teamID)
+	if len(memberships) == 0 {
+		return TeamMembership{}, ErrNoActiveTeam
+	}
+	if tenantID == "" && teamID == "" {
+		if len(memberships) == 1 {
+			return memberships[0], nil
+		}
+		return TeamMembership{}, ErrTeamRequired
+	}
+	if tenantID == "" || teamID == "" {
+		return TeamMembership{}, ErrTeamRequired
+	}
+	for _, membership := range memberships {
+		if membership.TenantID == tenantID && membership.TeamID == teamID {
+			return membership, nil
+		}
+	}
+	return TeamMembership{}, ErrForbidden
 }

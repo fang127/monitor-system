@@ -15,7 +15,8 @@ import (
 )
 
 type memoryUserStore struct {
-	users map[string]auth.User
+	users       map[string]auth.User
+	memberships map[int64][]auth.TeamMembership
 }
 
 func newMemoryUserStore() *memoryUserStore {
@@ -23,7 +24,7 @@ func newMemoryUserStore() *memoryUserStore {
 	if err != nil {
 		panic(err)
 	}
-	return &memoryUserStore{
+	store := &memoryUserStore{
 		users: map[string]auth.User{
 			"admin": {
 				ID:           1,
@@ -41,6 +42,16 @@ func newMemoryUserStore() *memoryUserStore {
 			},
 		},
 	}
+	store.memberships = map[int64][]auth.TeamMembership{
+		1: {
+			{TenantID: "tenant-a", TenantName: "租户 A", TeamID: "ops", TeamName: "运维团队", MemberRole: auth.MemberRoleAdmin, Status: auth.StatusActive},
+			{TenantID: "tenant-a", TenantName: "租户 A", TeamID: "db", TeamName: "数据库团队", MemberRole: auth.MemberRoleAdmin, Status: auth.StatusActive},
+		},
+		2: {
+			{TenantID: "tenant-a", TenantName: "租户 A", TeamID: "ops", TeamName: "运维团队", MemberRole: auth.MemberRoleViewer, Status: auth.StatusActive},
+		},
+	}
+	return store
 }
 
 func (s *memoryUserStore) FindByUsername(username string) (auth.User, error) {
@@ -49,6 +60,10 @@ func (s *memoryUserStore) FindByUsername(username string) (auth.User, error) {
 		return auth.User{}, auth.ErrInvalidCredentials
 	}
 	return user, nil
+}
+
+func (s *memoryUserStore) ListActiveMemberships(userID int64) ([]auth.TeamMembership, error) {
+	return append([]auth.TeamMembership(nil), s.memberships[userID]...), nil
 }
 
 func (s *memoryUserStore) Create(username string, password string, role auth.Role) (auth.User, error) {
@@ -60,6 +75,9 @@ func (s *memoryUserStore) Create(username string, password string, role auth.Rol
 		Status:       auth.StatusActive,
 	}
 	s.users[username] = user
+	s.memberships[user.ID] = []auth.TeamMembership{
+		{TenantID: "tenant-a", TenantName: "租户 A", TeamID: "ops", TeamName: "运维团队", MemberRole: auth.MemberRoleMember, Status: auth.StatusActive},
+	}
 	return user, nil
 }
 
@@ -86,6 +104,31 @@ func TestRouterProtectsMonitorAPIsAndKeepsPublicEndpoints(t *testing.T) {
 	}
 }
 
+func TestMonitorAPIsRejectMismatchedScopeQuery(t *testing.T) {
+	store := newMemoryUserStore()
+	router := NewRouter(config.Config{
+		Mode:         "test",
+		Version:      "v-test",
+		JWTSecret:    "test-secret",
+		JWTAccessTTL: time.Hour,
+	}, nil, RouterOptions{
+		UserStore: store,
+	})
+	tokenManager := auth.NewTokenManager("test-secret", time.Hour)
+	token, _, err := tokenManager.Generate(store.users["viewer"], store.memberships[2][0])
+	if err != nil {
+		t.Fatalf("生成普通用户 token 失败: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/servers/latest?tenant_id=tenant-b", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+	if resp.Code != http.StatusForbidden {
+		t.Fatalf("越权租户查询状态码 = %d, body = %s", resp.Code, resp.Body.String())
+	}
+}
+
 func TestLoginReturnsBearerTokenAndMeUsesClaims(t *testing.T) {
 	router := NewRouter(config.Config{
 		Mode:         "test",
@@ -96,7 +139,7 @@ func TestLoginReturnsBearerTokenAndMeUsesClaims(t *testing.T) {
 		UserStore: newMemoryUserStore(),
 	})
 
-	body := bytes.NewBufferString(`{"username":"admin","password":"secret"}`)
+	body := bytes.NewBufferString(`{"username":"admin","password":"secret","tenant_id":"tenant-a","team_id":"ops"}`)
 	login := httptest.NewRecorder()
 	router.ServeHTTP(login, httptest.NewRequest(http.MethodPost, "/api/auth/login", body))
 	if login.Code != http.StatusOK {
@@ -105,8 +148,12 @@ func TestLoginReturnsBearerTokenAndMeUsesClaims(t *testing.T) {
 	var loginPayload struct {
 		Code int `json:"code"`
 		Data struct {
-			AccessToken string `json:"access_token"`
-			User        struct {
+			AccessToken  string `json:"access_token"`
+			CurrentScope struct {
+				TenantID string `json:"tenant_id"`
+				TeamID   string `json:"team_id"`
+			} `json:"current_scope"`
+			User struct {
 				Username string `json:"username"`
 				Role     string `json:"role"`
 			} `json:"user"`
@@ -118,6 +165,9 @@ func TestLoginReturnsBearerTokenAndMeUsesClaims(t *testing.T) {
 	if loginPayload.Data.AccessToken == "" {
 		t.Fatal("登录响应缺少 access_token")
 	}
+	if loginPayload.Data.CurrentScope.TenantID != "tenant-a" || loginPayload.Data.CurrentScope.TeamID != "ops" {
+		t.Fatalf("登录作用域 = %+v, 不正确", loginPayload.Data.CurrentScope)
+	}
 	if loginPayload.Data.User.Username != "admin" || loginPayload.Data.User.Role != string(auth.RoleAdmin) {
 		t.Fatalf("登录用户信息 = %+v, 不正确", loginPayload.Data.User)
 	}
@@ -128,6 +178,63 @@ func TestLoginReturnsBearerTokenAndMeUsesClaims(t *testing.T) {
 	router.ServeHTTP(me, meReq)
 	if me.Code != http.StatusOK {
 		t.Fatalf("/api/auth/me 状态码 = %d, body = %s", me.Code, me.Body.String())
+	}
+	var mePayload struct {
+		Data struct {
+			CurrentScope struct {
+				TenantID string `json:"tenant_id"`
+				TeamID   string `json:"team_id"`
+			} `json:"current_scope"`
+			Teams []struct {
+				TeamID string `json:"team_id"`
+			} `json:"teams"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(me.Body.Bytes(), &mePayload); err != nil {
+		t.Fatalf("解析 /api/auth/me 响应失败: %v", err)
+	}
+	if mePayload.Data.CurrentScope.TeamID != "ops" || len(mePayload.Data.Teams) != 2 {
+		t.Fatalf("/api/auth/me 作用域 = %+v, teams=%+v", mePayload.Data.CurrentScope, mePayload.Data.Teams)
+	}
+}
+
+func TestSwitchTeamIssuesScopedToken(t *testing.T) {
+	store := newMemoryUserStore()
+	router := NewRouter(config.Config{
+		Mode:         "test",
+		Version:      "v-test",
+		JWTSecret:    "test-secret",
+		JWTAccessTTL: time.Hour,
+	}, nil, RouterOptions{
+		UserStore: store,
+	})
+	tokenManager := auth.NewTokenManager("test-secret", time.Hour)
+	adminToken, _, err := tokenManager.Generate(store.users["admin"], store.memberships[1][0])
+	if err != nil {
+		t.Fatalf("生成管理员 token 失败: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/switch-team", bytes.NewBufferString(`{"tenant_id":"tenant-a","team_id":"db"}`))
+	req.Header.Set("Authorization", "Bearer "+adminToken)
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("切换团队状态码 = %d, body = %s", resp.Code, resp.Body.String())
+	}
+	var payload struct {
+		Data struct {
+			AccessToken  string `json:"access_token"`
+			CurrentScope struct {
+				TenantID string `json:"tenant_id"`
+				TeamID   string `json:"team_id"`
+			} `json:"current_scope"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("解析切换团队响应失败: %v", err)
+	}
+	if payload.Data.CurrentScope.TeamID != "db" || payload.Data.AccessToken == "" {
+		t.Fatalf("切换团队响应不正确: %+v", payload.Data.CurrentScope)
 	}
 }
 
@@ -142,11 +249,11 @@ func TestCreateUserRequiresAdminRole(t *testing.T) {
 		UserStore: store,
 	})
 	tokenManager := auth.NewTokenManager("test-secret", time.Hour)
-	userToken, _, err := tokenManager.Generate(store.users["viewer"])
+	userToken, _, err := tokenManager.Generate(store.users["viewer"], store.memberships[2][0])
 	if err != nil {
 		t.Fatalf("生成普通用户 token 失败: %v", err)
 	}
-	adminToken, _, err := tokenManager.Generate(store.users["admin"])
+	adminToken, _, err := tokenManager.Generate(store.users["admin"], store.memberships[1][0])
 	if err != nil {
 		t.Fatalf("生成管理员 token 失败: %v", err)
 	}

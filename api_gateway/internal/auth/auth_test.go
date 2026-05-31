@@ -12,6 +12,9 @@ func TestTokenManagerGeneratesAndParsesUserClaims(t *testing.T) {
 		ID:       42,
 		Username: "alice",
 		Role:     RoleAdmin,
+	}, TeamMembership{
+		TenantID: "tenant-a",
+		TeamID:   "team-a",
 	})
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
@@ -27,7 +30,7 @@ func TestTokenManagerGeneratesAndParsesUserClaims(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)
 	}
-	if claims.UserID != 42 || claims.Username != "alice" || claims.Role != RoleAdmin {
+	if claims.UserID != 42 || claims.Username != "alice" || claims.Role != RoleAdmin || claims.TenantID != "tenant-a" || claims.TeamID != "team-a" {
 		t.Fatalf("claims = %+v, 用户信息不正确", claims)
 	}
 }
@@ -38,6 +41,9 @@ func TestTokenManagerRejectsExpiredToken(t *testing.T) {
 		ID:       7,
 		Username: "expired",
 		Role:     RoleUser,
+	}, TeamMembership{
+		TenantID: "tenant-a",
+		TeamID:   "team-a",
 	})
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)

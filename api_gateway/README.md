@@ -8,6 +8,7 @@
 - `GET /api/version`：服务版本信息
 - `POST /api/auth/login`：用户名密码登录，返回 JWT
 - `GET /api/auth/me`：返回当前登录用户
+- `POST /api/auth/switch-team`：切换当前团队并重新签发带作用域的 JWT
 - `POST /api/users`：管理员创建用户
 - `GET /api/servers/latest`：查询所有服务器最新评分和集群统计
 - `GET /api/servers/score-rank`：查询服务器评分排序
@@ -70,7 +71,9 @@ curl http://127.0.0.1:8080/api/servers/latest \
 
 首次启动时，服务会确保 `users` 表存在。如果用户表为空，会读取 `ADMIN_USERNAME` 和 `ADMIN_PASSWORD` 创建第一个 `admin` 用户。后续可由 `admin` 调用 `POST /api/users` 创建 `admin` 或 `user` 账号。
 
-`users` 表的建表脚本也集中在根目录 `sql table/init_server_performance.sql`，表说明见 [sql table/README.md](../sql%20table/README.md)。运行时的 GORM 自动迁移用于兜底确保登录表存在，不替代根 SQL 目录中的统一表结构说明。
+`users`、`tenants`、`teams` 和 `user_team_memberships` 的建表脚本集中在根目录 `sql table/identity_access_schema.sql`，表说明见 [sql table/README.md](../sql%20table/README.md)。运行时的 GORM 自动迁移用于兜底确保身份表存在，不替代根 SQL 目录中的统一表结构说明。
+
+登录时必须能解析到一个有效团队。若用户属于多个团队，客户端需要在登录请求中传入 `tenant_id` 和 `team_id`；如果只属于一个团队，服务会自动选中该团队。签发后的 JWT 包含 `tenant_id` 和 `team_id`，所有监控查询都会把该作用域转发给 manager，并拒绝普通用户通过查询参数访问其他租户或团队。
 
 ## 运行
 

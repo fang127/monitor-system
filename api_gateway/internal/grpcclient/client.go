@@ -99,6 +99,7 @@ func (c *Client) Latest(ctx context.Context) (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
+	setQueryScope(req, ctx)
 	resp, err := newMessage("QueryLatestScoreResponse")
 	if err != nil {
 		return nil, err
@@ -115,6 +116,7 @@ func (c *Client) Performance(ctx context.Context, server string, opts Performanc
 	setString(req, "server_name", server)
 	setTimeRange(req, "time_range", opts.TimeRange)
 	setPagination(req, "pagination", opts.Page, opts.PageSize)
+	setQueryScope(req, ctx)
 
 	resp, err := newMessage("QueryPerformanceResponse")
 	if err != nil {
@@ -134,6 +136,7 @@ func (c *Client) Trend(ctx context.Context, server string, opts TrendOptions) (j
 	if opts.IntervalSeconds > 0 {
 		setInt32(req, "interval_seconds", opts.IntervalSeconds)
 	}
+	setQueryScope(req, ctx)
 
 	resp, err := newMessage("QueryTrendResponse")
 	if err != nil {
@@ -165,6 +168,7 @@ func (c *Client) Anomalies(ctx context.Context, server string, opts AnomalyOptio
 	setFloat32(req, "redis_replication_lag_threshold", opts.RedisReplicationLagThreshold)
 	setFloat32(req, "redis_slowlog_growth_threshold", opts.RedisSlowlogGrowthThreshold)
 	setPagination(req, "pagination", opts.Page, opts.PageSize)
+	setQueryScope(req, ctx)
 
 	resp, err := newMessage("QueryAnomalyResponse")
 	if err != nil {
@@ -181,6 +185,7 @@ func (c *Client) ScoreRank(ctx context.Context, opts ScoreRankOptions) (json.Raw
 	}
 	setEnum(req, "order", opts.Order)
 	setPagination(req, "pagination", opts.Page, opts.PageSize)
+	setQueryScope(req, ctx)
 
 	resp, err := newMessage("QueryScoreRankResponse")
 	if err != nil {
@@ -228,6 +233,7 @@ func (c *Client) detail(ctx context.Context, method string, responseName protore
 	setString(req, "server_name", server)
 	setTimeRange(req, "time_range", opts.TimeRange)
 	setPagination(req, "pagination", opts.Page, opts.PageSize)
+	setQueryScope(req, ctx)
 
 	resp, err := newMessage(responseName)
 	if err != nil {
@@ -291,6 +297,24 @@ func setTimeRange(msg *dynamicpb.Message, name protoreflect.Name, value TimeRang
 	setTimestamp(rangeMsg, "start_time", value.Start)
 	setTimestamp(rangeMsg, "end_time", value.End)
 	msg.Set(field, protoreflect.ValueOfMessage(rangeMsg))
+}
+
+func setQueryScope(msg *dynamicpb.Message, ctx context.Context) {
+	field := msg.Descriptor().Fields().ByName("scope")
+	if field == nil {
+		return
+	}
+	scope, ok := ScopeFromContext(ctx)
+	if !ok || scope.TenantID == "" || scope.TeamID == "" {
+		return
+	}
+	scopeMsg := dynamicpb.NewMessage(field.Message())
+	setString(scopeMsg, "tenant_id", scope.TenantID)
+	setString(scopeMsg, "team_id", scope.TeamID)
+	if scope.ClusterID != "" {
+		setString(scopeMsg, "cluster_id", scope.ClusterID)
+	}
+	msg.Set(field, protoreflect.ValueOfMessage(scopeMsg))
 }
 
 func setTimestamp(msg *dynamicpb.Message, name protoreflect.Name, value time.Time) {

@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"monitor-system/api_gateway/internal/auth"
 	"monitor-system/api_gateway/internal/grpcclient"
 	"monitor-system/api_gateway/internal/response"
 )
@@ -31,7 +32,11 @@ func NewQueryHandler(client *grpcclient.Client, managerAddr string) *QueryHandle
 
 // Latest 处理查询最新监控数据的请求
 func (h *QueryHandler) Latest(c *gin.Context) {
-	data, err := h.client.Latest(c.Request.Context())
+	ctx, ok := h.scopedContext(c)
+	if !ok {
+		return
+	}
+	data, err := h.client.Latest(ctx)
 	h.writeGRPCResult(c, data, err)
 }
 
@@ -45,8 +50,12 @@ func (h *QueryHandler) Performance(c *gin.Context) {
 	if !ok {
 		return
 	}
+	ctx, ok := h.scopedContext(c)
+	if !ok {
+		return
+	}
 
-	data, err := h.client.Performance(c.Request.Context(), c.Param("server"), grpcclient.PerformanceOptions{
+	data, err := h.client.Performance(ctx, c.Param("server"), grpcclient.PerformanceOptions{
 		TimeRange: timeRange,
 		Page:      page,
 		PageSize:  pageSize,
@@ -65,8 +74,12 @@ func (h *QueryHandler) Trend(c *gin.Context) {
 	if !ok {
 		return
 	}
+	ctx, ok := h.scopedContext(c)
+	if !ok {
+		return
+	}
 
-	data, err := h.client.Trend(c.Request.Context(), c.Param("server"), grpcclient.TrendOptions{
+	data, err := h.client.Trend(ctx, c.Param("server"), grpcclient.TrendOptions{
 		TimeRange:       timeRange,
 		IntervalSeconds: intervalSeconds,
 	})
@@ -144,8 +157,12 @@ func (h *QueryHandler) Anomalies(c *gin.Context) {
 	if !ok {
 		return
 	}
+	ctx, ok := h.scopedContext(c)
+	if !ok {
+		return
+	}
 
-	data, err := h.client.Anomalies(c.Request.Context(), c.Param("server"), grpcclient.AnomalyOptions{
+	data, err := h.client.Anomalies(ctx, c.Param("server"), grpcclient.AnomalyOptions{
 		TimeRange:                    timeRange,
 		CPUThreshold:                 cpuThreshold,
 		MemThreshold:                 memThreshold,
@@ -177,8 +194,12 @@ func (h *QueryHandler) ScoreRank(c *gin.Context) {
 	if !ok {
 		return
 	}
+	ctx, ok := h.scopedContext(c)
+	if !ok {
+		return
+	}
 
-	data, err := h.client.ScoreRank(c.Request.Context(), grpcclient.ScoreRankOptions{
+	data, err := h.client.ScoreRank(ctx, grpcclient.ScoreRankOptions{
 		Order:    order,
 		Page:     page,
 		PageSize: pageSize,
@@ -226,13 +247,39 @@ func (h *QueryHandler) detail(c *gin.Context, call func(ctx context.Context, ser
 	if !ok {
 		return
 	}
+	ctx, ok := h.scopedContext(c)
+	if !ok {
+		return
+	}
 
-	data, err := call(c.Request.Context(), c.Param("server"), grpcclient.DetailOptions{
+	data, err := call(ctx, c.Param("server"), grpcclient.DetailOptions{
 		TimeRange: timeRange,
 		Page:      page,
 		PageSize:  pageSize,
 	})
 	h.writeGRPCResult(c, data, err)
+}
+
+// scopedContext 从HTTP请求中提取认证信息，并根据查询参数中的租户ID、团队ID和集群ID构建一个带有访问范围的gRPC上下文。如果认证信息缺失或查询参数中的范围不合法，函数会直接返回错误响应并返回false。
+func (h *QueryHandler) scopedContext(c *gin.Context) (context.Context, bool) {
+	claims, ok := auth.CurrentClaims(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "未登录或登录已过期")
+		return nil, false
+	}
+	if tenantID := strings.TrimSpace(c.Query("tenant_id")); tenantID != "" && tenantID != claims.TenantID {
+		response.Error(c, http.StatusForbidden, "无权访问指定租户的监控数据")
+		return nil, false
+	}
+	if teamID := strings.TrimSpace(c.Query("team_id")); teamID != "" && teamID != claims.TeamID {
+		response.Error(c, http.StatusForbidden, "无权访问指定团队的监控数据")
+		return nil, false
+	}
+	return grpcclient.ContextWithScope(c.Request.Context(), grpcclient.Scope{
+		TenantID:  claims.TenantID,
+		TeamID:    claims.TeamID,
+		ClusterID: strings.TrimSpace(c.Query("cluster_id")),
+	}), true
 }
 
 // parseTimeRange 从查询参数中解析时间范围，支持两种格式：

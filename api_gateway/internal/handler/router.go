@@ -42,6 +42,7 @@ func NewRouter(cfg config.Config, queryClient *grpcclient.Client, opts ...Router
 	api := router.Group("/api")                                                  // 创建一个/api前缀的路由组
 	api.Use(auth.Middleware(tokenManager))                                       // 应用认证中间件
 	api.GET("/auth/me", authHandler.Me)                                          // 获取当前用户信息
+	api.POST("/auth/switch-team", authHandler.SwitchTeam)                        // 切换当前访问团队
 	api.POST("/users", auth.RequireRole(auth.RoleAdmin), authHandler.CreateUser) // 只有管理员可以创建用户
 
 	api.GET("/servers/latest", queryHandler.Latest)

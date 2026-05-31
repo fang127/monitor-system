@@ -12,6 +12,8 @@ type tokenClaims struct {
 	UserID   int64  `json:"user_id"`
 	Username string `json:"username"`
 	Role     Role   `json:"role"`
+	TenantID string `json:"tenant_id"`
+	TeamID   string `json:"team_id"`
 	jwt.RegisteredClaims
 }
 
@@ -30,9 +32,12 @@ func NewTokenManager(secret string, ttl time.Duration) *TokenManager {
 }
 
 // Generate生成一个新的JWT，返回token字符串和过期时间
-func (m *TokenManager) Generate(user User) (string, time.Time, error) {
+func (m *TokenManager) Generate(user User, scope TeamMembership) (string, time.Time, error) {
 	if len(m.secret) == 0 {
 		return "", time.Time{}, errors.New("JWT_SECRET 不能为空")
+	}
+	if scope.TenantID == "" || scope.TeamID == "" {
+		return "", time.Time{}, ErrTeamRequired
 	}
 	now := time.Now()
 	expiresAt := now.Add(m.ttl)
@@ -40,6 +45,8 @@ func (m *TokenManager) Generate(user User) (string, time.Time, error) {
 		UserID:   user.ID,
 		Username: user.Username,
 		Role:     user.Role,
+		TenantID: scope.TenantID,
+		TeamID:   scope.TeamID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   user.Username,
 			IssuedAt:  jwt.NewNumericDate(now),
@@ -72,12 +79,14 @@ func (m *TokenManager) Parse(rawToken string) (Claims, error) {
 	if err != nil || token == nil || !token.Valid {
 		return Claims{}, ErrInvalidToken
 	}
-	if claims.UserID == 0 || claims.Username == "" || claims.Role == "" {
+	if claims.UserID == 0 || claims.Username == "" || claims.Role == "" || claims.TenantID == "" || claims.TeamID == "" {
 		return Claims{}, ErrInvalidToken
 	}
 	return Claims{
 		UserID:   claims.UserID,
 		Username: claims.Username,
 		Role:     claims.Role,
+		TenantID: claims.TenantID,
+		TeamID:   claims.TeamID,
 	}, nil
 }
