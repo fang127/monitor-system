@@ -45,6 +45,9 @@ func NewManager(cfg MemoryConfig, store MemoryStore, index VectorIndex) *InMemor
 // LoadContext 读取会话摘要、最近消息和可召回的长期记忆。
 func (m *InMemoryManager) LoadContext(ctx context.Context, scope MemoryScope, query string) (*MemoryContext, error) {
 	scope = scope.Normalized()
+	if err := ValidateSessionScope(scope); err != nil {
+		return nil, err
+	}
 	policy, err := ResolvePolicy(ctx, m.store, m.cfg, scope)
 	if err != nil {
 		return nil, err
@@ -73,6 +76,9 @@ func (m *InMemoryManager) LoadContext(ctx context.Context, scope MemoryScope, qu
 // AppendTurn 追加一轮用户和助手消息，并更新会话摘要。
 func (m *InMemoryManager) AppendTurn(ctx context.Context, scope MemoryScope, userMessage string, assistantMessage string) error {
 	scope = scope.Normalized()
+	if err := ValidateSessionScope(scope); err != nil {
+		return err
+	}
 	policy, err := ResolvePolicy(ctx, m.store, m.cfg, scope)
 	if err != nil {
 		return err
@@ -98,6 +104,9 @@ func (m *InMemoryManager) AppendTurn(ctx context.Context, scope MemoryScope, use
 // SummarizeSession 使用确定性摘要保留当前会话的关键信息。
 func (m *InMemoryManager) SummarizeSession(ctx context.Context, scope MemoryScope) error {
 	scope = scope.Normalized()
+	if err := ValidateSessionScope(scope); err != nil {
+		return err
+	}
 	policy, err := ResolvePolicy(ctx, m.store, m.cfg, scope)
 	if err != nil {
 		return err
@@ -135,6 +144,9 @@ func (m *InMemoryManager) SummarizeSession(ctx context.Context, scope MemoryScop
 // ExtractDurableMemories 从当前会话中抽取候选长期记忆，默认只接受稳定且低风险的显式表达。
 func (m *InMemoryManager) ExtractDurableMemories(ctx context.Context, scope MemoryScope) error {
 	scope = scope.Normalized()
+	if err := ValidateSessionScope(scope); err != nil {
+		return err
+	}
 	policy, err := ResolvePolicy(ctx, m.store, m.cfg, scope)
 	if err != nil {
 		return err
@@ -172,6 +184,10 @@ func (m *InMemoryManager) ExtractDurableMemories(ctx context.Context, scope Memo
 
 // SetLongTermEnabled 同时设置某个作用域的长期记忆写入和召回开关。
 func (m *InMemoryManager) SetLongTermEnabled(ctx context.Context, scope MemoryScope, enabled bool) error {
+	scope = scope.Normalized()
+	if err := ValidateMemoryScope(scope); err != nil {
+		return err
+	}
 	level := scope.MostSpecificPolicyLevel()
 	return m.SetPolicy(ctx, level, scope, MemoryPolicy{
 		LongTermEnabled: boolPtr(enabled),
@@ -182,16 +198,26 @@ func (m *InMemoryManager) SetLongTermEnabled(ctx context.Context, scope MemorySc
 
 // SetPolicy 设置指定层级的策略覆盖项。
 func (m *InMemoryManager) SetPolicy(ctx context.Context, level ScopeLevel, scope MemoryScope, policy MemoryPolicy) error {
+	scope = scope.Normalized()
+	if err := ValidatePolicyScope(level, scope); err != nil {
+		return err
+	}
 	return m.store.SetPolicy(ctx, level, scope, policy)
 }
 
 // ListMemories 查询长期记忆。
 func (m *InMemoryManager) ListMemories(ctx context.Context, selector MemorySelector) ([]LongTermMemory, error) {
+	if err := ValidateMemoryScope(selector.Scope); err != nil {
+		return nil, err
+	}
 	return m.store.ListLongTermMemories(ctx, selector)
 }
 
 // DeleteMemories 删除长期记忆并清理向量索引。
 func (m *InMemoryManager) DeleteMemories(ctx context.Context, selector MemorySelector) error {
+	if err := ValidateMemoryScope(selector.Scope); err != nil {
+		return err
+	}
 	items, err := m.store.ListLongTermMemories(ctx, selector)
 	if err != nil {
 		return err
@@ -226,6 +252,9 @@ func (m *InMemoryManager) DeleteMemories(ctx context.Context, selector MemorySel
 
 // RetryDeletingMemories 重试处于 deleting 状态的记忆向量清理，并在成功后标记为 deleted。
 func (m *InMemoryManager) RetryDeletingMemories(ctx context.Context, selector MemorySelector) error {
+	if err := ValidateMemoryScope(selector.Scope); err != nil {
+		return err
+	}
 	selector.Status = LongTermStatusDeleting
 	selector.IncludeDeleted = true
 	items, err := m.store.ListLongTermMemories(ctx, selector)
@@ -315,6 +344,9 @@ func NewInMemoryStore() *InMemoryStore {
 func (s *InMemoryStore) LoadSession(ctx context.Context, scope MemoryScope) (*SessionMemory, error) {
 	_ = ctx
 	scope = scope.Normalized()
+	if err := ValidateSessionScope(scope); err != nil {
+		return nil, err
+	}
 	key := scope.SessionKey()
 	s.mu.RLock()
 	session, ok := s.sessions[key]
@@ -332,6 +364,9 @@ func (s *InMemoryStore) SaveSession(ctx context.Context, session *SessionMemory)
 		return nil
 	}
 	session.Scope = session.Scope.Normalized()
+	if err := ValidateSessionScope(session.Scope); err != nil {
+		return err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.sessions[session.Scope.SessionKey()] = cloneSession(session)
@@ -374,11 +409,14 @@ func (s *InMemoryStore) SaveLongTermMemory(ctx context.Context, item LongTermMem
 	if item.Status == "" {
 		item.Status = LongTermStatusActive
 	}
+	item.Scope = item.Scope.Normalized()
+	if err := ValidateMemoryScope(item.Scope); err != nil {
+		return LongTermMemory{}, err
+	}
 	if item.CreatedAt.IsZero() {
 		item.CreatedAt = now
 	}
 	item.UpdatedAt = now
-	item.Scope = item.Scope.Normalized()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.longTerm[item.ID] = item
@@ -389,6 +427,9 @@ func (s *InMemoryStore) SaveLongTermMemory(ctx context.Context, item LongTermMem
 func (s *InMemoryStore) ListLongTermMemories(ctx context.Context, selector MemorySelector) ([]LongTermMemory, error) {
 	_ = ctx
 	selector.Scope = selector.Scope.Normalized()
+	if err := ValidateMemoryScope(selector.Scope); err != nil {
+		return nil, err
+	}
 	now := time.Now()
 	s.mu.RLock()
 	defer s.mu.RUnlock()

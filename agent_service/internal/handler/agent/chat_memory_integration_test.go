@@ -149,3 +149,35 @@ func TestChatStreamAppendsMemory(t *testing.T) {
 		t.Fatalf("流式聊天完成后应追加一轮消息，got=%d", len(memCtx.RecentMessages))
 	}
 }
+
+func TestChatRejectsMissingMemoryScope(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	manager := memory.NewInMemoryManager(memory.DefaultConfig())
+	runner := &fakeChatRunner{response: "不应调用"}
+	controller := NewV1WithMemoryManager(manager)
+	controller.chatBuilder = func(ctx context.Context) (compose.Runnable[*chat.UserMessage, *schema.Message], error) {
+		return runner, nil
+	}
+	router := gin.New()
+	controller.RegisterRoutes(router.Group("/api/agent"))
+
+	body := bytes.NewBufferString(`{"Id":"s1","TeamId":"team-a","Question":"当前状态如何"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/agent/chat", body)
+	req.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	var res struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &res); err != nil {
+		t.Fatalf("解析响应失败: %v", err)
+	}
+	if res.Code == 0 || res.Message != "租户 ID 不能为空" {
+		t.Fatalf("缺少租户时应返回错误，body=%s", recorder.Body.String())
+	}
+	if len(runner.inputs) != 0 {
+		t.Fatalf("作用域无效时不应调用模型，got=%d", len(runner.inputs))
+	}
+}

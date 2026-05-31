@@ -9,18 +9,21 @@ import (
 	"github.com/google/uuid"
 )
 
+// 敏感信息的正则模式列表，用于过滤掉可能包含敏感数据的长期记忆内容。
 var sensitivePatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)(password|passwd|secret|token|api[_-]?key|authorization)\s*[:=]`),
 	regexp.MustCompile(`(?i)bearer\s+[a-z0-9._-]+`),
 	regexp.MustCompile(`(?i)sk-[a-z0-9_-]+`),
 }
 
+// ExtractLongTermMemories 从对话消息中提取可能的长期记忆候选项。
 func extractCandidates(scope MemoryScope, messages []*schema.Message) []LongTermMemory {
 	if len(messages) == 0 {
 		return nil
 	}
 	candidates := []LongTermMemory{}
 	for _, msg := range messages {
+		// 只考虑用户输入的消息，且内容看起来具有长期价值。
 		if msg == nil || msg.Role != schema.User {
 			continue
 		}
@@ -44,6 +47,7 @@ func extractCandidates(scope MemoryScope, messages []*schema.Message) []LongTerm
 	return candidates
 }
 
+// looksDurable 判断内容是否看起来具有长期价值，主要通过检查是否包含一些触发词。
 func looksDurable(content string) bool {
 	content = strings.TrimSpace(content)
 	if len([]rune(content)) < 8 {
@@ -58,6 +62,7 @@ func looksDurable(content string) bool {
 	return false
 }
 
+// isSafeLongTermContent 判断内容是否安全，主要通过检查是否匹配敏感信息的正则模式。
 func isSafeLongTermContent(content string) bool {
 	content = strings.TrimSpace(content)
 	if content == "" {
@@ -71,6 +76,7 @@ func isSafeLongTermContent(content string) bool {
 	return true
 }
 
+// inferMemoryType 根据内容中的关键词推断记忆的类型，主要分为偏好设置、集群知识、事故记录和团队笔记。
 func inferMemoryType(content string) string {
 	switch {
 	case strings.Contains(content, "偏好") || strings.Contains(content, "格式"):

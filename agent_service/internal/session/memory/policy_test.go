@@ -41,9 +41,35 @@ func TestResolvePolicyUsesMoreSpecificScope(t *testing.T) {
 	}
 }
 
-func TestMemoryScopeDefaultsKeepOldRequestsWorking(t *testing.T) {
-	scope := MemoryScope{SessionID: "demo"}.Normalized()
-	if scope.TenantID != "default" || scope.TeamID != "default" || scope.SessionID != "demo" {
-		t.Fatalf("旧请求默认作用域不正确: %+v", scope)
+func TestMemoryScopeNormalizedOnlyTrimsFields(t *testing.T) {
+	scope := MemoryScope{
+		TenantID:  "  ",
+		TeamID:    " team-a ",
+		ClusterID: " cluster-a ",
+		SessionID: " demo ",
+	}.Normalized()
+	if scope.TenantID != "" || scope.TeamID != "team-a" || scope.ClusterID != "cluster-a" || scope.SessionID != "demo" {
+		t.Fatalf("作用域规范化结果不正确: %+v", scope)
+	}
+}
+
+func TestResolvePolicySkipsMissingScopeLevels(t *testing.T) {
+	ctx := context.Background()
+	store := NewInMemoryStore()
+	scope := MemoryScope{TenantID: "tenant-a"}
+
+	if err := store.SetPolicy(ctx, ScopeLevelGlobal, scope, MemoryPolicy{RecallLimit: 3}); err != nil {
+		t.Fatalf("设置全局策略失败: %v", err)
+	}
+	if err := store.SetPolicy(ctx, ScopeLevelTeam, MemoryScope{TenantID: "tenant-a", TeamID: "default"}, MemoryPolicy{RecallLimit: 9}); err != nil {
+		t.Fatalf("设置团队策略失败: %v", err)
+	}
+
+	policy, err := ResolvePolicy(ctx, store, DefaultConfig(), scope)
+	if err != nil {
+		t.Fatalf("合并策略失败: %v", err)
+	}
+	if policy.RecallLimit != 3 {
+		t.Fatalf("缺少团队时不应命中默认团队策略，got=%d", policy.RecallLimit)
 	}
 }

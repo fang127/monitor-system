@@ -26,23 +26,63 @@ type MemoryScope struct {
 	SessionID string `json:"session_id,omitempty"`
 }
 
-// Normalized 返回带有兼容默认值的作用域，避免旧请求缺少租户或团队时无法使用记忆。
+// Normalized 返回清理空白后的作用域，不为缺失字段补默认值。
 func (s MemoryScope) Normalized() MemoryScope {
-	normalized := s
-	if strings.TrimSpace(normalized.TenantID) == "" {
-		normalized.TenantID = "default"
+	return MemoryScope{
+		TenantID:  strings.TrimSpace(s.TenantID),
+		TeamID:    strings.TrimSpace(s.TeamID),
+		ClusterID: strings.TrimSpace(s.ClusterID),
+		SessionID: strings.TrimSpace(s.SessionID),
 	}
-	if strings.TrimSpace(normalized.TeamID) == "" {
-		normalized.TeamID = "default"
+}
+
+// ValidateMemoryScope 校验长期记忆读写所需的租户和团队作用域。
+func ValidateMemoryScope(scope MemoryScope) error {
+	scope = scope.Normalized()
+	if scope.TenantID == "" {
+		return fmt.Errorf("租户 ID 不能为空")
 	}
-	if strings.TrimSpace(normalized.SessionID) == "" {
-		normalized.SessionID = "default"
+	if scope.TeamID == "" {
+		return fmt.Errorf("团队 ID 不能为空")
 	}
-	normalized.TenantID = strings.TrimSpace(normalized.TenantID)
-	normalized.TeamID = strings.TrimSpace(normalized.TeamID)
-	normalized.ClusterID = strings.TrimSpace(normalized.ClusterID)
-	normalized.SessionID = strings.TrimSpace(normalized.SessionID)
-	return normalized
+	return nil
+}
+
+// ValidateSessionScope 校验短期会话记忆所需的租户、团队和会话作用域。
+func ValidateSessionScope(scope MemoryScope) error {
+	scope = scope.Normalized()
+	if err := ValidateMemoryScope(scope); err != nil {
+		return err
+	}
+	if scope.SessionID == "" {
+		return fmt.Errorf("会话 ID 不能为空")
+	}
+	return nil
+}
+
+// ValidatePolicyScope 按策略层级校验必需的作用域字段。
+func ValidatePolicyScope(level ScopeLevel, scope MemoryScope) error {
+	scope = scope.Normalized()
+	switch level {
+	case ScopeLevelGlobal:
+		return nil
+	case ScopeLevelTenant:
+		if scope.TenantID == "" {
+			return fmt.Errorf("租户 ID 不能为空")
+		}
+	case ScopeLevelTeam:
+		return ValidateMemoryScope(scope)
+	case ScopeLevelCluster:
+		if err := ValidateMemoryScope(scope); err != nil {
+			return err
+		}
+		if scope.ClusterID == "" {
+			return fmt.Errorf("集群 ID 不能为空")
+		}
+	default:
+		return nil
+	}
+	return nil
 }
 
 // SessionKey 返回短期会话记忆使用的唯一键。

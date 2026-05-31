@@ -32,6 +32,18 @@ func emptyMemoryContext(scope memory.MemoryScope) *memory.MemoryContext {
 	}
 }
 
+func validateChatMemoryScope(scope memory.MemoryScope) error {
+	return memory.ValidateSessionScope(scope)
+}
+
+func validateMemorySelectorScope(selector memory.MemorySelector) error {
+	return memory.ValidateMemoryScope(selector.Scope)
+}
+
+func validateMemoryPolicyScope(level memory.ScopeLevel, scope memory.MemoryScope) error {
+	return memory.ValidatePolicyScope(level, scope)
+}
+
 func formatLongTermForPrompt(items []memory.LongTermMemory) string {
 	text := memory.FormatLongTermMemories(items)
 	if strings.TrimSpace(text) == "" {

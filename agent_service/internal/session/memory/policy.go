@@ -14,8 +14,15 @@ func ResolvePolicy(ctx context.Context, store MemoryStore, cfg MemoryConfig, sco
 		TokenBudget:     positiveOrDefault(cfg.TokenBudget, DefaultConfig().TokenBudget),
 	}
 
-	levels := []ScopeLevel{ScopeLevelGlobal, ScopeLevelTenant, ScopeLevelTeam}
-	if scope.Normalized().ClusterID != "" {
+	scope = scope.Normalized()
+	levels := []ScopeLevel{ScopeLevelGlobal}
+	if scope.TenantID != "" {
+		levels = append(levels, ScopeLevelTenant)
+	}
+	if scope.TenantID != "" && scope.TeamID != "" {
+		levels = append(levels, ScopeLevelTeam)
+	}
+	if scope.TenantID != "" && scope.TeamID != "" && scope.ClusterID != "" {
 		levels = append(levels, ScopeLevelCluster)
 	}
 	for _, level := range levels {

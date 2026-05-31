@@ -28,6 +28,9 @@ func (c *ControllerV1) Chat(gctx *gin.Context) {
 
 func (c *ControllerV1) runChat(ctx context.Context, req *dto.ChatReq) (res *dto.ChatRes, err error) {
 	scope := memoryScopeFromChatReq(req)
+	if err := validateChatMemoryScope(scope); err != nil {
+		return nil, err
+	}
 	msg := strings.TrimSpace(req.Question)
 	memCtx, err := c.memoryManager.LoadContext(ctx, scope, msg)
 	if err != nil {

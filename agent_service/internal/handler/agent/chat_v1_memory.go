@@ -14,6 +14,10 @@ import (
 // ListMemories 查询长期记忆列表或单条长期记忆。
 func (c *ControllerV1) ListMemories(gctx *gin.Context) {
 	selector := memorySelectorFromQuery(gctx)
+	if err := validateMemorySelectorScope(selector); err != nil {
+		response.Respond(gctx, nil, err)
+		return
+	}
 	if err := requireMemoryScopeAllowed(gctx, selector.Scope); err != nil {
 		response.Respond(gctx, nil, err)
 		return
@@ -30,11 +34,26 @@ func (c *ControllerV1) SetMemoryPolicy(gctx *gin.Context) {
 		return
 	}
 	scope := memoryScopeFromPolicyReq(&req)
-	if err := requireMemoryScopeAllowed(gctx, scope); err != nil {
+	level := scopeLevelFromString(req.Level, scope)
+	if strings.TrimSpace(req.Level) == "" && level == memory.ScopeLevelGlobal {
+		response.Respond(gctx, nil, fmt.Errorf("租户 ID 不能为空"))
+		return
+	}
+	if err := validateMemoryPolicyScope(level, scope); err != nil {
 		response.Respond(gctx, nil, err)
 		return
 	}
-	level := scopeLevelFromString(req.Level, scope)
+	if level != memory.ScopeLevelGlobal {
+		if err := requireMemoryScopeAllowed(gctx, scope); err != nil {
+			response.Respond(gctx, nil, err)
+			return
+		}
+	} else if strings.TrimSpace(scope.TenantID) != "" || strings.TrimSpace(scope.TeamID) != "" {
+		if err := requireMemoryScopeAllowed(gctx, scope); err != nil {
+			response.Respond(gctx, nil, err)
+			return
+		}
+	}
 	policy := memory.MemoryPolicy{
 		LongTermEnabled: req.LongTermEnabled,
 		WriteEnabled:    req.WriteEnabled,
@@ -51,6 +70,10 @@ func (c *ControllerV1) SetMemoryPolicy(gctx *gin.Context) {
 // DeleteMemory 按记忆 ID 删除长期记忆。
 func (c *ControllerV1) DeleteMemory(gctx *gin.Context) {
 	selector := memorySelectorFromQuery(gctx)
+	if err := validateMemorySelectorScope(selector); err != nil {
+		response.Respond(gctx, nil, err)
+		return
+	}
 	if err := requireMemoryScopeAllowed(gctx, selector.Scope); err != nil {
 		response.Respond(gctx, nil, err)
 		return
@@ -67,6 +90,10 @@ func (c *ControllerV1) DeleteMemory(gctx *gin.Context) {
 // ClearMemories 按作用域清空长期记忆。
 func (c *ControllerV1) ClearMemories(gctx *gin.Context) {
 	selector := memorySelectorFromQuery(gctx)
+	if err := validateMemorySelectorScope(selector); err != nil {
+		response.Respond(gctx, nil, err)
+		return
+	}
 	if err := requireMemoryScopeAllowed(gctx, selector.Scope); err != nil {
 		response.Respond(gctx, nil, err)
 		return

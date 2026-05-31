@@ -31,6 +31,10 @@ func (c *ControllerV1) ChatStream(gctx *gin.Context) {
 
 func (c *ControllerV1) runChatStream(ctx context.Context, gctx *gin.Context, req *dto.ChatStreamReq) error {
 	scope := memoryScopeFromChatStreamReq(req)
+	if err := validateChatMemoryScope(scope); err != nil {
+		response.Respond(gctx, nil, err)
+		return err
+	}
 	msg := req.Question
 
 	ctx = context.WithValue(ctx, "client_id", req.Id)

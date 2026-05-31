@@ -142,3 +142,33 @@ func TestSensitiveCandidateIsRejected(t *testing.T) {
 		t.Fatal("普通团队偏好应允许写入长期记忆")
 	}
 }
+
+func TestSessionMemoryRequiresExplicitScope(t *testing.T) {
+	ctx := context.Background()
+	manager := NewInMemoryManager(DefaultConfig())
+
+	if err := manager.AppendTurn(ctx, MemoryScope{TeamID: "team-a", SessionID: "s1"}, "问题", "回答"); err == nil {
+		t.Fatal("缺少租户时追加会话应失败")
+	}
+	if err := manager.AppendTurn(ctx, MemoryScope{TenantID: "tenant-a", SessionID: "s1"}, "问题", "回答"); err == nil {
+		t.Fatal("缺少团队时追加会话应失败")
+	}
+	if err := manager.AppendTurn(ctx, MemoryScope{TenantID: "tenant-a", TeamID: "team-a"}, "问题", "回答"); err == nil {
+		t.Fatal("缺少会话时追加会话应失败")
+	}
+	if _, err := manager.LoadContext(ctx, MemoryScope{TenantID: "tenant-a", TeamID: "team-a"}, "问题"); err == nil {
+		t.Fatal("缺少会话时加载上下文应失败")
+	}
+}
+
+func TestLongTermMemorySelectorRequiresTenantAndTeam(t *testing.T) {
+	ctx := context.Background()
+	manager := NewInMemoryManager(DefaultConfig())
+
+	if _, err := manager.ListMemories(ctx, MemorySelector{Scope: MemoryScope{TenantID: "tenant-a"}}); err == nil {
+		t.Fatal("缺少团队时查询长期记忆应失败")
+	}
+	if err := manager.DeleteMemories(ctx, MemorySelector{Scope: MemoryScope{TeamID: "team-a"}}); err == nil {
+		t.Fatal("缺少租户时删除长期记忆应失败")
+	}
+}
