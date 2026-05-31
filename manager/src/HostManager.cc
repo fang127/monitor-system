@@ -1027,6 +1027,9 @@ void HostManager::onDataReceived(const monitor::proto::MonitorInfo &info, const 
     }
 
     // 存储最新的分数到Redis缓存，键名格式为"manager:latest_score:{hostID}"，值为JSON字符串包含服务器名称和分数，例如{"server_name":"{hostID}","score":85.5}
+    // manager:latest_score:{hostID} 当前代码里没有下游消费它。
+    // TODO:
+    // 当分数低于某个阈值时，可以让下游系统（如告警服务）订阅这个键的变化来触发告警通知。或者通过RabbitMQ等消息队列发布分数变化事件，供其他系统消费。
     if (redisCache_) {
         std::ostringstream cached;
         cached << "{\"server_name\":\"" << hostID << "\",\"score\":" << score << "}";
