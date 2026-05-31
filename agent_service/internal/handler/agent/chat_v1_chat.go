@@ -7,11 +7,9 @@ import (
 	"monitor-system/agent_service/internal/ai/pipeline/chat"
 	"monitor-system/agent_service/internal/handler/agent/dto"
 	"monitor-system/agent_service/internal/response"
-	"monitor-system/agent_service/internal/session/memory"
 	"strings"
 
 	"github.com/cloudwego/eino/compose"
-	"github.com/cloudwego/eino/schema"
 	"github.com/gin-gonic/gin"
 )
 
@@ -29,15 +27,21 @@ func (c *ControllerV1) Chat(gctx *gin.Context) {
 }
 
 func (c *ControllerV1) runChat(ctx context.Context, req *dto.ChatReq) (res *dto.ChatRes, err error) {
-	id := req.Id
+	scope := memoryScopeFromChatReq(req)
 	msg := strings.TrimSpace(req.Question)
+	memCtx, err := c.memoryManager.LoadContext(ctx, scope, msg)
+	if err != nil {
+		memCtx = emptyMemoryContext(scope)
+	}
 	userMessage := &chat.UserMessage{
-		ID:      id,
-		Query:   msg,
-		History: memory.GetSimpleMemory(id).GetMessages(),
+		ID:               scope.SessionID,
+		Query:            msg,
+		History:          memCtx.RecentMessages,
+		Summary:          memCtx.Summary,
+		LongTermMemories: formatLongTermForPrompt(memCtx.LongTerm),
 	}
 
-	runner, err := chat.BuildChatAgent(ctx)
+	runner, err := c.chatBuilder(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -53,8 +57,8 @@ func (c *ControllerV1) runChat(ctx context.Context, req *dto.ChatReq) (res *dto.
 	res = &dto.ChatRes{
 		Answer: out.Content,
 	}
-	memory.GetSimpleMemory(id).SetMessages(schema.UserMessage(msg))
-	memory.GetSimpleMemory(id).SetMessages(schema.SystemMessage(out.Content))
+	_ = c.memoryManager.AppendTurn(ctx, scope, msg, out.Content)
+	_ = c.memoryManager.ExtractDurableMemories(ctx, scope)
 
 	return res, nil
 }

@@ -44,6 +44,20 @@ func TestConfigIntRejectsInvalidEnv(t *testing.T) {
 	}
 }
 
+func TestConfigBoolEnvOverridesYAML(t *testing.T) {
+	t.Setenv("AGENT_CONFIG_PATH", writeConfig(t, "memory:\n  long_term_enabled: false\n"))
+	t.Setenv("AGENT_MEMORY_LONG_TERM_ENABLED", "true")
+	resetForTest()
+
+	got, err := ConfigBool(context.Background(), "memory.long_term_enabled", "AGENT_MEMORY_LONG_TERM_ENABLED", false)
+	if err != nil {
+		t.Fatalf("读取布尔配置失败: %v", err)
+	}
+	if !got {
+		t.Fatal("环境变量布尔配置应优先于 YAML")
+	}
+}
+
 func writeConfig(t *testing.T, content string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "config.yaml")

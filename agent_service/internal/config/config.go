@@ -65,6 +65,24 @@ func ConfigInt(ctx context.Context, key string, envName string, fallback int) (i
 }
 
 // ConfigBool 从环境变量或配置文件中获取布尔类型的配置值，优先级为：环境变量 > 配置文件 > 默认值
+func ConfigBool(ctx context.Context, key string, envName string, fallback bool) (bool, error) {
+	if value := os.Getenv(envName); value != "" {
+		return strconv.ParseBool(value)
+	}
+	value, err := configValue(ctx, key)
+	if err == nil && value != nil {
+		switch typed := value.(type) {
+		case bool:
+			return typed, nil
+		case string:
+			return strconv.ParseBool(typed)
+		default:
+			return strconv.ParseBool(fmt.Sprintf("%v", value))
+		}
+	}
+	return fallback, nil
+}
+
 func configValue(ctx context.Context, key string) (interface{}, error) {
 	_ = ctx
 	configOnce.Do(loadConfig)

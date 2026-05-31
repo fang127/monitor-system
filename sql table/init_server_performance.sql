@@ -268,7 +268,7 @@ CREATE TABLE IF NOT EXISTS server_mysql_detail (
     INDEX idx_mysql_up(up, timestamp)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 7. Redis 实例详细数据表
+-- 8. Redis 实例详细数据表
 CREATE TABLE IF NOT EXISTS server_redis_detail (
     id INT AUTO_INCREMENT PRIMARY KEY,
     server_name VARCHAR(255) NOT NULL,

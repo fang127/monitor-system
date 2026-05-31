@@ -21,7 +21,7 @@
 - **AI 编排层**：`internal/ai/pipeline/chat/*`、`internal/ai/pipeline/knowledge/*`、`internal/ai/pipeline/ops/*`
 - **工具与外部集成**：`internal/ai/tools/query_monitor_gateway.go`、`query_internal_docs.go`、`get_current_time.go`
 - **知识库存储**：通过 `internal/storage/milvus/client.go` 访问 Milvus，知识库常量位于 `internal/storage/knowledge`
-- **会话记忆**：`internal/session/memory`
+- **记忆系统**：`internal/session/memory` 提供 `MemoryManager`、短期会话窗口、会话摘要、长期记忆治理和内存兼容实现；`internal/storage/memory` 保存记忆表和向量集合常量
 - **运行时配置**：`manifest/config/config.yaml`，并支持环境变量覆盖
 - **前端入口**：根目录 `web` React 应用中的 `AI 运维` 页面
 
@@ -36,7 +36,17 @@
 
 ### 4.1 对话流程
 
-`/api/agent/chat` 和 `/api/agent/chat_stream` 会根据请求构造 `UserMessage`，从 Milvus 检索相关知识片段，渲染对话提示词，并运行带有监控系统工具的 ReAct Agent。
+`/api/agent/chat` 和 `/api/agent/chat_stream` 会根据请求中的租户、团队、集群和会话标识加载记忆上下文，构造 `UserMessage`，从 Milvus 检索相关知识片段，渲染对话提示词，并运行带有监控系统工具的 ReAct Agent。
+
+对话上下文按以下顺序组织：
+
+1. 固定系统指令。
+2. 当前日期和边界说明。
+3. 会话摘要。
+4. 最近消息窗口。
+5. 长期记忆召回结果。
+6. 内部文档 RAG 结果。
+7. 当前用户问题。
 
 当前可用的监控工具如下：
 
@@ -69,6 +79,18 @@ Milvus 默认配置如下：
 5. 检索内部运维文档，查找匹配的处理手册。
 6. 输出基于 `monitor_system` 真实数据的中文 AI 运维分析报告。
 
+### 4.4 记忆管理流程
+
+记忆系统使用 `MemoryManager` 作为唯一入口：
+
+- `LoadContext`：按租户、团队、集群和会话加载会话摘要、最近消息和长期记忆。
+- `AppendTurn`：在一轮对话完成后追加用户消息和助手回复。
+- `SummarizeSession`：维护滚动会话摘要。
+- `ExtractDurableMemories`：在长期记忆写入启用后抽取候选长期记忆，并过滤凭据、敏感信息和一次性临时状态。
+- `DeleteMemories`：删除长期记忆，清理向量索引，并保留审计事件。
+
+长期记忆默认关闭，可以通过 `/api/agent/memory/policy` 在全局、租户、团队或集群作用域内启用写入和召回。删除中和已删除的长期记忆不会进入召回结果。
+
 ## 5. 配置说明
 
 主配置文件：
@@ -81,9 +103,16 @@ Milvus 默认配置如下：
 - `api_gateway_base_url` / `API_GATEWAY_BASE_URL`
 - `milvus_addr` / `MILVUS_ADDR`
 - `docs_dir` / `AGENT_DOCS_DIR`
-- `ds_think_chat_model.*` / `AGENT_THINK_*`
-- `ds_quick_chat_model.*` / `AGENT_QUICK_*`
-- `doubao_embedding_model.*` / `AGENT_EMBEDDING_*`
+- `think_chat_model.*` / `AGENT_THINK_*`
+- `quick_chat_model.*` / `AGENT_QUICK_*`
+- `embedding_model.*` / `AGENT_EMBEDDING_*`
+- `memory.long_term_enabled` / `AGENT_MEMORY_LONG_TERM_ENABLED`
+- `memory.write_enabled` / `AGENT_MEMORY_WRITE_ENABLED`
+- `memory.recall_enabled` / `AGENT_MEMORY_RECALL_ENABLED`
+- `memory.recent_window` / `AGENT_MEMORY_RECENT_WINDOW`
+- `memory.summary_window` / `AGENT_MEMORY_SUMMARY_WINDOW`
+- `memory.recall_limit` / `AGENT_MEMORY_RECALL_LIMIT`
+- `memory.token_budget` / `AGENT_MEMORY_TOKEN_BUDGET`
 
 仓库提交的配置文件会刻意留空模型密钥，部署或本地运行时应通过环境变量注入。
 
@@ -103,6 +132,7 @@ Milvus 默认配置如下：
 
 ## 7. 注意事项
 
-- 会话记忆仍是进程内存级别，具体实现位于 `internal/session/memory`。
+- 当前默认运行时仍使用内存兼容记忆实现；长期记忆持久化表结构统一维护在根目录 `sql table/agent_memory_schema.sql`，表说明见根目录 `sql table/README.md`。
+- 长期记忆向量集合为 `agent_long_term_memories`，必须和内部文档知识库集合 `ops_docs` 隔离。
 - 服务只消费现有 `api_gateway` HTTP API，不改变 C++ `manager` 的 gRPC 契约。
 - 依赖可用后，建议在 `agent_service` 目录执行 `go test ./...` 和 `go build ./cmd/server` 做基础验证。

@@ -9,11 +9,9 @@ import (
 	"monitor-system/agent_service/internal/ai/pipeline/chat"
 	"monitor-system/agent_service/internal/handler/agent/dto"
 	"monitor-system/agent_service/internal/response"
-	"monitor-system/agent_service/internal/session/memory"
 	"strings"
 
 	"github.com/cloudwego/eino/compose"
-	"github.com/cloudwego/eino/schema"
 	"github.com/gin-gonic/gin"
 )
 
@@ -32,7 +30,7 @@ func (c *ControllerV1) ChatStream(gctx *gin.Context) {
 }
 
 func (c *ControllerV1) runChatStream(ctx context.Context, gctx *gin.Context, req *dto.ChatStreamReq) error {
-	id := req.Id
+	scope := memoryScopeFromChatStreamReq(req)
 	msg := req.Question
 
 	ctx = context.WithValue(ctx, "client_id", req.Id)
@@ -41,14 +39,20 @@ func (c *ControllerV1) runChatStream(ctx context.Context, gctx *gin.Context, req
 		response.Respond(gctx, nil, err)
 		return err
 	}
-
-	userMessage := &chat.UserMessage{
-		ID:      id,
-		Query:   msg,
-		History: memory.GetSimpleMemory(id).GetMessages(),
+	memCtx, err := c.memoryManager.LoadContext(ctx, scope, msg)
+	if err != nil {
+		memCtx = emptyMemoryContext(scope)
 	}
 
-	runner, err := chat.BuildChatAgent(ctx)
+	userMessage := &chat.UserMessage{
+		ID:               scope.SessionID,
+		Query:            msg,
+		History:          memCtx.RecentMessages,
+		Summary:          memCtx.Summary,
+		LongTermMemories: formatLongTermForPrompt(memCtx.LongTerm),
+	}
+
+	runner, err := c.chatBuilder(ctx)
 	if err != nil {
 		client.SendToClient("error", err.Error())
 		return err
@@ -65,8 +69,8 @@ func (c *ControllerV1) runChatStream(ctx context.Context, gctx *gin.Context, req
 	defer func() {
 		completeResponse := fullResponse.String()
 		if completeResponse != "" {
-			memory.GetSimpleMemory(id).SetMessages(schema.UserMessage(msg))
-			memory.GetSimpleMemory(id).SetMessages(schema.SystemMessage(completeResponse))
+			_ = c.memoryManager.AppendTurn(ctx, scope, msg, completeResponse)
+			_ = c.memoryManager.ExtractDurableMemories(ctx, scope)
 		}
 	}()
 

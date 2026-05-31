@@ -58,6 +58,10 @@ var systemPrompt = `
   • 输出不能包含markdown的语法，输出需要纯文本
 ## 上下文信息
 - 当前日期：{date}
+- 会话摘要：|-
+{summary}
+- 长期记忆：|-
+{long_term_memories}
 - 相关文档：|-
 ==== 文档开始 ====
   {documents}

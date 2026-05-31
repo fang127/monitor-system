@@ -4,10 +4,14 @@
 
 ## 功能
 
-- `POST /api/agent/chat`：普通对话接口，支持基于会话 ID 的进程内上下文记忆。
+- `POST /api/agent/chat`：普通对话接口，支持租户、团队、集群和会话维度的分层记忆上下文。
 - `POST /api/agent/chat_stream`：SSE 流式对话接口。
 - `POST /api/agent/upload`：上传运维文档并写入 Milvus 知识库。
 - `POST /api/agent/ai_ops`：查询监控事实和内部文档，生成中文 AI 运维分析报告。
+- `GET /api/agent/memory`：查询长期记忆。
+- `PUT /api/agent/memory/policy`：设置长期记忆写入和召回策略。
+- `DELETE /api/agent/memory/:id`：删除指定长期记忆。
+- `DELETE /api/agent/memory`：按作用域清空长期记忆。
 
 所有 `/api/agent/*` 接口都要求携带与 `api_gateway` 相同密钥签发的 JWT。服务校验通过后，会在调用 `api_gateway` 查询监控事实时透传同一个 `Authorization: Bearer <token>`。
 
@@ -39,6 +43,7 @@ agent_service/
 - 可访问的 Milvus，默认地址为 `127.0.0.1:19530`
 - 可访问的 `api_gateway`，默认地址为 `http://127.0.0.1:8080`
 - 可用的大模型与 Embedding 模型配置
+- 如果启用长期记忆持久化，需要先执行根目录 `sql table/agent_memory_schema.sql`
 
 模型密钥不应写入仓库配置文件，建议通过环境变量注入。
 
@@ -46,16 +51,23 @@ agent_service/
 
 默认配置位于 `manifest/config/config.yaml`。常用配置和环境变量覆盖关系如下：
 
-| 配置项 | 环境变量 | 默认值 | 说明 |
-| --- | --- | --- | --- |
-| `agent_service_port` | `AGENT_SERVICE_PORT` | `6872` | 服务监听端口 |
-| `jwt_secret` | `JWT_SECRET` | `monitor-system-dev-secret` | JWT HS256 校验密钥，需要与 `api_gateway` 一致 |
-| `api_gateway_base_url` | `API_GATEWAY_BASE_URL` | `http://127.0.0.1:8080` | 监控 API 网关地址 |
-| `milvus_addr` | `MILVUS_ADDR` | `127.0.0.1:19530` | Milvus 地址 |
-| `docs_dir` | `AGENT_DOCS_DIR` | `./docs` | 上传文档保存目录 |
-| `ds_think_chat_model.*` | `AGENT_THINK_*` | 空 | 规划、推理类模型配置 |
-| `ds_quick_chat_model.*` | `AGENT_QUICK_*` | 空 | 快速对话类模型配置 |
-| `doubao_embedding_model.*` | `AGENT_EMBEDDING_*` | `text-embedding-v4` | Embedding 模型配置 |
+| 配置项                     | 环境变量                         | 默认值                      | 说明                                          |
+| -------------------------- | -------------------------------- | --------------------------- | --------------------------------------------- |
+| `agent_service_port`       | `AGENT_SERVICE_PORT`             | `6872`                      | 服务监听端口                                  |
+| `jwt_secret`               | `JWT_SECRET`                     | `monitor-system-dev-secret` | JWT HS256 校验密钥，需要与 `api_gateway` 一致 |
+| `api_gateway_base_url`     | `API_GATEWAY_BASE_URL`           | `http://127.0.0.1:8080`     | 监控 API 网关地址                             |
+| `milvus_addr`              | `MILVUS_ADDR`                    | `127.0.0.1:19530`           | Milvus 地址                                   |
+| `docs_dir`                 | `AGENT_DOCS_DIR`                 | `./docs`                    | 上传文档保存目录                              |
+| `memory.long_term_enabled` | `AGENT_MEMORY_LONG_TERM_ENABLED` | `false`                     | 是否启用长期记忆能力                          |
+| `memory.write_enabled`     | `AGENT_MEMORY_WRITE_ENABLED`     | `false`                     | 是否允许写入长期记忆                          |
+| `memory.recall_enabled`    | `AGENT_MEMORY_RECALL_ENABLED`    | `false`                     | 是否允许召回长期记忆并注入 prompt             |
+| `memory.recent_window`     | `AGENT_MEMORY_RECENT_WINDOW`     | `6`                         | 最近消息窗口大小                              |
+| `memory.summary_window`    | `AGENT_MEMORY_SUMMARY_WINDOW`    | `12`                        | 会话摘要使用的消息窗口                        |
+| `memory.recall_limit`      | `AGENT_MEMORY_RECALL_LIMIT`      | `5`                         | 每次长期记忆召回数量上限                      |
+| `memory.token_budget`      | `AGENT_MEMORY_TOKEN_BUDGET`      | `1200`                      | 记忆上下文预算                                |
+| `think_chat_model.*`       | `AGENT_THINK_*`                  | 空                          | 规划、推理类模型配置                          |
+| `quick_chat_model.*`       | `AGENT_QUICK_*`                  | 空                          | 快速对话类模型配置                            |
+| `embedding_model.*`        | `AGENT_EMBEDDING_*`              | `text-embedding-v4`         | Embedding 模型配置                            |
 
 示例：
 
@@ -74,6 +86,8 @@ export AGENT_QUICK_MODEL=your-quick-model
 export AGENT_EMBEDDING_API_KEY=your-api-key
 export AGENT_EMBEDDING_MODEL=text-embedding-v4
 ```
+
+长期记忆默认关闭。需要启用时，建议先通过管理接口在指定租户、团队或集群作用域内打开写入和召回，再逐步扩大范围。
 
 ## 本地启动
 
@@ -113,6 +127,34 @@ curl -X POST http://127.0.0.1:6872/api/agent/chat \
   -d '{"Id":"demo-user","Question":"当前集群健康情况怎么样？"}'
 ```
 
+带团队和集群作用域的普通对话：
+
+```bash
+curl -X POST http://127.0.0.1:6872/api/agent/chat \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <access_token>" \
+  -d '{"Id":"session-1","TenantId":"tenant-a","TeamId":"ops","ClusterId":"prod-a","Question":"继续分析这个集群的 Redis 问题"}'
+```
+
+设置某个集群的长期记忆策略：
+
+```bash
+curl -X PUT http://127.0.0.1:6872/api/agent/memory/policy \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <access_token>" \
+  -d '{"tenant_id":"tenant-a","team_id":"ops","cluster_id":"prod-a","level":"cluster","long_term_enabled":true,"write_enabled":true,"recall_enabled":true}'
+```
+
+查询和删除长期记忆：
+
+```bash
+curl -H "Authorization: Bearer <access_token>" \
+  "http://127.0.0.1:6872/api/agent/memory?tenant_id=tenant-a&team_id=ops&cluster_id=prod-a"
+
+curl -X DELETE -H "Authorization: Bearer <access_token>" \
+  "http://127.0.0.1:6872/api/agent/memory/<memory-id>?tenant_id=tenant-a&team_id=ops&cluster_id=prod-a"
+```
+
 上传文档：
 
 ```bash
@@ -138,6 +180,20 @@ curl -X POST http://127.0.0.1:6872/api/agent/ai_ops \
 - `query_monitor_trend`：查询单台服务器指标趋势。
 - `query_monitor_detail`：查询网络、磁盘、内存、软中断或 MySQL 明细；MySQL 可通过 `kind=mysql` 使用。
 - `query_monitor_mysql_detail`：查询 `GET /api/servers/:server/mysql-detail`，返回 MySQL 可用性、连接压力、QPS/TPS、慢查询、锁等待、Buffer Pool 命中率和复制延迟等明细。
+- `query_monitor_redis_detail`：查询 `GET /api/servers/:server/redis-detail`，返回 Redis 可用性、连接压力、内存压力、命令吞吐、命中率、淘汰、拒绝连接、复制状态和慢日志等明细。
+
+## 记忆系统
+
+`agent_service` 的记忆系统分为固定指令、会话最近消息、会话摘要和长期记忆。长期记忆按租户、团队和集群作用域共享，适合保存稳定的运维偏好、环境约定、集群知识和已确认事故结论。
+
+当前实现提供统一的 `MemoryManager` 抽象和内存兼容实现。长期记忆相关 MySQL 表结构统一维护在根目录 `sql table/agent_memory_schema.sql`，表说明见 [sql table/README.md](../sql%20table/README.md)。长期记忆向量集合名称为 `agent_long_term_memories`，需要和内部文档知识库 `ops_docs` 分开维护。
+
+安全边界：
+
+- 长期记忆默认关闭。
+- 监控事实仍只能通过 `api_gateway` 查询。
+- 记忆数据库只保存 AI 助手工作上下文，不作为实时监控事实来源。
+- 删除长期记忆时会先进入删除流程，再清理向量索引；删除中和已删除记忆不会参与召回。
 
 ## 前端入口
 

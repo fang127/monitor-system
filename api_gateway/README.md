@@ -18,6 +18,8 @@
 - `GET /api/servers/:server/disk-detail`：查询指定服务器磁盘明细
 - `GET /api/servers/:server/mem-detail`：查询指定服务器内存明细
 - `GET /api/servers/:server/softirq-detail`：查询指定服务器软中断明细
+- `GET /api/servers/:server/mysql-detail`：查询指定服务器 MySQL 实例明细
+- `GET /api/servers/:server/redis-detail`：查询指定服务器 Redis 实例明细
 
 ## 目录结构
 
@@ -36,22 +38,22 @@ api_gateway/
 
 ## 环境变量
 
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| `API_GATEWAY_PORT` | `8080` | HTTP 服务监听端口 |
-| `API_GATEWAY_VERSION` | `v0.1.0` | `/api/version` 返回的版本号 |
-| `GIN_MODE` | `debug` | Gin 运行模式，支持 `debug`、`release`、`test` |
-| `MANAGER_GRPC_ADDR` | `127.0.0.1:50051` | C++ Manager gRPC 地址 |
-| `MANAGER_GRPC_TIMEOUT` | `5s` | 调用 Manager 的超时时间 |
-| `JWT_SECRET` | `monitor-system-dev-secret` | HS256 JWT 签名密钥，生产环境必须修改 |
-| `JWT_ACCESS_TTL` | `24h` | 访问令牌有效期 |
-| `MYSQL_HOST` | `127.0.0.1` | 用户表所在 MySQL 地址 |
-| `MYSQL_PORT` | `3306` | 用户表所在 MySQL 端口 |
-| `MYSQL_USER` | `root` | MySQL 用户名 |
-| `MYSQL_PASSWORD` | 空 | MySQL 密码 |
-| `MYSQL_DATABASE` | `monitor-system` | MySQL 数据库 |
-| `ADMIN_USERNAME` | 空 | 用户表为空时引导创建的管理员用户名 |
-| `ADMIN_PASSWORD` | 空 | 用户表为空时引导创建的管理员密码 |
+| 变量                   | 默认值                      | 说明                                          |
+| ---------------------- | --------------------------- | --------------------------------------------- |
+| `API_GATEWAY_PORT`     | `8080`                      | HTTP 服务监听端口                             |
+| `API_GATEWAY_VERSION`  | `v0.1.0`                    | `/api/version` 返回的版本号                   |
+| `GIN_MODE`             | `debug`                     | Gin 运行模式，支持 `debug`、`release`、`test` |
+| `MANAGER_GRPC_ADDR`    | `127.0.0.1:50051`           | C++ Manager gRPC 地址                         |
+| `MANAGER_GRPC_TIMEOUT` | `5s`                        | 调用 Manager 的超时时间                       |
+| `JWT_SECRET`           | `monitor-system-dev-secret` | HS256 JWT 签名密钥，生产环境必须修改          |
+| `JWT_ACCESS_TTL`       | `24h`                       | 访问令牌有效期                                |
+| `MYSQL_HOST`           | `127.0.0.1`                 | 用户表所在 MySQL 地址                         |
+| `MYSQL_PORT`           | `3306`                      | 用户表所在 MySQL 端口                         |
+| `MYSQL_USER`           | `root`                      | MySQL 用户名                                  |
+| `MYSQL_PASSWORD`       | 空                          | MySQL 密码                                    |
+| `MYSQL_DATABASE`       | `monitor-system`            | MySQL 数据库                                  |
+| `ADMIN_USERNAME`       | 空                          | 用户表为空时引导创建的管理员用户名            |
+| `ADMIN_PASSWORD`       | 空                          | 用户表为空时引导创建的管理员密码              |
 
 ## 鉴权
 
@@ -67,6 +69,8 @@ curl http://127.0.0.1:8080/api/servers/latest \
 ```
 
 首次启动时，服务会确保 `users` 表存在。如果用户表为空，会读取 `ADMIN_USERNAME` 和 `ADMIN_PASSWORD` 创建第一个 `admin` 用户。后续可由 `admin` 调用 `POST /api/users` 创建 `admin` 或 `user` 账号。
+
+`users` 表的建表脚本也集中在根目录 `sql table/init_server_performance.sql`，表说明见 [sql table/README.md](../sql%20table/README.md)。运行时的 GORM 自动迁移用于兜底确保登录表存在，不替代根 SQL 目录中的统一表结构说明。
 
 ## 运行
 
@@ -102,27 +106,27 @@ api_gateway/internal/pb/queryapi/
 
 适用于 `performance`、`anomalies`、`score-rank` 和各类 `*-detail` 接口。
 
-| 参数 | 说明 |
-|------|------|
-| `page` | 可选，默认 `1` |
+| 参数        | 说明             |
+| ----------- | ---------------- |
+| `page`      | 可选，默认 `1`   |
 | `page_size` | 可选，默认 `100` |
 
 ### 通用时间参数
 
 适用于 `performance`、`trend`、`anomalies` 和各类 `*-detail` 接口。
 
-| 参数 | 说明 |
-|------|------|
+| 参数         | 说明                                      |
+| ------------ | ----------------------------------------- |
 | `start_time` | 可选，RFC3339 或 Unix 秒，默认最近 1 小时 |
-| `end_time` | 可选，RFC3339 或 Unix 秒，默认当前时间 |
+| `end_time`   | 可选，RFC3339 或 Unix 秒，默认当前时间    |
 
 ### `GET /api/servers/score-rank`
 
-| 参数 | 说明 |
-|------|------|
-| `order` | 可选，`desc` 或 `asc`，默认 `desc` |
-| `page` | 可选，默认 `1` |
-| `page_size` | 可选，默认 `100` |
+| 参数        | 说明                               |
+| ----------- | ---------------------------------- |
+| `order`     | 可选，`desc` 或 `asc`，默认 `desc` |
+| `page`      | 可选，默认 `1`                     |
+| `page_size` | 可选，默认 `100`                   |
 
 ### `GET /api/servers/:server/performance`
 
@@ -130,26 +134,26 @@ api_gateway/internal/pb/queryapi/
 
 ### `GET /api/servers/:server/trend`
 
-| 参数 | 说明 |
-|------|------|
-| `start_time` | 可选，RFC3339 或 Unix 秒，默认最近 1 小时 |
-| `end_time` | 可选，RFC3339 或 Unix 秒，默认当前时间 |
-| `interval_seconds` | 可选，趋势聚合间隔；`0` 表示不聚合 |
+| 参数               | 说明                                      |
+| ------------------ | ----------------------------------------- |
+| `start_time`       | 可选，RFC3339 或 Unix 秒，默认最近 1 小时 |
+| `end_time`         | 可选，RFC3339 或 Unix 秒，默认当前时间    |
+| `interval_seconds` | 可选，趋势聚合间隔；`0` 表示不聚合        |
 
 ### `GET /api/servers/:server/anomalies`
 
-| 参数 | 说明 |
-|------|------|
-| `start_time` | 可选，RFC3339 或 Unix 秒，默认最近 1 小时 |
-| `end_time` | 可选，RFC3339 或 Unix 秒，默认当前时间 |
-| `page` | 可选，默认 `1` |
-| `page_size` | 可选，默认 `100` |
-| `cpu_threshold` | 可选，CPU 使用率阈值；不传时由 Manager 使用默认值 |
-| `mem_threshold` | 可选，内存使用率阈值；不传时由 Manager 使用默认值 |
-| `disk_threshold` | 可选，磁盘利用率阈值；不传时由 Manager 使用默认值 |
-| `change_rate_threshold` | 可选，变化率阈值；不传时由 Manager 使用默认值 |
+| 参数                    | 说明                                              |
+| ----------------------- | ------------------------------------------------- |
+| `start_time`            | 可选，RFC3339 或 Unix 秒，默认最近 1 小时         |
+| `end_time`              | 可选，RFC3339 或 Unix 秒，默认当前时间            |
+| `page`                  | 可选，默认 `1`                                    |
+| `page_size`             | 可选，默认 `100`                                  |
+| `cpu_threshold`         | 可选，CPU 使用率阈值；不传时由 Manager 使用默认值 |
+| `mem_threshold`         | 可选，内存使用率阈值；不传时由 Manager 使用默认值 |
+| `disk_threshold`        | 可选，磁盘利用率阈值；不传时由 Manager 使用默认值 |
+| `change_rate_threshold` | 可选，变化率阈值；不传时由 Manager 使用默认值     |
 
-### `GET /api/servers/:server/{net,disk,mem,softirq}-detail`
+### `GET /api/servers/:server/{net,disk,mem,softirq,mysql,redis}-detail`
 
 支持通用时间参数和通用分页参数。
 
@@ -159,9 +163,11 @@ api_gateway/internal/pb/queryapi/
 curl http://127.0.0.1:8080/health
 curl http://127.0.0.1:8080/api/version
 curl http://127.0.0.1:8080/api/servers/latest -H "Authorization: Bearer <access_token>"
-curl "http://127.0.0.1:8080/api/servers/score-rank?order=desc&page=1&page_size=20" -H "Authorization: Bearer <access_token>"
-curl "http://127.0.0.1:8080/api/servers/server-01/performance?page=1&page_size=100"
-curl "http://127.0.0.1:8080/api/servers/server-01/trend?interval_seconds=60"
-curl "http://127.0.0.1:8080/api/servers/server-01/anomalies?page=1&page_size=50"
-curl "http://127.0.0.1:8080/api/servers/server-01/net-detail?page=1&page_size=50"
+curl http://127.0.0.1:8080/api/servers/score-rank?order=desc&page=1&page_size=20 -H "Authorization: Bearer <access_token>"
+curl http://127.0.0.1:8080/api/servers/server-01/performance?page=1&page_size=100 -H "Authorization: Bearer <access_token>"
+curl http://127.0.0.1:8080/api/servers/server-01/trend?interval_seconds=60 -H "Authorization: Bearer <access_token>"
+curl http://127.0.0.1:8080/api/servers/server-01/anomalies?page=1&page_size=50 -H "Authorization: Bearer <access_token>"
+curl http://127.0.0.1:8080/api/servers/server-01/net-detail?page=1&page_size=50 -H "Authorization: Bearer <access_token>"
+curl http://127.0.0.1:8080/api/servers/server-01/mysql-detail?page=1&page_size=50 -H "Authorization: Bearer <access_token>"
+curl http://127.0.0.1:8080/api/servers/server-01/redis-detail?page=1&page_size=50 -H "Authorization: Bearer <access_token>"
 ```

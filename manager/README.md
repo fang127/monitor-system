@@ -64,9 +64,10 @@ manager/
 │   └── rpc/
 │       ├── GrpcServer.cc
 │       └── QueryService.cc
-└── sql table/
-    └── init_server_performance.sql
+└── README.md
 ```
+
+数据库脚本统一维护在根目录 `sql table/`，表结构说明见 [sql table/README.md](../sql%20table/README.md)。
 
 ## 启动流程
 
@@ -132,33 +133,35 @@ host_info.hostname + "_" + host_info.ip_address
 
 `HostManager::calculateScore()` 将每台主机评分归一到 `0-100`，分数越高表示当前负载越健康。当前权重：
 
-| 维度 | 权重 | 数据来源 |
-|---|---:|---|
-| CPU 使用率 | 0.35 | `cpu_stat(0).cpu_percent` |
-| 内存使用率 | 0.30 | `mem_info.used_percent` |
-| 1 分钟 load | 0.15 | `cpu_load.load_avg_1` |
-| 磁盘利用率 | 0.15 | 所有磁盘 `util_percent` 最大值 |
-| 网络吞吐 | 0.05 | 第一张网卡收发速率，按 1Gbps 归一 |
+| 维度        | 权重 | 数据来源                          |
+| ----------- | ---: | --------------------------------- |
+| CPU 使用率  | 0.35 | `cpu_stat(0).cpu_percent`         |
+| 内存使用率  | 0.30 | `mem_info.used_percent`           |
+| 1 分钟 load | 0.15 | `cpu_load.load_avg_1`             |
+| 磁盘利用率  | 0.15 | 所有磁盘 `util_percent` 最大值    |
+| 网络吞吐    | 0.05 | 第一张网卡收发速率，按 1Gbps 归一 |
 
 load 评分使用 `cpu_cores * 1.5` 作为归一化上限，更偏向 I/O intensive 场景。最终评分会 clamp 到 `[0, 100]`。
 
 ## MySQL 存储
 
-数据库初始化脚本位于：
+数据库初始化脚本位于根目录：
 
 ```text
-manager/sql table/init_server_performance.sql
+sql table/init_server_performance.sql
 ```
 
-当前写入 5 张表：
+manager 当前写入 7 张监控数据表：
 
-| 表名 | 用途 |
-|---|---|
-| `server_performance` | 每次上报的汇总数据、健康评分、核心变化率 |
-| `server_net_detail` | 每网卡网络速率、包速率、错误、丢弃 |
-| `server_softirq_detail` | 每 CPU 软中断计数和变化率 |
-| `server_mem_detail` | 内存明细和变化率 |
-| `server_disk_detail` | 每磁盘 I/O 计数、速率、延迟、利用率 |
+| 表名                    | 用途                                                                                            |
+| ----------------------- | ----------------------------------------------------------------------------------------------- |
+| `server_performance`    | 每次上报的汇总数据、健康评分、核心变化率                                                        |
+| `server_net_detail`     | 每网卡网络速率、包速率、错误、丢弃                                                              |
+| `server_softirq_detail` | 每 CPU 软中断计数和变化率                                                                       |
+| `server_mem_detail`     | 内存明细和变化率                                                                                |
+| `server_disk_detail`    | 每磁盘 I/O 计数、速率、延迟、利用率                                                             |
+| `server_mysql_detail`   | 每个 MySQL 实例的可用性、连接压力、QPS/TPS、慢查询、锁等待、Buffer Pool 命中率和复制状态        |
+| `server_redis_detail`   | 每个 Redis 实例的可用性、连接压力、内存压力、命令吞吐、命中率、淘汰、拒绝连接、复制状态和慢日志 |
 
 写库链路是异步的：
 
@@ -182,19 +185,21 @@ HostManager::onDataReceived()
 
 ## 查询服务
 
-`QueryService` 定义在 `proto/query_api.proto`，manager 当前提供 9 个查询接口：
+`QueryService` 定义在 `proto/query_api.proto`，manager 当前提供 11 个查询接口：
 
-| RPC | 说明 |
-|---|---|
-| `QueryPerformance` | 按服务器和时间范围分页查询汇总性能数据 |
-| `QueryTrend` | 查询趋势，可按 `interval_seconds` 聚合 |
-| `QueryAnomaly` | 按阈值查询 CPU、内存、磁盘、变化率异常 |
-| `QueryScoreRank` | 查询服务器评分排行 |
-| `QueryLatestScore` | 查询所有服务器最新评分和集群统计 |
-| `QueryNetDetail` | 查询网卡明细 |
-| `QueryDiskDetail` | 查询磁盘明细 |
-| `QueryMemDetail` | 查询内存明细 |
-| `QuerySoftIrqDetail` | 查询软中断明细 |
+| RPC                  | 说明                                   |
+| -------------------- | -------------------------------------- |
+| `QueryPerformance`   | 按服务器和时间范围分页查询汇总性能数据 |
+| `QueryTrend`         | 查询趋势，可按 `interval_seconds` 聚合 |
+| `QueryAnomaly`       | 按阈值查询 CPU、内存、磁盘、变化率异常 |
+| `QueryScoreRank`     | 查询服务器评分排行                     |
+| `QueryLatestScore`   | 查询所有服务器最新评分和集群统计       |
+| `QueryNetDetail`     | 查询网卡明细                           |
+| `QueryDiskDetail`    | 查询磁盘明细                           |
+| `QueryMemDetail`     | 查询内存明细                           |
+| `QuerySoftIrqDetail` | 查询软中断明细                         |
+| `QueryMysqlDetail`   | 查询 MySQL 实例明细                    |
+| `QueryRedisDetail`   | 查询 Redis 实例明细                    |
 
 所有查询最终进入 `QueryManager` 执行 SQL。`QueryServiceImpl` 会先校验时间范围、分页参数，再把内部结构转换为 protobuf 响应。
 
@@ -202,43 +207,43 @@ HostManager::onDataReceived()
 
 MySQL 连接配置来自 `MysqlConfig`：
 
-| 变量 | 默认/示例 | 说明 |
-|---|---|---|
-| `MYSQL_HOST` | `127.0.0.1` | MySQL 地址 |
-| `MYSQL_PORT` | `3306` | MySQL 端口 |
-| `MYSQL_USER` | `root` | 用户名 |
-| `MYSQL_PASSWORD` | `123456` | 密码 |
-| `MYSQL_DATABASE` | `monitor-system` | 数据库名 |
+| 变量             | 默认/示例        | 说明       |
+| ---------------- | ---------------- | ---------- |
+| `MYSQL_HOST`     | `127.0.0.1`      | MySQL 地址 |
+| `MYSQL_PORT`     | `3306`           | MySQL 端口 |
+| `MYSQL_USER`     | `root`           | 用户名     |
+| `MYSQL_PASSWORD` | `123456`         | 密码       |
+| `MYSQL_DATABASE` | `monitor-system` | 数据库名   |
 
 manager 运行配置来自 `ManagerConfig`：
 
-| 变量 | 默认值 | 说明 |
-|---|---:|---|
-| `MANAGER_GRPC_NUM_CQS` | 4 | gRPC completion queue 数 |
-| `MANAGER_GRPC_MIN_POLLERS` | 8 | gRPC 最小 poller 数 |
-| `MANAGER_GRPC_MAX_POLLERS` | 64 | gRPC 最大 poller 数 |
-| `MANAGER_TASK_QUEUE_CAPACITY` | 10000 | 业务任务队列容量 |
-| `MANAGER_TASK_QUEUE_HIGH_WATERMARK` | 8000 | 高水位，触发扩容 |
-| `MANAGER_TASK_QUEUE_LOW_WATERMARK` | 3000 | 低水位，预留给流控扩展 |
-| `MANAGER_TASK_TIMEOUT_MS` | 3000 | 查询任务等待超时 |
-| `MANAGER_BUSINESS_THREADS_MIN` | 4 | 业务线程最小数量 |
-| `MANAGER_BUSINESS_THREADS_MAX` | 16 | 业务线程最大数量 |
-| `MANAGER_BUSINESS_IDLE_SHRINK_SECONDS` | 30 | 空闲线程回收时间 |
-| `MANAGER_MYSQL_WRITE_POOL_MIN` | 2 | MySQL 写连接池最小连接数 |
-| `MANAGER_MYSQL_WRITE_POOL_MAX` | 4 | MySQL 写连接池最大连接数 |
-| `MANAGER_MYSQL_QUERY_POOL_MIN` | 4 | MySQL 查询连接池最小连接数 |
-| `MANAGER_MYSQL_QUERY_POOL_MAX` | 8 | MySQL 查询连接池最大连接数 |
-| `MANAGER_MYSQL_CONNECT_TIMEOUT_MS` | 1000 | MySQL 连接超时 |
-| `MANAGER_MYSQL_READ_TIMEOUT_MS` | 2000 | MySQL 读取超时 |
-| `MANAGER_MYSQL_HEALTH_CHECK_SECONDS` | 10 | MySQL 连接健康检查间隔 |
-| `MANAGER_MYSQL_IDLE_TTL_SECONDS` | 60 | MySQL 空闲连接 TTL |
-| `MANAGER_REDIS_ENABLED` | true | 是否启用 Redis 缓存 |
-| `MANAGER_REDIS_URI` | `tcp://127.0.0.1:6379` | Redis URI |
-| `MANAGER_REDIS_POOL_MIN` | 2 | Redis 连接池最小连接数 |
-| `MANAGER_REDIS_POOL_MAX` | 8 | Redis 连接池最大连接数 |
-| `MANAGER_REDIS_CACHE_TTL_SECONDS` | 5 | 查询缓存 TTL |
-| `MANAGER_VERBOSE_LOG` | false | 是否打印每次上报的详细数据 |
-| `MANAGER_METRICS_LOG_INTERVAL_SECONDS` | 10 | metrics 日志间隔 |
+| 变量                                   |                 默认值 | 说明                       |
+| -------------------------------------- | ---------------------: | -------------------------- |
+| `MANAGER_GRPC_NUM_CQS`                 |                      4 | gRPC completion queue 数   |
+| `MANAGER_GRPC_MIN_POLLERS`             |                      8 | gRPC 最小 poller 数        |
+| `MANAGER_GRPC_MAX_POLLERS`             |                     64 | gRPC 最大 poller 数        |
+| `MANAGER_TASK_QUEUE_CAPACITY`          |                  10000 | 业务任务队列容量           |
+| `MANAGER_TASK_QUEUE_HIGH_WATERMARK`    |                   8000 | 高水位，触发扩容           |
+| `MANAGER_TASK_QUEUE_LOW_WATERMARK`     |                   3000 | 低水位，预留给流控扩展     |
+| `MANAGER_TASK_TIMEOUT_MS`              |                   3000 | 查询任务等待超时           |
+| `MANAGER_BUSINESS_THREADS_MIN`         |                      4 | 业务线程最小数量           |
+| `MANAGER_BUSINESS_THREADS_MAX`         |                     16 | 业务线程最大数量           |
+| `MANAGER_BUSINESS_IDLE_SHRINK_SECONDS` |                     30 | 空闲线程回收时间           |
+| `MANAGER_MYSQL_WRITE_POOL_MIN`         |                      2 | MySQL 写连接池最小连接数   |
+| `MANAGER_MYSQL_WRITE_POOL_MAX`         |                      4 | MySQL 写连接池最大连接数   |
+| `MANAGER_MYSQL_QUERY_POOL_MIN`         |                      4 | MySQL 查询连接池最小连接数 |
+| `MANAGER_MYSQL_QUERY_POOL_MAX`         |                      8 | MySQL 查询连接池最大连接数 |
+| `MANAGER_MYSQL_CONNECT_TIMEOUT_MS`     |                   1000 | MySQL 连接超时             |
+| `MANAGER_MYSQL_READ_TIMEOUT_MS`        |                   2000 | MySQL 读取超时             |
+| `MANAGER_MYSQL_HEALTH_CHECK_SECONDS`   |                     10 | MySQL 连接健康检查间隔     |
+| `MANAGER_MYSQL_IDLE_TTL_SECONDS`       |                     60 | MySQL 空闲连接 TTL         |
+| `MANAGER_REDIS_ENABLED`                |                   true | 是否启用 Redis 缓存        |
+| `MANAGER_REDIS_URI`                    | `tcp://127.0.0.1:6379` | Redis URI                  |
+| `MANAGER_REDIS_POOL_MIN`               |                      2 | Redis 连接池最小连接数     |
+| `MANAGER_REDIS_POOL_MAX`               |                      8 | Redis 连接池最大连接数     |
+| `MANAGER_REDIS_CACHE_TTL_SECONDS`      |                      5 | 查询缓存 TTL               |
+| `MANAGER_VERBOSE_LOG`                  |                  false | 是否打印每次上报的详细数据 |
+| `MANAGER_METRICS_LOG_INTERVAL_SECONDS` |                     10 | metrics 日志间隔           |
 
 示例配置文件：
 
@@ -359,7 +364,7 @@ export MANAGER_VERBOSE_LOG=true
 
 - `MYSQL_HOST`、`MYSQL_PORT`、`MYSQL_USER`、`MYSQL_PASSWORD`、`MYSQL_DATABASE` 是否正确。
 - `docker compose --env-file configs/app.env -f deploy/docker-compose.yml ps` 中 MySQL 是否 healthy。
-- `manager/sql table/init_server_performance.sql` 是否已执行。
+- `sql table/init_server_performance.sql` 是否已执行。
 
 ### worker 推送成功但查不到数据
 

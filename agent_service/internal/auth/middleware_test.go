@@ -31,6 +31,8 @@ func TestMiddlewareAcceptsTokenAndStoresItInRequestContext(t *testing.T) {
 		UserID:   12,
 		Username: "alice",
 		Role:     "user",
+		TenantID: "tenant-a",
+		TeamID:   "team-a",
 	}, time.Hour)
 	if err != nil {
 		t.Fatalf("生成测试 token 失败: %v", err)
@@ -41,6 +43,10 @@ func TestMiddlewareAcceptsTokenAndStoresItInRequestContext(t *testing.T) {
 	router.GET("/api/agent/ping", func(c *gin.Context) {
 		if got, ok := BearerTokenFromContext(c.Request.Context()); !ok || got != token {
 			t.Fatalf("context 中的 token = %q, ok=%v", got, ok)
+		}
+		claims, ok := ClaimsFromContext(c.Request.Context())
+		if !ok || claims.TenantID != "tenant-a" || claims.TeamID != "team-a" {
+			t.Fatalf("context 中的 claims = %+v, ok=%v", claims, ok)
 		}
 		c.Status(http.StatusOK)
 	})

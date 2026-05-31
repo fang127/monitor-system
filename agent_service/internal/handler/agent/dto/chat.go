@@ -4,8 +4,11 @@ package dto
 
 // ChatReq 定义了聊天请求的结构体，包含用户ID和问题内容
 type ChatReq struct {
-	Id       string `json:"Id" form:"Id"`
-	Question string `json:"Question" form:"Question"`
+	Id        string `json:"Id" form:"Id"`
+	TenantId  string `json:"TenantId" form:"TenantId"`
+	TeamId    string `json:"TeamId" form:"TeamId"`
+	ClusterId string `json:"ClusterId" form:"ClusterId"`
+	Question  string `json:"Question" form:"Question"`
 }
 
 // ChatRes 定义了聊天响应的结构体，包含回答内容
@@ -15,8 +18,11 @@ type ChatRes struct {
 
 // ChatStreamReq 定义了聊天流式请求的结构体，包含用户ID和问题内容
 type ChatStreamReq struct {
-	Id       string `json:"Id" form:"Id"`
-	Question string `json:"Question" form:"Question"`
+	Id        string `json:"Id" form:"Id"`
+	TenantId  string `json:"TenantId" form:"TenantId"`
+	TeamId    string `json:"TeamId" form:"TeamId"`
+	ClusterId string `json:"ClusterId" form:"ClusterId"`
+	Question  string `json:"Question" form:"Question"`
 }
 
 // ChatStreamRes 定义了聊天流式响应的结构体，目前为空，可以根据需要添加字段
@@ -42,4 +48,19 @@ type AIOpsReq struct {
 type AIOpsRes struct {
 	Result string   `json:"result"`
 	Detail []string `json:"detail"`
+}
+
+// MemoryPolicyReq 定义长期记忆策略设置请求。
+type MemoryPolicyReq struct {
+	TenantId        string `json:"tenant_id" form:"tenant_id"`
+	TeamId          string `json:"team_id" form:"team_id"`
+	ClusterId       string `json:"cluster_id" form:"cluster_id"`
+	Level           string `json:"level" form:"level"`
+	LongTermEnabled *bool  `json:"long_term_enabled"`
+	WriteEnabled    *bool  `json:"write_enabled"`
+	RecallEnabled   *bool  `json:"recall_enabled"`
+	RecentWindow    int    `json:"recent_window"`
+	SummaryWindow   int    `json:"summary_window"`
+	RecallLimit     int    `json:"recall_limit"`
+	TokenBudget     int    `json:"token_budget"`
 }

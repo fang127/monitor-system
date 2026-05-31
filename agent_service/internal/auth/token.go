@@ -12,6 +12,8 @@ type Claims struct {
 	UserID   int64  `json:"user_id"`
 	Username string `json:"username"`
 	Role     string `json:"role"`
+	TenantID string `json:"tenant_id,omitempty"`
+	TeamID   string `json:"team_id,omitempty"`
 }
 
 // tokenClaims 是 JWT 中实际存储的结构，包含了用户信息和注册的标准声明
@@ -19,6 +21,8 @@ type tokenClaims struct {
 	UserID   int64  `json:"user_id"`
 	Username string `json:"username"`
 	Role     string `json:"role"`
+	TenantID string `json:"tenant_id,omitempty"`
+	TeamID   string `json:"team_id,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -40,6 +44,8 @@ func (m *TokenManager) Generate(claims Claims, ttl time.Duration) (string, error
 		UserID:   claims.UserID,
 		Username: claims.Username,
 		Role:     claims.Role,
+		TenantID: claims.TenantID,
+		TeamID:   claims.TeamID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   claims.Username,
 			IssuedAt:  jwt.NewNumericDate(now),
@@ -70,5 +76,7 @@ func (m *TokenManager) Parse(rawToken string) (Claims, error) {
 		UserID:   claims.UserID,
 		Username: claims.Username,
 		Role:     claims.Role,
+		TenantID: claims.TenantID,
+		TeamID:   claims.TeamID,
 	}, nil
 }

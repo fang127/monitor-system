@@ -9,17 +9,17 @@ logger:
   level: "all"
   stdout: true
 
-ds_think_chat_model:
+think_chat_model:
   api_key: ""
   base_url: ""
   model: ""
 
-ds_quick_chat_model:
+quick_chat_model:
   api_key: ""
   base_url: ""
   model: ""
 
-doubao_embedding_model:
+embedding_model:
   api_key: ""
   model: "text-embedding-v4"
 
@@ -28,3 +28,13 @@ jwt_secret: "monitor-system-dev-secret"
 api_gateway_base_url: "http://127.0.0.1:8080"
 milvus_addr: "127.0.0.1:19530"
 docs_dir: "./docs"
+
+memory:
+  # 长期记忆默认关闭，避免在未配置治理接口前自动沉淀生产上下文。
+  long_term_enabled: false
+  write_enabled: false
+  recall_enabled: false
+  recent_window: 6
+  summary_window: 12
+  recall_limit: 5
+  token_budget: 1200
