@@ -155,5 +155,3 @@ make -C api_gateway proto
 (cd agent_service && go test ./...)
 npm --prefix web run build
 ```
-
-Go 测试建议把 `GOCACHE` 指向 `/tmp` 下的目录，避免默认 cache 因沙箱或权限不可写。
