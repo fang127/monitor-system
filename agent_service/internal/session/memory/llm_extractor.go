@@ -46,7 +46,11 @@ func (e *LLMExtractor) Extract(ctx context.Context, scope MemoryScope, messages 
 	if e == nil || e.model == nil {
 		return nil, fmt.Errorf("LLM 记忆抽取器未配置")
 	}
-	prompt := buildExtractorPrompt(scope, messages)
+	safeMessages := filterMessagesForExtraction(messages)
+	if len(safeMessages) == 0 {
+		return nil, nil
+	}
+	prompt := buildExtractorPrompt(scope, safeMessages)
 	raw, err := e.model.Generate(ctx, prompt)
 	if err != nil {
 		return nil, err
@@ -71,9 +75,24 @@ func (e *LLMExtractor) Extract(ctx context.Context, scope MemoryScope, messages 
 				candidate.ExpiresAt = &expiresAt
 			}
 		}
+		if !candidate.ShouldStore || !isSafeCandidate(candidate) {
+			continue
+		}
 		candidates = append(candidates, candidate)
 	}
 	return candidates, nil
+}
+
+// filterMessagesForExtraction 在调用 LLM 前先过滤敏感内容、实时指标和明显不稳定的对话片段。
+func filterMessagesForExtraction(messages []*schema.Message) []*schema.Message {
+	filtered := make([]*schema.Message, 0, len(messages))
+	for _, msg := range messages {
+		if !isSafeMessageForExtraction(msg) {
+			continue
+		}
+		filtered = append(filtered, schema.UserMessage(normalizeMemoryContent(msg.Content)))
+	}
+	return filtered
 }
 
 // buildExtractorPrompt 构建 LLM 提示，指导其从对话中抽取结构化记忆候选。
@@ -82,6 +101,7 @@ func buildExtractorPrompt(scope MemoryScope, messages []*schema.Message) string 
 		"你是 agent_service 的长期记忆抽取器。只输出 JSON，不要输出解释。",
 		"只保存稳定、可复用、非敏感的信息：偏好、环境约定、集群拓扑、已确认事故结论、团队流程。",
 		"禁止保存：密码、token、一次性排障中间状态、未确认猜测、实时指标值。",
+		"输入内容已经过本地安全过滤；如果候选仍包含敏感信息或不稳定信息，必须 should_store=false。",
 		"JSON schema: {\"candidates\":[{\"type\":\"preference|cluster_knowledge|incident_note|team_note\",\"content\":\"...\",\"scope_level\":\"team|cluster\",\"confidence\":0.0,\"reason\":\"...\",\"expires_at\":null,\"sensitivity\":\"low|medium|high\",\"should_store\":true}]}。",
 		fmt.Sprintf("当前作用域: tenant=%s team=%s cluster=%s user=%s session=%s", scope.TenantID, scope.TeamID, scope.ClusterID, scope.UserID, scope.SessionID),
 		"对话内容:",
