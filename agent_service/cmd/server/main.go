@@ -34,6 +34,7 @@ func main() {
 		panic(err)
 	}
 	agentGroup := router.Group("/api/agent")
+	// 使用JWT认证中间件保护路由
 	agentGroup.Use(auth.Middleware(auth.NewTokenManager(jwtSecret)))
 	controller.RegisterRoutes(agentGroup)
 	if err := router.Run(fmt.Sprintf(":%d", port)); err != nil {

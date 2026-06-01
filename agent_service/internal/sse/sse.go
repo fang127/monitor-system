@@ -64,8 +64,8 @@ func (s *Service) Create(ctx context.Context, writer http.ResponseWriter, client
 func (c *Client) SendToClient(eventType, data string) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	_, _ = fmt.Fprintf(c.Writer, "id: %d\n", time.Now().UnixNano())
-	_, _ = fmt.Fprintf(c.Writer, "event: %s\n", eventType)
+	_, _ = fmt.Fprintf(c.Writer, "id: %d\n", time.Now().UnixNano()) // 使用当前时间戳作为消息ID
+	_, _ = fmt.Fprintf(c.Writer, "event: %s\n", eventType)          // 设置事件类型
 	for _, line := range strings.Split(data, "\n") {
 		_, _ = fmt.Fprintf(c.Writer, "data: %s\n", line)
 	}

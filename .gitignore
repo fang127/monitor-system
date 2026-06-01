@@ -15,6 +15,10 @@ build
 !web/tsconfig.app.json
 !web/tsconfig.node.json
 
+# golang 
+# test
+*_test.go
+
 # .out
 *.out
 
@@ -41,3 +45,4 @@ AGENTS.md
 
 # codex
 .codex
+.codegraph

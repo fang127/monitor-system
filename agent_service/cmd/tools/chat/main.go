@@ -5,44 +5,52 @@ import (
 	"fmt"
 	"monitor-system/agent_service/internal/ai/pipeline/chat"
 	"monitor-system/agent_service/internal/session/memory"
-
-	"github.com/cloudwego/eino/schema"
 )
 
 func main() {
 	ctx := context.Background()
-	id := "111"
+	scope := memory.MemoryScope{TenantID: "local", TeamID: "local", UserID: "tool", SessionID: "111"}
+	manager := memory.NewInMemoryManager(memory.DefaultConfig())
+
+	memCtx, err := manager.LoadContext(ctx, scope, "你好")
+	if err != nil {
+		panic(err)
+	}
 	userMessage := &chat.UserMessage{
-		ID:      id,
+		ID:      scope.SessionID,
 		Query:   "你好",
-		History: memory.GetSimpleMemory(id).GetMessages(),
+		History: memCtx.RecentMessages,
+		Summary: memCtx.Summary,
 	}
 	runner, err := chat.BuildChatAgent(ctx)
 	if err != nil {
 		panic(err)
 	}
-	// 第一次对话
 	out, err := runner.Invoke(ctx, userMessage)
 	if err != nil {
 		panic(err)
 	}
-	answer := out.Content
 	fmt.Println("Q: 你好")
-	fmt.Println("A:", answer)
-	memory.GetSimpleMemory(id).SetMessages(schema.UserMessage("你好"))
-	memory.GetSimpleMemory(id).SetMessages(schema.SystemMessage(out.Content))
-	// 第二次对话
+	fmt.Println("A:", out.Content)
+	if err := manager.AppendTurn(ctx, scope, "你好", out.Content); err != nil {
+		panic(err)
+	}
+
+	memCtx, err = manager.LoadContext(ctx, scope, "现在是几点")
+	if err != nil {
+		panic(err)
+	}
 	userMessage = &chat.UserMessage{
-		ID:      id,
+		ID:      scope.SessionID,
 		Query:   "现在是几点",
-		History: memory.GetSimpleMemory(id).GetMessages(),
+		History: memCtx.RecentMessages,
+		Summary: memCtx.Summary,
 	}
 	out, err = runner.Invoke(ctx, userMessage)
 	if err != nil {
 		panic(err)
 	}
-	answer = out.Content
 	fmt.Println("----------------")
 	fmt.Println("Q: 现在是几点")
-	fmt.Println("A:", answer)
+	fmt.Println("A:", out.Content)
 }
