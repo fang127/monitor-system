@@ -42,10 +42,15 @@ CREATE TABLE IF NOT EXISTS agent_long_term_memories (
     tenant_id VARCHAR(128) NOT NULL,
     team_id VARCHAR(128) NOT NULL,
     cluster_id VARCHAR(128) NOT NULL DEFAULT '',
+    scope_level VARCHAR(32) NOT NULL DEFAULT 'cluster',
     memory_type VARCHAR(64) NOT NULL,
     content TEXT NOT NULL,
+    content_hash CHAR(64) NOT NULL DEFAULT '',
     source VARCHAR(64) NOT NULL,
     confidence DECIMAL(4,3) NOT NULL DEFAULT 0.800,
+    reason TEXT NULL,
+    sensitivity VARCHAR(32) NOT NULL DEFAULT 'low',
+    conflict_of VARCHAR(64) NULL,
     status VARCHAR(32) NOT NULL,
     created_by VARCHAR(64) NOT NULL,
     created_by_user_id VARCHAR(64) NULL,
@@ -56,7 +61,9 @@ CREATE TABLE IF NOT EXISTS agent_long_term_memories (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_agent_memory_scope_status (tenant_id, team_id, cluster_id, status),
     INDEX idx_agent_memory_type_status (memory_type, status),
-    INDEX idx_agent_memory_created_by_user (created_by_user_id)
+    INDEX idx_agent_memory_created_by_user (created_by_user_id),
+    INDEX idx_agent_memory_content_hash (content_hash),
+    INDEX idx_agent_memory_conflict_of (conflict_of)
 );
 
 CREATE TABLE IF NOT EXISTS agent_memory_events (

@@ -29,6 +29,26 @@ api_gateway_base_url: "http://127.0.0.1:8080"
 milvus_addr: "127.0.0.1:19530"
 docs_dir: "./docs"
 
+agent_mysql:
+  enabled: false
+  host: "127.0.0.1"
+  port: 3306
+  user: "root"
+  password: ""
+  database: "monitor-system"
+  max_open_conns: 8
+  max_idle_conns: 2
+  conn_max_lifetime_seconds: 3600
+
+agent_redis:
+  enabled: false
+  addr: "127.0.0.1:6379"
+  password: ""
+  db: 0
+  dial_timeout_ms: 500
+  read_timeout_ms: 1000
+  write_timeout_ms: 1000
+
 memory:
   # 长期记忆默认关闭，避免在未配置治理接口前自动沉淀生产上下文。
   long_term_enabled: false
@@ -38,3 +58,7 @@ memory:
   summary_window: 12
   recall_limit: 5
   token_budget: 1200
+  session_ttl_seconds: 604800
+  recall_min_score: 0.35
+  auto_active_threshold: 0.82
+  pending_threshold: 0.55
