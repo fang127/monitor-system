@@ -1,18 +1,39 @@
-# agent-memory Specification
+## ADDED Requirements
 
-## Purpose
-TBD - created by archiving change redesign-agent-memory-system. Update Purpose after archive.
-## Requirements
-### Requirement: 分层记忆上下文
-系统 MUST 为 `agent_service` 提供分层记忆上下文，至少包括固定指令、会话最近消息、会话摘要和长期记忆召回结果。
+### Requirement: 旧内存记忆路径移除
+系统 MUST 移除聊天主流程对旧 `SimpleMemory` 全局 map、内存长期记忆和文本匹配向量模拟的依赖，并以新的记忆管理入口处理短期会话、长期记忆和召回。
 
-#### Scenario: 组装聊天上下文
+#### Scenario: 聊天流程不使用 SimpleMemory
 - **WHEN** 用户发起普通聊天或流式聊天请求
-- **THEN** 系统 MUST 按固定指令、会话摘要、最近消息、长期记忆召回结果、知识库文档和当前用户问题的顺序构建模型上下文
+- **THEN** 系统 MUST NOT 通过 `GetSimpleMemory` 或全局 `SimpleMemoryMap` 读取或写入会话历史
 
-#### Scenario: 长期记忆不可用时继续对话
-- **WHEN** 长期记忆功能未启用或长期记忆存储不可用
-- **THEN** 系统 MUST 仍然使用固定指令、会话摘要和最近消息处理当前聊天请求
+#### Scenario: 内存长期记忆不作为生产主路径
+- **WHEN** 长期记忆写入或召回启用
+- **THEN** 系统 MUST 使用长期记忆权威存储和长期记忆向量索引，而不是进程内 map 作为主路径
+
+### Requirement: 长期记忆去重合并和冲突治理
+系统 MUST 在写入长期记忆前执行去重、合并和冲突检测，避免同一事实重复保存或互相矛盾的事实直接污染可召回记忆。
+
+#### Scenario: 相似候选更新旧记忆
+- **WHEN** 新候选长期记忆与同作用域、同类型的现有记忆高度相似且不冲突
+- **THEN** 系统 MUST 更新现有记忆或合并来源信息，而不是创建重复记忆
+
+#### Scenario: 冲突候选进入待确认
+- **WHEN** 新候选长期记忆与现有 active 记忆语义冲突
+- **THEN** 系统 MUST 将新候选标记为 pending 或拒绝写入，并记录冲突原因和审计事件
+
+### Requirement: 记忆可观察性
+系统 MUST 对记忆追加、摘要、抽取、召回、更新、删除和索引操作中的错误记录日志，并为长期记忆治理动作记录审计事件。
+
+#### Scenario: 追加或抽取失败有日志
+- **WHEN** `AppendTurn`、`SummarizeSession` 或 `ExtractDurableMemories` 返回错误
+- **THEN** 聊天处理器 MUST 记录包含作用域和错误原因的日志
+
+#### Scenario: 召回写入审计事件
+- **WHEN** 系统创建、更新、召回、删除或重试删除长期记忆
+- **THEN** 系统 MUST 记录包含记忆 ID、作用域、动作和操作者的审计事件
+
+## MODIFIED Requirements
 
 ### Requirement: 租户团队集群作用域
 系统 MUST 按租户、团队、集群、用户和会话维度组织记忆，并保证不同租户和团队的记忆互相隔离。租户和团队 MUST 来自认证上下文或受信任系统任务，集群和会话可以来自请求参数但 MUST 接受授权约束。长期记忆召回 MUST 使用精确作用域匹配，不得默认把团队级或租户级记忆混入集群级会话。
@@ -66,21 +87,6 @@ TBD - created by archiving change redesign-agent-memory-system. Update Purpose a
 #### Scenario: 摘要失败不阻断回答
 - **WHEN** 模型回答已经生成但会话摘要更新失败
 - **THEN** 系统 MUST 记录错误日志，并允许当前回答返回给用户
-
-### Requirement: 长期记忆显式开关
-系统 MUST 支持长期记忆显式开关，并允许按全局、租户、团队或集群作用域控制长期记忆写入和召回。
-
-#### Scenario: 全局关闭长期记忆
-- **WHEN** 全局长期记忆配置为关闭
-- **THEN** 系统 MUST NOT 写入新的长期记忆，也 MUST NOT 将长期记忆召回结果注入聊天上下文
-
-#### Scenario: 作用域关闭写入
-- **WHEN** 某个团队或集群的长期记忆写入开关关闭
-- **THEN** 系统 MUST NOT 为该作用域创建新的长期记忆
-
-#### Scenario: 作用域关闭召回
-- **WHEN** 某个团队或集群的长期记忆召回开关关闭
-- **THEN** 系统 MUST NOT 在该作用域的聊天上下文中注入长期记忆召回结果
 
 ### Requirement: 长期记忆抽取与治理
 系统 MUST 只把稳定、可复用、非敏感且符合策略的内容保存为长期记忆，并记录来源、类型、作用域、置信度、创建方式、确认状态、生命周期、敏感度和可解释原因字段。长期记忆抽取 MUST 使用结构化 LLM 输出和规则护栏，而不是仅依赖关键词判断。
@@ -149,67 +155,3 @@ TBD - created by archiving change redesign-agent-memory-system. Update Purpose a
 #### Scenario: 查询监控事实
 - **WHEN** 助手需要获取集群概览、服务器异常、性能趋势或指标明细
 - **THEN** 系统 MUST 继续通过 `api_gateway` 工具查询监控事实，而不是从记忆数据库读取实时监控事实
-
-### Requirement: 认证上下文作用域来源
-系统 MUST 从认证上下文派生聊天和记忆治理的租户、团队和用户身份，普通客户端请求体中的租户和团队字段不得作为可信授权来源。
-
-#### Scenario: 聊天请求派生作用域
-- **WHEN** 已登录用户发起普通聊天或流式聊天请求
-- **THEN** 系统 MUST 使用访问令牌中的 `tenant_id`、`team_id` 和 `user_id` 作为记忆作用域基础
-
-#### Scenario: 忽略普通请求体覆盖
-- **WHEN** 普通用户在聊天请求体中传入与访问令牌不一致的 `TenantId` 或 `TeamId`
-- **THEN** 系统 MUST 忽略该覆盖值或拒绝该请求，且 MUST NOT 将记忆写入其他租户或团队
-
-#### Scenario: 管理员显式指定作用域
-- **WHEN** 管理员或受信任系统任务显式指定租户或团队作用域
-- **THEN** 系统 MUST 先完成授权校验，再允许访问或治理该作用域的记忆
-
-### Requirement: 用户会话记忆隔离
-系统 MUST 在短期会话记忆中区分用户身份，避免同一租户、团队、集群下不同用户的相同会话标识互相污染。
-
-#### Scenario: 不同用户使用相同会话 ID
-- **WHEN** 两个不同用户在相同租户、团队和集群内使用相同 `session_id` 发起聊天
-- **THEN** 系统 MUST 为两个用户维护互相隔离的短期会话记忆
-
-#### Scenario: 同一用户继续会话
-- **WHEN** 同一用户在相同租户、团队、集群和 `session_id` 下继续聊天
-- **THEN** 系统 MUST 读取该用户对应的会话摘要和最近消息
-
-#### Scenario: 长期记忆记录创建者
-- **WHEN** 系统创建长期记忆
-- **THEN** 系统 MUST 记录创建该记忆的用户或系统身份，并继续按租户、团队和集群控制召回共享范围
-
-### Requirement: 旧内存记忆路径移除
-系统 MUST 移除聊天主流程对旧 `SimpleMemory` 全局 map、内存长期记忆和文本匹配向量模拟的依赖，并以新的记忆管理入口处理短期会话、长期记忆和召回。
-
-#### Scenario: 聊天流程不使用 SimpleMemory
-- **WHEN** 用户发起普通聊天或流式聊天请求
-- **THEN** 系统 MUST NOT 通过 `GetSimpleMemory` 或全局 `SimpleMemoryMap` 读取或写入会话历史
-
-#### Scenario: 内存长期记忆不作为生产主路径
-- **WHEN** 长期记忆写入或召回启用
-- **THEN** 系统 MUST 使用长期记忆权威存储和长期记忆向量索引，而不是进程内 map 作为主路径
-
-### Requirement: 长期记忆去重合并和冲突治理
-系统 MUST 在写入长期记忆前执行去重、合并和冲突检测，避免同一事实重复保存或互相矛盾的事实直接污染可召回记忆。
-
-#### Scenario: 相似候选更新旧记忆
-- **WHEN** 新候选长期记忆与同作用域、同类型的现有记忆高度相似且不冲突
-- **THEN** 系统 MUST 更新现有记忆或合并来源信息，而不是创建重复记忆
-
-#### Scenario: 冲突候选进入待确认
-- **WHEN** 新候选长期记忆与现有 active 记忆语义冲突
-- **THEN** 系统 MUST 将新候选标记为 pending 或拒绝写入，并记录冲突原因和审计事件
-
-### Requirement: 记忆可观察性
-系统 MUST 对记忆追加、摘要、抽取、召回、更新、删除和索引操作中的错误记录日志，并为长期记忆治理动作记录审计事件。
-
-#### Scenario: 追加或抽取失败有日志
-- **WHEN** `AppendTurn`、`SummarizeSession` 或 `ExtractDurableMemories` 返回错误
-- **THEN** 聊天处理器 MUST 记录包含作用域和错误原因的日志
-
-#### Scenario: 召回写入审计事件
-- **WHEN** 系统创建、更新、召回、删除或重试删除长期记忆
-- **THEN** 系统 MUST 记录包含记忆 ID、作用域、动作和操作者的审计事件
-

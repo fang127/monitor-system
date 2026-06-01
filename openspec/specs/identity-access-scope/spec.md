@@ -1,11 +1,14 @@
-## ADDED Requirements
+# identity-access-scope Specification
 
+## Purpose
+TBD - created by archiving change unify-tenant-team-cluster-scope. Update Purpose after archive.
+## Requirements
 ### Requirement: 基础身份作用域
 系统 MUST 提供统一的租户、团队、用户和成员关系模型，用于描述用户可访问的业务作用域。
 
-#### Scenario: 创建默认身份作用域
-- **WHEN** 系统初始化或从旧版单租户数据迁移
-- **THEN** 系统 MUST 创建默认租户、默认团队，并把既有用户加入默认团队
+#### Scenario: 显式创建身份作用域
+- **WHEN** 系统初始化基础身份表
+- **THEN** 系统 MUST 只创建租户、团队、用户和成员关系表结构，不得自动创建默认租户或默认团队
 
 #### Scenario: 用户归属团队
 - **WHEN** 管理员创建或更新用户团队关系
@@ -59,3 +62,4 @@
 #### Scenario: 初始化记忆表
 - **WHEN** 部署初始化 AI 记忆数据库
 - **THEN** AI 记忆 schema MUST NOT 负责创建或维护登录用户表
+
