@@ -3,8 +3,8 @@ package retriever
 import (
 	"context"
 	"monitor-system/agent_service/internal/ai/embedder"
-	"monitor-system/agent_service/internal/storage/knowledge"
 	storageMilvus "monitor-system/agent_service/internal/storage/milvus"
+	"monitor-system/agent_service/internal/storage/milvus_config"
 	"strings"
 
 	einoMilvus "github.com/cloudwego/eino-ext/components/retriever/milvus"
@@ -26,7 +26,7 @@ func NewMilvusRetriever(ctx context.Context) (rtr einoRetriever.Retriever, err e
 	}
 	r, err := einoMilvus.NewRetriever(ctx, &einoMilvus.RetrieverConfig{
 		Client:      cli,
-		Collection:  knowledge.MilvusCollectionName,
+		Collection:  milvus_config.AgentOpsDocsCollection,
 		VectorField: "vector",
 		OutputFields: []string{
 			"id",

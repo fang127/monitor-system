@@ -7,8 +7,8 @@ import (
 	"monitor-system/agent_service/internal/ai/callback"
 	loader2 "monitor-system/agent_service/internal/ai/loader"
 	knowledgepipeline "monitor-system/agent_service/internal/ai/pipeline/knowledge"
-	"monitor-system/agent_service/internal/storage/knowledge"
 	"monitor-system/agent_service/internal/storage/milvus"
+	"monitor-system/agent_service/internal/storage/milvus_config"
 	"path/filepath"
 	"strings"
 
@@ -52,7 +52,7 @@ func main() {
 		}
 		// 查询所有metadata中_source一样的数据并删除
 		expr := fmt.Sprintf(`metadata["_source"] == "%s"`, docs[0].MetaData["_source"])
-		queryResult, err := cli.Query(ctx, knowledge.MilvusCollectionName, []string{}, expr, []string{"id"})
+		queryResult, err := cli.Query(ctx, milvus_config.AgentOpsDocsCollection, []string{}, expr, []string{"id"})
 		if err != nil {
 			return err
 		} else if len(queryResult) > 0 {
@@ -71,7 +71,7 @@ func main() {
 			// 删除这些数据
 			if len(idsToDelete) > 0 {
 				deleteExpr := fmt.Sprintf(`id in ["%s"]`, strings.Join(idsToDelete, `","`))
-				err = cli.Delete(ctx, knowledge.MilvusCollectionName, "", deleteExpr)
+				err = cli.Delete(ctx, milvus_config.AgentOpsDocsCollection, "", deleteExpr)
 				if err != nil {
 					fmt.Printf("[warn] delete existing data failed: %v\n", err)
 				} else {

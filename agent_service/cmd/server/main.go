@@ -7,7 +7,7 @@ import (
 	"monitor-system/agent_service/internal/config"
 	"monitor-system/agent_service/internal/handler/agent"
 	"monitor-system/agent_service/internal/response"
-	"monitor-system/agent_service/internal/storage/knowledge"
+	"monitor-system/agent_service/internal/storage/milvus_config"
 
 	"github.com/gin-gonic/gin"
 )
@@ -19,7 +19,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	knowledge.FileDir = fileDir
+	milvus_config.FileDir = fileDir
 	// 读取端口配置项
 	port, err := config.ConfigInt(ctx, "agent_service_port", "AGENT_SERVICE_PORT", 6872)
 	if err != nil {

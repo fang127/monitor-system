@@ -3,8 +3,8 @@ package indexer
 import (
 	"context"
 	embedder2 "monitor-system/agent_service/internal/ai/embedder"
-	"monitor-system/agent_service/internal/storage/knowledge"
 	storageMilvus "monitor-system/agent_service/internal/storage/milvus"
+	"monitor-system/agent_service/internal/storage/milvus_config"
 
 	einoMilvus "github.com/cloudwego/eino-ext/components/indexer/milvus"
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
@@ -24,7 +24,7 @@ func NewMilvusIndexer(ctx context.Context) (*einoMilvus.Indexer, error) {
 	}
 	config := &einoMilvus.IndexerConfig{
 		Client:     cli,
-		Collection: knowledge.MilvusCollectionName,
+		Collection: milvus_config.AgentOpsDocsCollection,
 		Fields:     fields,
 		Embedding:  eb,
 	}
