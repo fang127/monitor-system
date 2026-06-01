@@ -1,3 +1,4 @@
+// 提供了记忆系统核心的数据结构定义，包括作用域、策略、记忆内容和事件等，支持短期会话记忆和长期记忆的统一管理。
 package memory
 
 import (
@@ -23,6 +24,7 @@ type MemoryScope struct {
 	TenantID  string `json:"tenant_id"`
 	TeamID    string `json:"team_id"`
 	ClusterID string `json:"cluster_id,omitempty"`
+	UserID    string `json:"user_id,omitempty"`
 	SessionID string `json:"session_id,omitempty"`
 }
 
@@ -32,6 +34,7 @@ func (s MemoryScope) Normalized() MemoryScope {
 		TenantID:  strings.TrimSpace(s.TenantID),
 		TeamID:    strings.TrimSpace(s.TeamID),
 		ClusterID: strings.TrimSpace(s.ClusterID),
+		UserID:    strings.TrimSpace(s.UserID),
 		SessionID: strings.TrimSpace(s.SessionID),
 	}
 }
@@ -88,7 +91,7 @@ func ValidatePolicyScope(level ScopeLevel, scope MemoryScope) error {
 // SessionKey 返回短期会话记忆使用的唯一键。
 func (s MemoryScope) SessionKey() string {
 	scope := s.Normalized()
-	return strings.Join([]string{scope.TenantID, scope.TeamID, scope.ClusterID, scope.SessionID}, "/")
+	return strings.Join([]string{scope.TenantID, scope.TeamID, scope.ClusterID, scope.UserID, scope.SessionID}, "/")
 }
 
 // PolicyKey 返回指定层级的策略键。
@@ -147,43 +150,51 @@ type EffectivePolicy struct {
 
 // MemoryConfig 是记忆系统的默认配置。
 type MemoryConfig struct {
-	LongTermEnabled bool
-	WriteEnabled    bool
-	RecallEnabled   bool
-	RecentWindow    int
-	SummaryWindow   int
-	RecallLimit     int
-	TokenBudget     int
+	LongTermEnabled     bool
+	WriteEnabled        bool
+	RecallEnabled       bool
+	RecentWindow        int
+	SummaryWindow       int
+	RecallLimit         int
+	TokenBudget         int
+	SessionTTLSeconds   int
+	RecallMinScore      float64
+	AutoActiveThreshold float64
+	PendingThreshold    float64
 }
 
 // DefaultConfig 返回长期记忆默认关闭的安全配置。
 func DefaultConfig() MemoryConfig {
 	return MemoryConfig{
-		LongTermEnabled: false,
-		WriteEnabled:    false,
-		RecallEnabled:   false,
-		RecentWindow:    6,
-		SummaryWindow:   12,
-		RecallLimit:     5,
-		TokenBudget:     1200,
+		LongTermEnabled:     false,
+		WriteEnabled:        false,
+		RecallEnabled:       false,
+		RecentWindow:        6,
+		SummaryWindow:       12,
+		RecallLimit:         5,
+		TokenBudget:         1200,
+		SessionTTLSeconds:   7 * 24 * 3600,
+		RecallMinScore:      0.35,
+		AutoActiveThreshold: 0.82,
+		PendingThreshold:    0.55,
 	}
 }
 
 // MemoryContext 是聊天流程加载到的完整记忆上下文。
 type MemoryContext struct {
-	Scope          MemoryScope       `json:"scope"`
-	Policy         EffectivePolicy   `json:"policy"`
-	Summary        string            `json:"summary"`
-	RecentMessages []*schema.Message `json:"recent_messages"`
-	LongTerm       []LongTermMemory  `json:"long_term"`
+	Scope          MemoryScope       `json:"scope"`           // 作用域，包含租户、团队、集群、用户和会话信息，由系统根据当前对话环境自动填充。
+	Policy         EffectivePolicy   `json:"policy"`          // 当前生效的记忆策略，由系统根据作用域层级合并计算得出。
+	Summary        string            `json:"summary"`         // 会话摘要，包含近期对话的核心信息，由系统维护更新。
+	RecentMessages []*schema.Message `json:"recent_messages"` // 短期记忆窗口内的消息列表，按时间顺序排列，由系统维护更新。
+	LongTerm       []LongTermMemory  `json:"long_term"`       // 召回的长期记忆列表，按相关度排序，由系统根据策略和查询自动更新。
 }
 
 // SessionMemory 保存单个会话的短期窗口和滚动摘要。
 type SessionMemory struct {
-	Scope     MemoryScope       `json:"scope"`
-	Summary   string            `json:"summary"`
-	Messages  []*schema.Message `json:"messages"`
-	UpdatedAt time.Time         `json:"updated_at"`
+	Scope     MemoryScope       `json:"scope"`      // 作用域，包含租户、团队、集群、用户和会话信息，由系统根据当前对话环境自动填充。
+	Summary   string            `json:"summary"`    // 会话摘要，包含近期对话的核心信息，由系统维护更新。
+	Messages  []*schema.Message `json:"messages"`   // 短期记忆窗口内的消息列表，按时间顺序排列，由系统维护更新。
+	UpdatedAt time.Time         `json:"updated_at"` // 上次更新短期记忆的时间戳，由系统自动维护。
 }
 
 // LongTermStatus 表示长期记忆的治理状态。
@@ -198,38 +209,58 @@ const (
 
 // LongTermMemory 表示一条可治理的长期记忆。
 type LongTermMemory struct {
-	ID         string         `json:"id"`
-	Scope      MemoryScope    `json:"scope"`
-	Type       string         `json:"type"`
-	Content    string         `json:"content"`
-	Source     string         `json:"source"`
-	Confidence float64        `json:"confidence"`
-	Status     LongTermStatus `json:"status"`
-	CreatedBy  string         `json:"created_by"`
-	VectorID   string         `json:"vector_id,omitempty"`
-	CreatedAt  time.Time      `json:"created_at"`
-	UpdatedAt  time.Time      `json:"updated_at"`
-	LastUsedAt *time.Time     `json:"last_used_at,omitempty"`
-	ExpiresAt  *time.Time     `json:"expires_at,omitempty"`
+	ID              string         `json:"id"`
+	Scope           MemoryScope    `json:"scope"`
+	ScopeLevel      ScopeLevel     `json:"scope_level,omitempty"`
+	Type            string         `json:"type"`
+	Content         string         `json:"content"`
+	ContentHash     string         `json:"content_hash,omitempty"`
+	Source          string         `json:"source"`
+	Confidence      float64        `json:"confidence"`
+	Reason          string         `json:"reason,omitempty"`
+	Sensitivity     string         `json:"sensitivity,omitempty"`
+	ConflictOf      string         `json:"conflict_of,omitempty"`
+	Status          LongTermStatus `json:"status"`
+	CreatedBy       string         `json:"created_by"`
+	CreatedByUserID string         `json:"created_by_user_id,omitempty"`
+	VectorID        string         `json:"vector_id,omitempty"`
+	CreatedAt       time.Time      `json:"created_at"`
+	UpdatedAt       time.Time      `json:"updated_at"`
+	LastUsedAt      *time.Time     `json:"last_used_at,omitempty"`
+	ExpiresAt       *time.Time     `json:"expires_at,omitempty"`
 }
 
 // MemorySelector 描述查看、召回或删除长期记忆时的筛选条件。
 type MemorySelector struct {
-	ID             string
-	Scope          MemoryScope
-	Type           string
-	Status         LongTermStatus
-	IncludeDeleted bool
-	Query          string
-	Limit          int
+	ID             string         // 精确匹配记忆 ID，优先级最高。
+	Scope          MemoryScope    // 作用域，包含租户、团队、集群、用户和会话信息，由系统根据当前对话环境自动填充。
+	Type           string         // 记忆类型，支持模糊匹配。
+	Status         LongTermStatus // 记忆状态，支持模糊匹配。
+	IncludeDeleted bool           // 是否包含已删除的记忆，默认为 false。
+	Query          string         // 召回查询字符串，支持模糊匹配记忆内容。
+	Limit          int            // 返回的记忆数量限制，默认为 10。
+	MinScore       float64        // 召回的最小相关度分数，默认为 0.35。
+}
+
+// MemoryCandidate 是结构化抽取得到的长期记忆候选。
+type MemoryCandidate struct {
+	Type        string     `json:"type"`
+	Content     string     `json:"content"`
+	ScopeLevel  ScopeLevel `json:"scope_level"`
+	Confidence  float64    `json:"confidence"`
+	Reason      string     `json:"reason"`
+	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
+	Sensitivity string     `json:"sensitivity"`
+	ShouldStore bool       `json:"should_store"`
 }
 
 // MemoryEvent 记录记忆治理事件，便于后续审计。
 type MemoryEvent struct {
-	ID        string      `json:"id"`
-	MemoryID  string      `json:"memory_id,omitempty"`
-	Scope     MemoryScope `json:"scope"`
-	Action    string      `json:"action"`
-	Detail    string      `json:"detail,omitempty"`
-	CreatedAt time.Time   `json:"created_at"`
+	ID          string      `json:"id"`
+	MemoryID    string      `json:"memory_id,omitempty"`
+	Scope       MemoryScope `json:"scope"`
+	Action      string      `json:"action"`
+	ActorUserID string      `json:"actor_user_id,omitempty"`
+	Detail      string      `json:"detail,omitempty"`
+	CreatedAt   time.Time   `json:"created_at"`
 }
