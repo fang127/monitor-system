@@ -64,6 +64,29 @@ func ConfigInt(ctx context.Context, key string, envName string, fallback int) (i
 	return fallback, err
 }
 
+// ConfigFloat 从环境变量或配置文件中获取浮点类型的配置值，优先级为：环境变量 > 配置文件 > 默认值
+func ConfigFloat(ctx context.Context, key string, envName string, fallback float64) (float64, error) {
+	if value := os.Getenv(envName); value != "" {
+		return strconv.ParseFloat(value, 64)
+	}
+	value, err := configValue(ctx, key)
+	if err == nil && value != nil {
+		switch typed := value.(type) {
+		case int:
+			return float64(typed), nil
+		case int64:
+			return float64(typed), nil
+		case float64:
+			return typed, nil
+		case string:
+			return strconv.ParseFloat(typed, 64)
+		default:
+			return strconv.ParseFloat(fmt.Sprintf("%v", value), 64)
+		}
+	}
+	return fallback, nil
+}
+
 // ConfigBool 从环境变量或配置文件中获取布尔类型的配置值，优先级为：环境变量 > 配置文件 > 默认值
 func ConfigBool(ctx context.Context, key string, envName string, fallback bool) (bool, error) {
 	if value := os.Getenv(envName); value != "" {
